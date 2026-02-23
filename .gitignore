@@ -1,0 +1,38 @@
+# General
+.DS_Store
+*.log
+*.zip
+nul
+
+# Node.js
+**/node_modules/
+**/dist/
+.env
+deploy.env
+
+# Flutter / Dart
+**/build/
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.pub-cache/
+**/.pub/
+**/coverage/
+
+# IDEs
+**/.idea/
+**/.vscode/
+**/*.iml
+**/*.ipr
+**/*.iws
+
+# Android specific build artifacts
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+
+# Temp / Fix scripts
+fix.js
+create_admin.js
+create_admin.js
+create_admin_log.txt

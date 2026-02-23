@@ -1,0 +1,431 @@
+Build a production-ready WhatsApp-like messaging application with my own branding (Infexor) using the following strict tech stack and requirements.
+
+🏗️ Tech Stack (STRICT)
+
+Mobile App
+
+Flutter (latest stable)
+
+Android + iOS support
+
+Clean architecture
+
+Production ready
+
+Backend (VPS Hosted)
+
+Node.js + Express 5
+
+MongoDB + Mongoose
+
+Socket.io for realtime messaging
+
+JWT authentication
+
+Redis (recommended for presence & queues)
+
+Nginx reverse proxy on VPS
+
+Admin Panel
+
+Vanilla HTML/CSS/JS
+
+Separate admin JWT
+
+Role-based access
+
+🎨 App Branding
+
+App name: Infexor Chat
+Theme: Dark modern premium
+Accent color: Blue/Purple tech gradient
+Design style: Clean, minimal, WhatsApp-level polish
+
+✨ SPLASH SCREEN (IMPORTANT)
+
+Create a beautiful premium splash screen.
+
+Requirements
+
+Dark gradient background
+
+Centered Infexor logo
+
+Subtle glow animation
+
+Smooth fade-in
+
+App name below logo
+
+Fast loading
+
+No lag
+
+After Splash Flow
+
+Splash → Phone Login → OTP → Profile Setup → Home
+
+🔐 AUTHENTICATION (PHONE ONLY — STRICT)
+Features
+
+Phone number login only
+
+Country picker
+
+OTP verification via SMS
+
+Auto-read OTP (Android)
+
+Resend OTP timer
+
+Device registration
+
+JWT token system
+
+Secure session storage
+
+Logout from all devices
+
+Blocked user check
+
+⚠️ No email login.
+
+📇 CONTACT SYNC (MUST IMPLEMENT)
+Features
+
+Ask contacts permission properly
+
+Read device contacts
+
+Hash phone numbers before sending
+
+Match with registered users
+
+Show "On Infexor Chat"
+
+Invite non-users
+
+Background periodic sync
+
+Privacy controls
+
+Flutter Plugins
+
+flutter_contacts
+
+permission_handler
+
+Backend
+
+Fast phone index lookup
+
+Privacy filtering
+
+Rate limiting
+
+💬 REAL-TIME CHAT SYSTEM
+Chat Types
+
+One-to-one chat
+
+Group chat
+
+Broadcast list (optional)
+
+Message Types
+
+Text
+
+Emoji
+
+Images
+
+Videos
+
+Voice notes
+
+Documents
+
+Location
+
+Contact share
+
+GIF support
+
+Realtime Features
+
+Socket.io messaging
+
+Typing indicator
+
+Online/offline
+
+Last seen
+
+Read receipts ✓✓
+
+Message reactions
+
+Reply to message
+
+Forward message
+
+Delete for everyone
+
+Message search
+
+Starred messages
+
+📁 MEDIA SYSTEM
+
+Image compression
+
+Video compression
+
+Voice recording
+
+Upload to cloud storage
+
+CDN delivery
+
+Auto-download settings
+
+Media preview
+
+Chat media gallery
+
+🔔 PUSH NOTIFICATIONS
+
+Use Firebase Cloud Messaging.
+
+Features
+
+Message notifications
+
+Group notifications
+
+Silent push
+
+Custom sound
+
+Background handling
+
+Notification click routing
+
+👥 GROUP FEATURES
+
+Create group
+
+Add/remove members
+
+Admin roles
+
+Group invite link
+
+Mute group
+
+Exit group
+
+Group description
+
+Group avatar
+
+🟢 PRESENCE SYSTEM
+
+Online/offline
+
+Last seen
+
+Typing…
+
+Recording…
+
+Heartbeat via Socket.io
+
+Redis recommended
+
+🛡️ PRIVACY SETTINGS
+
+Last seen privacy
+
+Profile photo privacy
+
+About privacy
+
+Read receipts toggle
+
+Block users
+
+Two-step verification (optional phase 2)
+
+⚙️ ADMIN PANEL (FULL CONTROL)
+
+Create a secure web admin panel.
+
+Admin Features
+Dashboard
+
+Total users
+
+Active users
+
+Messages per day
+
+Media usage
+
+Server health
+
+User Management
+
+View/search users
+
+Ban/suspend users
+
+Force logout
+
+View devices
+
+User activity
+
+Reports System
+
+User reports
+
+Message reports
+
+Group reports
+
+Action tools
+
+Broadcast System
+
+Send push to all users
+
+Segment users
+
+Schedule broadcasts
+
+System Monitoring
+
+Active sockets
+
+Server CPU/RAM
+
+Error logs
+
+Notification status
+
+🗄️ DATABASE (MongoDB)
+
+Use optimized schemas for:
+
+Users
+
+Devices
+
+Contacts
+
+Chats
+
+Messages
+
+Groups
+
+GroupMembers
+
+Calls (future)
+
+Reports
+
+Admins
+
+Broadcasts
+
+Ensure proper indexing for:
+
+phone
+
+chatId
+
+message timestamps
+
+online status
+
+🚀 VPS DEPLOYMENT
+
+Target production VPS deployment.
+
+Requirements
+
+Nginx reverse proxy
+
+PM2 process manager
+
+Environment configs
+
+Secure CORS
+
+Rate limiting
+
+Helmet security
+
+Compression
+
+Scalable Socket.io setup
+
+MongoDB production config
+
+🔒 SECURITY BEST PRACTICES
+
+Hash sensitive data
+
+Validate all inputs
+
+Rate limit OTP
+
+Prevent spam
+
+JWT expiry & refresh
+
+Secure media URLs
+
+Abuse detection hooks
+
+📱 PERMISSIONS (HANDLE PROPERLY)
+
+App must request properly:
+
+Contacts
+
+Notifications
+
+Microphone
+
+Camera
+
+Storage/photos
+
+Background activity (if needed)
+
+Use best UX permission flow (not aggressive).
+
+🎯 QUALITY BAR
+
+The final product must feel:
+
+WhatsApp-level smooth
+
+Production ready
+
+Highly scalable
+
+Clean architecture
+
+No dummy code
+
+Professional UI/UX
+
+Optimized performance
+
+
+also u can change according to my vps 
