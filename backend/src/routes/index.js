@@ -8,6 +8,7 @@ const chatRoutes = require('./chatRoutes');
 const uploadRoutes = require('./uploadRoutes');
 const groupRoutes = require('./groupRoutes');
 const statusRoutes = require('./statusRoutes');
+const aiRoutes = require('./aiRoutes');
 
 const router = express.Router();
 
@@ -29,5 +30,6 @@ router.use('/chats', chatRoutes);
 router.use('/upload', uploadRoutes);
 router.use('/groups', groupRoutes);
 router.use('/status', statusRoutes);
+router.use('/ai', aiRoutes);
 
 module.exports = router;

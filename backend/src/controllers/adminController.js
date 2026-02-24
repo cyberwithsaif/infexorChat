@@ -268,12 +268,21 @@ exports.sendBroadcast = async (req, res, next) => {
             return ApiResponse.badRequest(res, 'Title and content are required');
         }
 
-        // Build user filter based on segment
+        // Map segment values to schema enum and build filter
+        const segmentMap = {
+            'active_week': 'active',
+            'active_month': 'active',
+            'all': 'all',
+            'active': 'active',
+            'inactive': 'inactive'
+        };
+        const mappedSegment = segmentMap[segment] || 'all';
+
         const filter = { status: 'active' };
-        if (segment === 'active_week') {
+        if (mappedSegment === 'active') {
             filter.lastSeen = { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) };
-        } else if (segment === 'active_month') {
-            filter.lastSeen = { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) };
+        } else if (mappedSegment === 'inactive') {
+            filter.lastSeen = { $lt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) };
         }
 
         const users = await User.find(filter)
@@ -284,8 +293,8 @@ exports.sendBroadcast = async (req, res, next) => {
         const broadcast = await Broadcast.create({
             title,
             content,
-            segment: segment || 'all',
-            sentBy: req.admin._id,
+            segment: mappedSegment,
+            createdBy: req.admin.adminId,
             sentAt: new Date(),
             recipientCount: users.length,
             status: 'sent',

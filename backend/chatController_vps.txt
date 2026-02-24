@@ -1,0 +1,205 @@
+﻿const { Chat, Message, User } = require('../models');
+const ApiResponse = require('../utils/apiResponse');
+
+/**
+ * POST /chats/create
+ * Create or get existing 1:1 chat
+ */
+exports.createChat = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const { participantId } = req.body;
+
+    if (!participantId) {
+      return ApiResponse.badRequest(res, 'participantId is required');
+    }
+
+    if (participantId === userId) {
+      return ApiResponse.badRequest(res, 'Cannot create chat with yourself');
+    }
+
+    // Check participant exists
+    const participant = await User.findById(participantId);
+    if (!participant) {
+      return ApiResponse.notFound(res, 'User not found');
+    }
+
+    // Check if chat already exists
+    let chat = await Chat.findOne({
+      type: 'private',
+      participants: { $all: [userId, participantId], $size: 2 },
+    }).populate('lastMessage');
+
+    if (chat) {
+      return ApiResponse.success(res, { chat }, 'Chat already exists');
+    }
+
+    // Create new chat
+    chat = await Chat.create({
+      type: 'private',
+      participants: [userId, participantId],
+      createdBy: userId,
+      lastMessageAt: new Date(),
+    });
+
+    return ApiResponse.created(res, { chat }, 'Chat created');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /chats
+ * List user's chats (paginated, sorted by last message)
+ */
+exports.getChats = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 30;
+    const skip = (page - 1) * limit;
+
+    const chats = await Chat.find({
+      participants: userId,
+    })
+      .populate('participants', 'name avatar isOnline lastSeen phone')
+      .populate('groupId', 'name avatar description memberCount')
+      .populate('lastMessage')
+      .sort({ lastMessageAt: -1, updatedAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    // Batch unread count — single aggregate instead of N+1 queries
+    const chatIds = chats.map((c) => c._id);
+    const unreadAgg = await Message.aggregate([
+      {
+        $match: {
+          chatId: { $in: chatIds },
+          senderId: { $ne: require('mongoose').Types.ObjectId.createFromHexString(userId) },
+          'readBy.userId': { $ne: require('mongoose').Types.ObjectId.createFromHexString(userId) },
+          deletedFor: { $ne: require('mongoose').Types.ObjectId.createFromHexString(userId) },
+        },
+      },
+      { $group: { _id: '$chatId', count: { $sum: 1 } } },
+    ]);
+
+    const unreadMap = {};
+    unreadAgg.forEach((item) => {
+      unreadMap[item._id.toString()] = item.count;
+    });
+
+    const chatsWithUnread = chats.map((chat) => ({
+      ...chat,
+      unreadCount: unreadMap[chat._id.toString()] || 0,
+    }));
+
+    return ApiResponse.success(res, { chats: chatsWithUnread });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /chats/:chatId/messages
+ * Get messages for a chat (cursor-based pagination)
+ */
+exports.getMessages = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const { chatId } = req.params;
+    const { before, limit: queryLimit } = req.query;
+    const limit = parseInt(queryLimit) || 50;
+
+    // Verify user is participant
+    const chat = await Chat.findOne({
+      _id: chatId,
+      participants: userId,
+    });
+
+    if (!chat) {
+      return ApiResponse.notFound(res, 'Chat not found');
+    }
+
+    const query = {
+      chatId,
+      deletedFor: { $ne: userId },
+    };
+
+    // Cursor-based: get messages before this ID
+    if (before) {
+      query._id = { $lt: before };
+    }
+
+    const messages = await Message.find(query)
+      .populate('senderId', 'name avatar')
+      .populate('replyTo', 'content type senderId')
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean();
+
+    return ApiResponse.success(res, {
+      messages: messages.reverse(),
+      hasMore: messages.length === limit,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /chats/:chatId/media
+ * Get media messages for a chat (images, videos, audio, documents)
+ */
+exports.getChatMedia = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const { chatId } = req.params;
+    const { type, page: queryPage, limit: queryLimit } = req.query;
+    const page = parseInt(queryPage) || 1;
+    const limit = parseInt(queryLimit) || 30;
+    const skip = (page - 1) * limit;
+
+    // Verify user is participant
+    const chat = await Chat.findOne({ _id: chatId, participants: userId });
+    if (!chat) {
+      return ApiResponse.notFound(res, 'Chat not found');
+    }
+
+    // Build type filter
+    let typeFilter;
+    if (type === 'media') {
+      typeFilter = { $in: ['image', 'video'] };
+    } else if (type === 'docs') {
+      typeFilter = 'document';
+    } else if (type === 'audio') {
+      typeFilter = { $in: ['audio', 'voice'] };
+    } else {
+      typeFilter = { $in: ['image', 'video', 'audio', 'voice', 'document'] };
+    }
+
+    const query = {
+      chatId,
+      type: typeFilter,
+      deletedFor: { $ne: userId },
+      deletedForEveryone: { $ne: true },
+    };
+
+    const total = await Message.countDocuments(query);
+    const messages = await Message.find(query)
+      .populate('senderId', 'name avatar')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    return ApiResponse.success(res, {
+      messages,
+      total,
+      page,
+      hasMore: skip + messages.length < total,
+    });
+  } catch (error) {
+    next(error);
+  }
+};

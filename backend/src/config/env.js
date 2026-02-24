@@ -49,4 +49,13 @@ module.exports = {
       document: parseInt(process.env.MAX_DOCUMENT_SIZE, 10) || 100 * 1024 * 1024, // 100 MB
     },
   },
+
+  // AI Bot / n8n / Gemini
+  ai: {
+    webhookUrl: process.env.N8N_WEBHOOK_URL || 'http://72.61.171.190:5678/webhook/infexor-ai-reply',
+    webhookSecret: process.env.N8N_WEBHOOK_SECRET || 'infexor-secure-ai-secret-2025',
+    botUserId: process.env.AI_BOT_USER_ID || '',
+    enabled: process.env.AI_ENABLED === 'true',
+    geminiKey: process.env.GEMINI_API_KEY || '',
+  },
 };

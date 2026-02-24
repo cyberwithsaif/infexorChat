@@ -1,9 +1,41 @@
 const jwt = require('jsonwebtoken');
+const axios = require('axios');
 const env = require('../config/env');
 const { Chat, Message, User } = require('../models');
 const presenceService = require('./presenceService');
 const notificationService = require('./notificationService');
 const logger = require('../utils/logger');
+
+/**
+ * Fire-and-forget webhook to n8n for AI auto-reply
+ * Only triggers for non-AI text messages when AI is enabled
+ */
+async function triggerAIWebhook(chatId, userId, messageContent) {
+  if (!env.ai.enabled) return;
+  if (!env.ai.webhookUrl) return;
+  if (!messageContent || messageContent.trim().length === 0) return;
+
+  try {
+    await axios.post(
+      env.ai.webhookUrl,
+      {
+        chatId: chatId.toString(),
+        userId: userId.toString(),
+        message: messageContent,
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Webhook-Secret': env.ai.webhookSecret,
+        },
+        timeout: 5000,
+      }
+    );
+    logger.info(`[AI] Webhook triggered for chat ${chatId}`);
+  } catch (err) {
+    logger.error(`[AI] Webhook trigger failed: ${err.message}`);
+  }
+}
 
 // Map userId -> Set of socket IDs
 const userSockets = new Map();
@@ -198,6 +230,15 @@ function initSocketHandlers(io) {
         });
 
         callback?.({ success: true, message: populatedMsg });
+
+        // ─── AI AUTO-REPLY (built-in bot) ───
+        // Only trigger for non-AI, text messages to prevent loops
+        if (!data.isAI && (type === 'text' || !type) && content) {
+          const { handleAutoReply } = require('./aiBotService');
+          handleAutoReply(chatId, userId, content).catch((err) =>
+            logger.error('[AI] Bot auto-reply error:', err)
+          );
+        }
       } catch (error) {
         logger.error('message:send error:', error);
         callback?.({ error: 'Failed to send message' });
