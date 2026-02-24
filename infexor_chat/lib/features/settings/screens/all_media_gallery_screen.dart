@@ -22,6 +22,10 @@ class _AllMediaGalleryScreenState extends ConsumerState<AllMediaGalleryScreen> {
   int _page = 1;
   bool _hasMore = true;
 
+  // Selection state
+  bool _isSelectionMode = false;
+  final Set<String> _selectedIds = {};
+
   @override
   void initState() {
     super.initState();
@@ -71,17 +75,58 @@ class _AllMediaGalleryScreenState extends ConsumerState<AllMediaGalleryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bgPrimary,
-      appBar: AppBar(
-        backgroundColor: AppColors.bgSecondary,
-        title: const Text(
-          'Infexor Gallery',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        iconTheme: const IconThemeData(color: AppColors.textPrimary),
-      ),
+      appBar: _isSelectionMode
+          ? AppBar(
+              backgroundColor: AppColors.accentBlue,
+              leading: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: () {
+                  setState(() {
+                    _isSelectionMode = false;
+                    _selectedIds.clear();
+                  });
+                },
+              ),
+              title: Text(
+                '${_selectedIds.length} selected',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.select_all, color: Colors.white),
+                  onPressed: () {
+                    setState(() {
+                      if (_selectedIds.length == _mediaItems.length) {
+                        _selectedIds.clear();
+                      } else {
+                        _selectedIds.addAll(
+                          _mediaItems.map((item) => item['_id'].toString()),
+                        );
+                      }
+                    });
+                  },
+                ),
+                if (_selectedIds.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, color: Colors.white),
+                    onPressed: _deleteSelectedItems,
+                  ),
+              ],
+            )
+          : AppBar(
+              backgroundColor: AppColors.bgSecondary,
+              title: const Text(
+                'Infexor Gallery',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              iconTheme: const IconThemeData(color: AppColors.textPrimary),
+            ),
       body: _buildGrid(),
     );
   }
@@ -148,12 +193,19 @@ class _AllMediaGalleryScreenState extends ConsumerState<AllMediaGalleryScreen> {
             }
 
             final item = _mediaItems[index];
+            final id = item['_id']?.toString() ?? '';
             final type = item['type'] ?? 'image';
             final media = item['media'] as Map<String, dynamic>? ?? {};
             final url = _resolveUrl(media['thumbnail'] ?? media['url'] ?? '');
+            final isSelected = _selectedIds.contains(id);
 
             return GestureDetector(
+              onLongPress: () => _toggleSelection(id),
               onTap: () {
+                if (_isSelectionMode) {
+                  _toggleSelection(id);
+                  return;
+                }
                 if (type == 'video') {
                   Navigator.push(
                     context,
@@ -205,6 +257,17 @@ class _AllMediaGalleryScreenState extends ConsumerState<AllMediaGalleryScreen> {
                         size: 36,
                       ),
                     ),
+                  if (isSelected)
+                    Container(
+                      color: Colors.black.withValues(alpha: 0.4),
+                      child: const Center(
+                        child: Icon(
+                          Icons.check_circle,
+                          color: AppColors.accentBlue,
+                          size: 32,
+                        ),
+                      ),
+                    ),
                 ],
               ),
             );
@@ -212,5 +275,77 @@ class _AllMediaGalleryScreenState extends ConsumerState<AllMediaGalleryScreen> {
         ),
       ),
     );
+  }
+
+  void _toggleSelection(String id) {
+    if (id.isEmpty) return;
+    setState(() {
+      _isSelectionMode = true;
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+        if (_selectedIds.isEmpty) {
+          _isSelectionMode = false;
+        }
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  Future<void> _deleteSelectedItems() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bgCard,
+        title: const Text(
+          'Delete Media',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: Text(
+          'Are you sure you want to logically delete ${_selectedIds.length} media item(s)? This will free up storage for you but will not delete it for the recipient.',
+          style: const TextStyle(color: AppColors.textMuted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: AppColors.danger),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    final mediaService = ref.read(mediaServiceProvider);
+    final idsToDelete = _selectedIds.toList();
+
+    try {
+      await mediaService.deleteBulkMedia(idsToDelete);
+
+      if (!mounted) return;
+      setState(() {
+        _mediaItems.removeWhere(
+          (item) => idsToDelete.contains(item['_id'].toString()),
+        );
+        _selectedIds.clear();
+        _isSelectionMode = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Media items deleted successfully')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to delete media items')),
+      );
+    }
   }
 }

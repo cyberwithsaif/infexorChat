@@ -15,6 +15,13 @@ router.get('/profile', userController.getProfile);
 // Get all media from all user chats
 router.get('/media', userController.getAllMedia);
 
+// Delete multiple media messages for the user
+router.delete(
+  '/media',
+  [body('messageIds').isArray().withMessage('messageIds must be an array of IDs')],
+  validate,
+  userController.deleteBulkMedia
+);
 // Update profile
 router.put(
   '/profile',

@@ -20,6 +20,7 @@ class ApiEndpoints {
   static const String blockedUsers = '/users/blocked';
   static const String fcmToken = '/users/fcm-token';
   static const String allMedia = '/users/media';
+  static const String deleteMedia = '/users/media';
 
   // Contacts
   static const String syncContacts = '/contacts/sync';

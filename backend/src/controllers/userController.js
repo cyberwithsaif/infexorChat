@@ -235,3 +235,30 @@ exports.getAllMedia = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * DELETE /users/media
+ * Delete multiple media messages for the user locally
+ */
+exports.deleteBulkMedia = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const { messageIds } = req.body;
+
+    if (!messageIds || !messageIds.length) {
+      return ApiResponse.badRequest(res, 'No message IDs provided for deletion');
+    }
+
+    const { Message } = require('../models');
+
+    // Add userId to deletedFor for all provided messageIds
+    await Message.updateMany(
+      { _id: { $in: messageIds } },
+      { $addToSet: { deletedFor: userId } }
+    );
+
+    return ApiResponse.success(res, null, 'Media deleted successfully');
+  } catch (error) {
+    next(error);
+  }
+};

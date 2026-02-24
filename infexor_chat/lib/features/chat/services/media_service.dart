@@ -275,4 +275,12 @@ class MediaService {
       // It's a best-effort background call, we can ignore failure
     }
   }
+
+  /// Deletes multiple media messages for the user locally.
+  Future<void> deleteBulkMedia(List<String> messageIds) async {
+    await _apiClient.dio.delete(
+      ApiEndpoints.deleteMedia,
+      data: {'messageIds': messageIds},
+    );
+  }
 }
