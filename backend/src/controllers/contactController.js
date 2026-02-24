@@ -59,6 +59,12 @@ exports.syncContacts = async (req, res, next) => {
       await Contact.bulkWrite(bulkOps, { ordered: false });
     }
 
+    // Remove stale contacts that are no longer in the user's phonebook
+    await Contact.deleteMany({
+      userId,
+      phoneHash: { $nin: hashes },
+    });
+
     // Return matched (registered) contacts with profile info
     const matchedContacts = registeredUsers
       .filter((u) => u._id.toString() !== userId) // exclude self
