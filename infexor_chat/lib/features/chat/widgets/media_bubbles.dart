@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/api_endpoints.dart';
 import '../services/media_service.dart';
-import '../../../core/constants/api_endpoints.dart';
 
 /// Resolves media URL — prepends base URL if relative path
 String _resolveUrl(String url) {
@@ -1126,11 +1125,7 @@ class _StatusIcon extends StatelessWidget {
 
     switch (status) {
       case 'read':
-        return const Icon(
-          Icons.done_all,
-          size: 14,
-          color: AppColors.accentBlue,
-        );
+        return const Icon(Icons.done_all, size: 14, color: AppColors.checkRead);
       case 'delivered':
         return Icon(Icons.done_all, size: 14, color: subtitleColor);
       case 'sent':

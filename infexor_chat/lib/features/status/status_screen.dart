@@ -94,10 +94,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
           statuses: statuses,
         ),
       ),
-    ).then((_) {
-      // Refresh to update viewed state
-      ref.read(statusProvider.notifier).loadStatuses();
-    });
+    );
   }
 
   @override
@@ -121,9 +118,9 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
         title: Text(
           'Status',
           style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-            color: textColor,
+            fontSize: 24,
+            fontWeight: FontWeight.w800,
+            color: AppColors.primaryPurple,
           ),
         ),
         actions: [
@@ -142,7 +139,20 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
         onRefresh: () => ref.read(statusProvider.notifier).loadStatuses(),
         child: ListView(
           children: [
-            // ─── My Status ───
+            // ─── My Status Header ───
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Text(
+                'My Status',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: subtitleColor,
+                ),
+              ),
+            ),
+
+            // ─── My Status Item ───
             InkWell(
               onTap: hasMyStatus
                   ? () => _viewMyStatuses(statusState.myStatuses)
@@ -170,7 +180,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                               width: 22,
                               height: 22,
                               decoration: BoxDecoration(
-                                color: AppColors.accentBlue,
+                                color: AppColors.primaryPurple,
                                 shape: BoxShape.circle,
                                 border: Border.all(color: bgColor, width: 2),
                               ),
@@ -222,14 +232,14 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
               ),
             ),
 
-            const Divider(height: 1),
+            const SizedBox(height: 16),
 
             // ─── Recent updates ───
             if (statusState.contactStatuses.isNotEmpty) ...[
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                 child: Text(
-                  'Recent updates',
+                  'Recent Updates',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -237,68 +247,59 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                   ),
                 ),
               ),
-              ...statusState.contactStatuses.map((group) {
-                final user = group['user'];
-                final name = user is Map
-                    ? (user['name'] ?? 'Unknown')
-                    : 'Unknown';
-                final userAvatar = user is Map
-                    ? UrlUtils.getFullUrl(user['avatar'] ?? '')
-                    : '';
-                final statuses = group['statuses'] as List? ?? [];
-                final hasUnviewed = group['hasUnviewed'] == true;
-                final latestTime = statuses.isNotEmpty
-                    ? _formatTime(
-                        statuses.first is Map
-                            ? (statuses.first as Map)['createdAt']?.toString()
-                            : null,
-                      )
-                    : '';
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Wrap(
+                  spacing: 16,
+                  runSpacing: 20,
+                  alignment: WrapAlignment.start,
+                  children: statusState.contactStatuses.map((group) {
+                    final user = group['user'];
+                    final name = user is Map
+                        ? (user['name'] ?? 'Unknown')
+                              .toString()
+                              .split(' ')
+                              .first
+                        : 'Unknown';
+                    final userAvatar = user is Map
+                        ? UrlUtils.getFullUrl(user['avatar'] ?? '')
+                        : '';
+                    final hasUnviewed = group['hasUnviewed'] == true;
 
-                return InkWell(
-                  onTap: () => _viewContactStatuses(group),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    child: Row(
-                      children: [
-                        _StatusRing(
-                          avatarUrl: userAvatar,
-                          hasStatus: true,
-                          isSeen: !hasUnviewed,
-                          radius: 26,
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                name,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: textColor,
-                                ),
+                    return InkWell(
+                      onTap: () => _viewContactStatuses(group),
+                      borderRadius: BorderRadius.circular(8),
+                      child: SizedBox(
+                        width: 76, // Fixed width to align grid perfectly
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _StatusRing(
+                              avatarUrl: userAvatar,
+                              hasStatus: true,
+                              isSeen: !hasUnviewed,
+                              radius: 34, // Slightly larger radius for grid
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: textColor,
                               ),
-                              const SizedBox(height: 2),
-                              Text(
-                                latestTime,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: subtitleColor,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 32),
             ],
 
             // ─── Empty state ───
@@ -399,7 +400,9 @@ class _StatusRing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ringColor = hasStatus
-        ? (isSeen ? Colors.grey : AppColors.accentBlue)
+        ? (isSeen
+              ? Colors.grey.withValues(alpha: 0.3)
+              : AppColors.primaryPurple)
         : Colors.transparent;
 
     return Container(

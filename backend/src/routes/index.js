@@ -9,6 +9,7 @@ const uploadRoutes = require('./uploadRoutes');
 const groupRoutes = require('./groupRoutes');
 const statusRoutes = require('./statusRoutes');
 const aiRoutes = require('./aiRoutes');
+const callRoutes = require('./callRoutes'); // Added import
 
 const router = express.Router();
 
@@ -31,5 +32,6 @@ router.use('/upload', uploadRoutes);
 router.use('/groups', groupRoutes);
 router.use('/status', statusRoutes);
 router.use('/ai', aiRoutes);
+router.use('/calls', callRoutes); // Added route mapping
 
 module.exports = router;

@@ -6,7 +6,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_strings.dart';
 import '../../../core/utils/url_utils.dart';
 import '../../../core/animations/page_transitions.dart';
 import '../../../core/utils/animation_helpers.dart';
@@ -68,127 +67,166 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         : const Color(0xFF54656F);
 
     return Scaffold(
-      backgroundColor: bgColor,
-      appBar: AppBar(
-        backgroundColor: bgColor,
-        elevation: 0,
-        title: Text(
-          AppStrings.appName,
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-            color: textColor,
-          ),
-        ),
-        iconTheme: IconThemeData(color: iconColor),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search),
-            onPressed: () {
-              showSearch(
-                context: context,
-                delegate: ChatSearchDelegate(
-                  chats: chatState.chats,
-                  currentUserId: currentUserId,
-                  contactsBox: _contactsBox,
-                ),
-              );
-            },
-          ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
-            color: bgColor,
-            onSelected: (value) {
-              if (value == 'new_group') {
-                Navigator.push(
-                  context,
-                  InfexorPageRoute(page: const CreateGroupScreen()),
-                );
-              } else if (value == 'settings') {
-                Navigator.push(
-                  context,
-                  InfexorPageRoute(page: const SettingsScreen()),
-                );
-              }
-            },
-            itemBuilder: (ctx) => [
-              PopupMenuItem(
-                value: 'new_group',
-                child: Text('New Group', style: TextStyle(color: textColor)),
+      backgroundColor: const Color(0xFFF3F5FA), // Match image light background
+      body: Column(
+        children: [
+          // Custom Curved Header
+          Container(
+            padding: EdgeInsets.only(
+              top: MediaQuery.of(context).padding.top + 10,
+              bottom: 24,
+              left: 16,
+              right: 16,
+            ),
+            decoration: const BoxDecoration(
+              color: Color(0xFFFF6D00), // Vibrant Orange
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(36),
+                bottomRight: Radius.circular(36),
               ),
-              PopupMenuItem(
-                value: 'settings',
-                child: Text('Settings', style: TextStyle(color: textColor)),
-              ),
-            ],
-          ),
-        ],
-      ),
-      body: Container(
-        color: bgColor,
-        child:
-            (chatState.isLoading && chatState.chats.isEmpty) ||
-                currentUserId.isEmpty
-            ? const SizedBox.shrink()
-            : chatState.error != null && chatState.chats.isEmpty
-            ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      size: 48,
-                      color: AppColors.textMuted,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Failed to load chats',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: textColor,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextButton(
-                      onPressed: () =>
-                          ref.read(chatListProvider.notifier).loadChats(),
-                      child: const Text('Tap to retry'),
-                    ),
-                  ],
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.menu, color: Colors.white),
+                  onPressed: () {}, // Can be wired to a drawer later if needed
                 ),
-              )
-            : chatState.chats.isEmpty
-            ? const _EmptyChats()
-            : RefreshIndicator(
-                onRefresh: () =>
-                    ref.read(chatListProvider.notifier).loadChats(),
-                color: AppColors.accentBlue,
-                child: ListView.builder(
-                  physics: const BouncingScrollPhysics(),
-                  cacheExtent: 1000,
-                  itemCount: chatState.chats.length,
-                  itemBuilder: (context, index) {
-                    return RepaintBoundary(
-                      child: _ChatTile(
-                        chat: chatState.chats[index],
+                const Spacer(),
+                const Text(
+                  'Messages',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.search, color: Colors.white),
+                  onPressed: () {
+                    showSearch(
+                      context: context,
+                      delegate: ChatSearchDelegate(
+                        chats: chatState.chats,
                         currentUserId: currentUserId,
                         contactsBox: _contactsBox,
-                        onReturn: () =>
-                            ref.read(chatListProvider.notifier).loadChats(),
                       ),
                     );
                   },
                 ),
-              ),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert, color: Colors.white),
+                  color: bgColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  onSelected: (value) {
+                    if (value == 'new_group') {
+                      Navigator.push(
+                        context,
+                        InfexorPageRoute(page: const CreateGroupScreen()),
+                      );
+                    } else if (value == 'settings') {
+                      Navigator.push(
+                        context,
+                        InfexorPageRoute(page: const SettingsScreen()),
+                      );
+                    }
+                  },
+                  itemBuilder: (ctx) => [
+                    PopupMenuItem(
+                      value: 'new_group',
+                      child: Text(
+                        'New Group',
+                        style: TextStyle(color: textColor),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'settings',
+                      child: Text(
+                        'Settings',
+                        style: TextStyle(color: textColor),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          Expanded(
+            child: Container(
+              color: const Color(0xFFF3F5FA),
+              child:
+                  (chatState.isLoading && chatState.chats.isEmpty) ||
+                      currentUserId.isEmpty
+                  ? const _ChatListSkeleton()
+                  : chatState.error != null && chatState.chats.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            size: 48,
+                            color: AppColors.textMuted,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Failed to load chats',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              color: textColor,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: () =>
+                                ref.read(chatListProvider.notifier).loadChats(),
+                            child: const Text('Tap to retry'),
+                          ),
+                        ],
+                      ),
+                    )
+                  : chatState.chats.isEmpty
+                  ? const _EmptyChats()
+                  : RefreshIndicator(
+                      onRefresh: () =>
+                          ref.read(chatListProvider.notifier).loadChats(),
+                      color: const Color(0xFFFF6D00),
+                      child: ListView.builder(
+                        padding: const EdgeInsets.only(top: 8, bottom: 80),
+                        physics: const BouncingScrollPhysics(),
+                        cacheExtent: 1000,
+                        itemCount: chatState.chats.length,
+                        itemBuilder: (context, index) {
+                          return RepaintBoundary(
+                            child: _ChatTile(
+                              chat: chatState.chats[index],
+                              currentUserId: currentUserId,
+                              contactsBox: _contactsBox,
+                              onReturn: () => ref
+                                  .read(chatListProvider.notifier)
+                                  .loadChats(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+            ),
+          ),
+        ],
       ),
 
       floatingActionButton: AnimatedFabEntrance(
         child: FloatingActionButton(
           onPressed: () => context.push('/contacts'),
-          backgroundColor: AppColors.fabBg, // Blue FAB
+          backgroundColor: const Color(0xFFFF6D00), // Match vibrant theme
           foregroundColor: Colors.white,
-          child: const Icon(Icons.message_rounded),
+          elevation: 4,
+          child: const Icon(Icons.chat_bubble_outline, size: 26),
         ),
       ),
     );
@@ -319,20 +357,31 @@ class _ChatTile extends StatelessWidget {
         final phone = other['phone']?.toString();
         final registeredName = other['name']?.toString();
         final formattedPhone = PhoneUtils.formatPhoneDisplay(phone);
+
+        bool isAIBot = phone != null && phone.endsWith('0000000000');
+
         name =
             savedName ??
-            (formattedPhone.isNotEmpty
-                ? formattedPhone
-                : registeredName ?? 'Unknown');
+            (isAIBot
+                ? 'Infexor AI'
+                : (formattedPhone.isNotEmpty
+                      ? formattedPhone
+                      : registeredName ?? 'Unknown'));
 
         // Enforce profile photo privacy
         final privacySettings =
             other['privacySettings'] as Map<String, dynamic>? ?? {};
         final photoVisibility =
             privacySettings['profilePhoto']?.toString() ?? 'everyone';
-        avatar = photoVisibility == 'nobody'
-            ? ''
-            : (other['avatar']?.toString() ?? '');
+
+        if (isAIBot) {
+          avatar =
+              'ai_bot_avatar_placeholder'; // Special string to trigger local asset later
+        } else {
+          avatar = photoVisibility == 'nobody'
+              ? ''
+              : (other['avatar']?.toString() ?? '');
+        }
 
         isOnline = other['isOnline'] == true;
       } catch (_) {
@@ -373,12 +422,25 @@ class _ChatTile extends StatelessWidget {
 
     // Safely check if current user sent the last message
     bool isMyLastMessage = false;
+    String lastMsgSenderName = '';
     if (lastMessage != null) {
       final senderId = lastMessage['senderId'];
       if (senderId is Map) {
         isMyLastMessage = senderId['_id']?.toString() == currentUserId;
+        lastMsgSenderName = senderId['name']?.toString() ?? '';
       } else if (senderId is String) {
         isMyLastMessage = senderId == currentUserId;
+      }
+    }
+
+    // Prefix group chat last message with sender name (like WhatsApp)
+    if (isGroup && lastMsgText.isNotEmpty) {
+      if (isMyLastMessage) {
+        lastMsgText = 'You: $lastMsgText';
+      } else if (lastMsgSenderName.isNotEmpty) {
+        // Use first name only
+        final firstName = lastMsgSenderName.split(' ').first;
+        lastMsgText = '$firstName: $lastMsgText';
       }
     }
 
@@ -417,21 +479,42 @@ class _ChatTile extends StatelessWidget {
                     backgroundColor: isDark
                         ? AppColors.darkBgSecondary
                         : AppColors.bgCard,
-                    backgroundImage: avatar.isNotEmpty
-                        ? CachedNetworkImageProvider(
-                            UrlUtils.getFullUrl(avatar),
-                          )
-                        : null,
-                    child: avatar.isEmpty
-                        ? Text(
-                            name.isNotEmpty ? name[0].toUpperCase() : '?',
-                            style: TextStyle(
-                              color: subtitleColor,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 20,
+                    child: ClipOval(
+                      child: avatar.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: UrlUtils.getFullUrl(avatar),
+                              width: 52,
+                              height: 52,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) => Container(
+                                color: Colors.grey.withValues(alpha: 0.1),
+                                child: Icon(
+                                  Icons.person,
+                                  color: subtitleColor.withValues(alpha: 0.5),
+                                ),
+                              ),
+                              errorWidget: (context, url, error) => Center(
+                                child: Text(
+                                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                  style: TextStyle(
+                                    color: subtitleColor,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 20,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : Center(
+                              child: Text(
+                                name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                style: TextStyle(
+                                  color: subtitleColor,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 20,
+                                ),
+                              ),
                             ),
-                          )
-                        : null,
+                    ),
                   ),
                   if (isOnline)
                     Positioned(
@@ -441,9 +524,12 @@ class _ChatTile extends StatelessWidget {
                         width: 14,
                         height: 14,
                         decoration: BoxDecoration(
-                          color: AppColors.online,
+                          color: const Color(0xFF00C853), // Bright online green
                           shape: BoxShape.circle,
-                          border: Border.all(color: bgColor, width: 2),
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 2,
+                          ), // Solid white border
                         ),
                       ),
                     ),
@@ -466,9 +552,11 @@ class _ChatTile extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: unreadCount > 0
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                              color: textColor,
+                                  ? FontWeight.w800
+                                  : FontWeight.w600,
+                              color: const Color(
+                                0xFF1E293B,
+                              ), // Dark slate bold name
                             ),
                           ),
                         ),
@@ -478,8 +566,10 @@ class _ChatTile extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 12,
                               color: unreadCount > 0
-                                  ? AppColors.badgeBg
-                                  : subtitleColor,
+                                  ? const Color(0xFFFF6D00)
+                                  : const Color(
+                                      0xFF64748B,
+                                    ), // Slate-500 timestamp
                             ),
                           ),
                       ],
@@ -497,14 +587,48 @@ class _ChatTile extends StatelessWidget {
                             ),
                           ),
                         Expanded(
-                          child: Text(
-                            lastMsgText,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: subtitleColor,
-                            ),
+                          child: Row(
+                            children: [
+                              // Tiny media thumbnail (image/video/gif)
+                              if (lastMessage != null &&
+                                  (lastMessage['type'] == 'image' ||
+                                      lastMessage['type'] == 'video' ||
+                                      lastMessage['type'] == 'gif'))
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 6),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: CachedNetworkImage(
+                                      imageUrl: UrlUtils.getFullUrl(
+                                        lastMessage['media']?['thumbnail'] ??
+                                            lastMessage['media']?['url'] ??
+                                            '',
+                                      ),
+                                      width: 20,
+                                      height: 20,
+                                      fit: BoxFit.cover,
+                                      errorWidget: (context, url, error) =>
+                                          Icon(
+                                            lastMessage!['type'] == 'video'
+                                                ? Icons.videocam
+                                                : Icons.image,
+                                            size: 14,
+                                          ),
+                                    ),
+                                  ),
+                                ),
+                              Expanded(
+                                child: Text(
+                                  lastMsgText,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: subtitleColor,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         if (unreadCount > 0)
@@ -514,17 +638,17 @@ class _ChatTile extends StatelessWidget {
                               vertical: 2,
                             ),
                             decoration: const BoxDecoration(
-                              color: AppColors.badgeBg, // Blue Badge
-                              borderRadius: BorderRadius.all(
-                                Radius.circular(10),
-                              ),
+                              color: Color(0xFFFF6D00), // Vibrant Orange Badge
+                              shape: BoxShape.circle,
                             ),
-                            child: Text(
-                              unreadCount > 99 ? '99+' : '$unreadCount',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
+                            child: Center(
+                              child: Text(
+                                unreadCount > 99 ? '99+' : '$unreadCount',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                           ),
@@ -699,7 +823,7 @@ class _StatusIcon extends StatelessWidget {
         const Color(0xFF667781);
     switch (status) {
       case 'read':
-        return const Icon(Icons.done_all, size: 16, color: Color(0xFF53BDEB));
+        return const Icon(Icons.done_all, size: 16, color: AppColors.checkRead);
       case 'delivered':
         return Icon(Icons.done_all, size: 16, color: tickColor);
       case 'sent':
@@ -799,5 +923,101 @@ class ChatSearchDelegate extends SearchDelegate {
       }
     } catch (_) {}
     return 'Unknown';
+  }
+}
+
+class _ChatListSkeleton extends StatefulWidget {
+  const _ChatListSkeleton();
+
+  @override
+  State<_ChatListSkeleton> createState() => _ChatListSkeletonState();
+}
+
+class _ChatListSkeletonState extends State<_ChatListSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.grey[800]! : Colors.grey[300]!;
+
+    return FadeTransition(
+      opacity: Tween<double>(
+        begin: 0.4,
+        end: 1.0,
+      ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut)),
+      child: ListView.builder(
+        padding: const EdgeInsets.only(top: 8, bottom: 80),
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: 10,
+        itemBuilder: (context, index) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: baseColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 160,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: baseColor,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: baseColor,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Container(
+                  width: 40,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    color: baseColor,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 }

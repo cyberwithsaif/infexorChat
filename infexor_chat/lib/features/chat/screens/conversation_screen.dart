@@ -38,8 +38,6 @@ import 'group_info_screen.dart';
 import '../../settings/providers/wallpaper_provider.dart';
 import '../../settings/screens/wallpaper_selection_screen.dart';
 import 'call_screen.dart';
-import 'package:flutter_background_service/flutter_background_service.dart';
-import '../../../shared/widgets/glass_morphism.dart';
 
 class ConversationScreen extends ConsumerStatefulWidget {
   final String chatId;
@@ -162,9 +160,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       notifService.clearCounts(widget.chatId);
 
       // Tell background service to clear counts too
-      FlutterBackgroundService().invoke('clearChatCount', {
-        'chatId': widget.chatId,
-      });
+      // FlutterBackgroundService().invoke('clearChatCount', {
+      //   'chatId': widget.chatId,
+      // });
 
       ref.read(messageProvider.notifier).openChat(widget.chatId);
       ref.read(messageProvider.notifier).initSocketListeners();
@@ -447,7 +445,12 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       onGallery: (xFile) => _handleImageSend(xFile.path),
       onMultiGallery: (xFiles) async {
         for (final xFile in xFiles) {
-          await _handleImageSend(xFile.path);
+          final ext = xFile.path.split('.').last.toLowerCase();
+          if (['mp4', 'mov', 'avi', 'mkv', 'webm'].contains(ext)) {
+            await _handleVideoSend(xFile.path);
+          } else {
+            await _handleImageSend(xFile.path);
+          }
         }
       },
       onVideo: (xFile) => _handleVideoSend(xFile.path),
@@ -678,7 +681,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                         child: Icon(
                           Icons.cloud_upload_outlined,
                           size: 18,
-                          color: AppColors.accentBlue,
+                          color: Color.fromARGB(255, 237, 139, 64),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -914,9 +917,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   ) {
     return AppBar(
       titleSpacing: 0,
-      backgroundColor: appBarBg,
-      elevation: 1,
-      iconTheme: IconThemeData(color: iconColor),
+      backgroundColor: const Color(0xFFFF6D00), // Vibrant Orange Theme
+      elevation: 0, // Flat edge
+      iconTheme: const IconThemeData(color: Colors.white), // All icons white
       leading: IconButton(
         icon: const Icon(Icons.arrow_back),
         onPressed: () => Navigator.pop(context),
@@ -972,25 +975,46 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         },
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: AppColors.border,
-              backgroundImage: widget.chatAvatar.isNotEmpty
-                  ? CachedNetworkImageProvider(
-                      UrlUtils.getFullUrl(widget.chatAvatar),
-                    )
-                  : null,
-              child: widget.chatAvatar.isEmpty
-                  ? Text(
-                      widget.chatName.isNotEmpty
-                          ? widget.chatName[0].toUpperCase()
-                          : '?',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        color: AppColors.textSecondary,
+            Stack(
+              children: [
+                CircleAvatar(
+                  radius: 18,
+                  backgroundColor: AppColors.border,
+                  backgroundImage: widget.chatAvatar.isNotEmpty
+                      ? CachedNetworkImageProvider(
+                          UrlUtils.getFullUrl(widget.chatAvatar),
+                        )
+                      : null,
+                  child: widget.chatAvatar.isEmpty
+                      ? Text(
+                          widget.chatName.isNotEmpty
+                              ? widget.chatName[0].toUpperCase()
+                              : '?',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            color: AppColors.textSecondary,
+                          ),
+                        )
+                      : null,
+                ),
+                if (isOnline)
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF00C853), // Bright online green
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFFFF6D00), // Match AppBar Orange
+                          width: 2,
+                        ),
                       ),
-                    )
-                  : null,
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -999,17 +1023,19 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                 children: [
                   Text(
                     widget.chatName,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: textColor,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white, // White name
                     ),
                   ),
                   Text(
                     statusText,
                     style: TextStyle(
                       fontSize: 12,
-                      color: isOnline ? AppColors.online : subtitleColor,
+                      color: isOnline
+                          ? Colors.white
+                          : Colors.white70, // White subtext
                       fontWeight: FontWeight.w400,
                     ),
                   ),
@@ -1275,11 +1301,62 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
             : Colors.transparent,
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 2),
-        child: bubble,
+        child: Column(
+          crossAxisAlignment: isMe
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
+          children: [
+            // Show sender name in group chats for non-self messages
+            if (widget.isGroup && !isMe) _buildGroupSenderName(msg),
+            bubble,
+          ],
+        ),
       ),
     );
 
     return child;
+  }
+
+  /// Builds a colored sender name label for group chat messages
+  Widget _buildGroupSenderName(Map<String, dynamic> msg) {
+    final sender = msg['senderId'];
+    String senderName = '';
+    String senderId = '';
+
+    if (sender is Map) {
+      senderName = sender['name']?.toString() ?? '';
+      senderId = sender['_id']?.toString() ?? '';
+    } else if (sender is String) {
+      senderId = sender;
+    }
+
+    if (senderName.isEmpty) return const SizedBox.shrink();
+
+    // Generate a consistent color per user (WhatsApp-style)
+    final colors = [
+      const Color(0xFF00A884), // teal
+      const Color(0xFF53BDEB), // blue
+      const Color(0xFFFFB74D), // orange
+      const Color(0xFFE91E63), // pink
+      const Color(0xFF9C27B0), // purple
+      const Color(0xFF4CAF50), // green
+      const Color(0xFF2196F3), // bright blue
+      const Color(0xFFFF5722), // deep orange
+    ];
+    final colorIndex = senderId.hashCode.abs() % colors.length;
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 12, bottom: 2, top: 4),
+      child: Text(
+        senderName,
+        style: TextStyle(
+          color: colors[colorIndex],
+          fontSize: 12.5,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0.1,
+        ),
+      ),
+    );
   }
 
   void _removeEmojiOverlay() {
@@ -1789,18 +1866,12 @@ class _TextMessageBubble extends StatelessWidget {
     final createdAt = message['createdAt'] ?? '';
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final bubbleBgMe = isDark
-        ? AppColors.darkMsgSentBgBlue
-        : AppColors.msgSentBg;
-    final bubbleBgOther = isDark
-        ? AppColors.darkMsgReceivedBg
-        : AppColors.msgReceivedBg;
-    final msgTextColor = isDark
-        ? AppColors.darkTextPrimary
-        : const Color(0xFF111B21);
-    final timeColor = isDark
-        ? AppColors.darkTextSecondary
-        : const Color(0xFF667781);
+    final bubbleBgMe = const Color(0xFFFF6D00); // Solid Orange
+    final bubbleBgOther = isDark ? const Color(0xFF1E2B33) : Colors.white;
+    final msgTextColorMe = Colors.white;
+    final msgTextColorOther = isDark ? Colors.white : const Color(0xFF1E293B);
+    final timeColorMe = Colors.white70;
+    final timeColorOther = isDark ? Colors.white54 : const Color(0xFF64748B);
 
     String time = '';
     try {
@@ -1818,10 +1889,14 @@ class _TextMessageBubble extends StatelessWidget {
         decoration: BoxDecoration(
           color: isMe ? bubbleBgMe : bubbleBgOther,
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(12),
-            topRight: const Radius.circular(12),
-            bottomLeft: Radius.circular(isMe ? 12 : 0),
-            bottomRight: Radius.circular(isMe ? 0 : 12),
+            topLeft: isMe
+                ? const Radius.circular(12)
+                : const Radius.circular(0), // Sharp top-left for other
+            topRight: isMe
+                ? const Radius.circular(0)
+                : const Radius.circular(12), // Sharp top-right for me
+            bottomLeft: const Radius.circular(12),
+            bottomRight: const Radius.circular(12),
           ),
           boxShadow: [
             BoxShadow(
@@ -1844,7 +1919,7 @@ class _TextMessageBubble extends StatelessWidget {
               Text(
                 content,
                 style: TextStyle(
-                  color: isMe && isDark ? Colors.white : msgTextColor,
+                  color: isMe ? msgTextColorMe : msgTextColorOther,
                   fontSize: 16,
                 ),
               ),
@@ -1854,16 +1929,27 @@ class _TextMessageBubble extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  if (message['isAI'] == true) ...[
+                    Icon(
+                      Icons.smart_toy_outlined,
+                      size: 13,
+                      color: isMe ? timeColorMe : timeColorOther,
+                    ),
+                    const SizedBox(width: 3),
+                  ],
                   Text(
                     time,
                     style: TextStyle(
                       fontSize: 11,
-                      color: isMe && isDark ? Colors.white70 : timeColor,
+                      color: isMe ? timeColorMe : timeColorOther,
                     ),
                   ),
                   if (isMe) ...[
                     const SizedBox(width: 4),
-                    _buildStatusIcon(status, timeColor),
+                    _buildStatusIcon(
+                      status,
+                      isMe ? timeColorMe : timeColorOther,
+                    ),
                   ],
                 ],
               ),
@@ -2099,13 +2185,12 @@ class _InputBarState extends State<_InputBar> with TickerProviderStateMixin {
     final iconColor = isDark ? Colors.grey[400] : const Color(0xFF54656F);
     final textColor = isDark ? Colors.white : const Color(0xFF111B21);
     final hintColor = isDark ? Colors.grey[500] : const Color(0xFF667781);
-    final micColor = AppColors.primaryPurple; // Theme request: Purple
+    final themeBlue = const Color(0xFFFF6D00);
     final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
 
-    return GlassMorphism(
-      color: isDark ? AppColors.darkBgSecondary : Colors.white,
-      opacity: 0.85,
-      blur: 12.0,
+    return Container(
+      color: isDark ? AppColors.darkBgSecondary : const Color(0xFFF0F2F5),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -2200,54 +2285,31 @@ class _InputBarState extends State<_InputBar> with TickerProviderStateMixin {
                     ),
                   ),
                 ] else ...[
-                  // Custom Attachment Button
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 2, right: 8),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.grey[800] : Colors.white,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: IconButton(
-                      icon: Icon(Icons.add, color: AppColors.primaryPurple),
-                      onPressed: widget.isUploading
-                          ? null
-                          : widget.onAttachment,
-                    ),
-                  ),
-
                   Expanded(
                     child: Container(
                       decoration: BoxDecoration(
                         color: inputBg,
                         borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 2,
-                            offset: const Offset(0, 1),
-                          ),
-                        ],
+                        border: Border.all(
+                          color: const Color(0xFFCBD5E1),
+                          width: 1,
+                        ),
                       ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           IconButton(
-                            icon: Icon(
-                              _showEmojiPicker
-                                  ? Icons.keyboard
-                                  : Icons.emoji_emotions_outlined,
-                              color:
-                                  AppColors.primaryPurple, // Custom Emoji Color
-                              size: 24,
+                            padding: const EdgeInsets.all(8),
+                            constraints: const BoxConstraints(),
+                            icon: const Icon(
+                              Icons.emoji_emotions_outlined,
+                              color: Color(0xFF64748B),
+                              size: 26,
                             ),
-                            onPressed: _toggleEmojiPicker,
+                            onPressed: () {
+                              FocusScope.of(context).unfocus();
+                              // Toggle emoji picker (you can implement widget.onEmoji)
+                            },
                           ),
                           Expanded(
                             child: TextField(
@@ -2265,25 +2327,43 @@ class _InputBarState extends State<_InputBar> with TickerProviderStateMixin {
                                 hintStyle: TextStyle(color: hintColor),
                                 border: InputBorder.none,
                                 contentPadding: const EdgeInsets.symmetric(
-                                  vertical: 10,
-                                  horizontal: 0,
+                                  vertical: 12,
                                 ),
                                 isDense: true,
                               ),
                               textInputAction: TextInputAction.newline,
                             ),
                           ),
+                          IconButton(
+                            padding: const EdgeInsets.all(8),
+                            constraints: const BoxConstraints(),
+                            icon: const Icon(
+                              Icons.attach_file,
+                              color: Color(0xFF64748B),
+                              size: 26,
+                            ),
+                            onPressed: widget.isUploading
+                                ? null
+                                : widget.onAttachment,
+                          ),
                           if (widget.controller.text.isEmpty)
                             IconButton(
+                              padding: const EdgeInsets.only(
+                                right: 8,
+                                top: 8,
+                                bottom: 8,
+                                left: 4,
+                              ),
+                              constraints: const BoxConstraints(),
                               icon: const Icon(
-                                Icons.camera_alt_rounded,
-                                color: AppColors.primaryPurple,
+                                Icons.camera_alt_outlined,
+                                color: Color(0xFF64748B),
+                                size: 24,
                               ),
                               onPressed: widget.isUploading
                                   ? null
                                   : widget.onCamera,
                             ),
-                          const SizedBox(width: 4),
                         ],
                       ),
                     ),
@@ -2341,16 +2421,12 @@ class _InputBarState extends State<_InputBar> with TickerProviderStateMixin {
                           margin: const EdgeInsets.only(bottom: 2),
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              colors: [micColor, micColor.withOpacity(0.8)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
+                            color: themeBlue,
                             boxShadow: [
                               BoxShadow(
                                 color: _isRecording
                                     ? Colors.red.withOpacity(0.5)
-                                    : micColor.withOpacity(0.4),
+                                    : themeBlue.withOpacity(0.4),
                                 blurRadius: _isRecording ? 12 : 6,
                                 offset: const Offset(0, 3),
                               ),
@@ -2400,7 +2476,7 @@ class _InputBarState extends State<_InputBar> with TickerProviderStateMixin {
                     children: [
                       TabBar(
                         controller: _tabController,
-                        indicatorColor: micColor,
+                        indicatorColor: themeBlue,
                         labelColor: isDark ? Colors.white : Colors.black,
                         unselectedLabelColor: Colors.grey,
                         tabs: const [
@@ -2428,12 +2504,12 @@ class _InputBarState extends State<_InputBar> with TickerProviderStateMixin {
                                   dialogBackgroundColor: isDark
                                       ? AppColors.darkBgSecondary
                                       : Colors.white,
-                                  indicatorColor: AppColors.primaryPurple,
+                                  indicatorColor: themeBlue,
                                 ),
                                 categoryViewConfig: CategoryViewConfig(
-                                  indicatorColor: AppColors.primaryPurple,
-                                  iconColorSelected: AppColors.primaryPurple,
-                                  backspaceColor: AppColors.primaryPurple,
+                                  indicatorColor: themeBlue,
+                                  iconColorSelected: themeBlue,
+                                  backspaceColor: themeBlue,
                                   tabBarHeight: 46,
                                   backgroundColor: Colors
                                       .transparent, // Ensure bar is transparent
@@ -2730,7 +2806,7 @@ class _ForwardChatPickerState extends ConsumerState<_ForwardChatPicker> {
             // Chat list
             Expanded(
               child: state.isLoading && allChats.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const SizedBox.shrink()
                   : chats.isEmpty
                   ? Center(
                       child: Text(

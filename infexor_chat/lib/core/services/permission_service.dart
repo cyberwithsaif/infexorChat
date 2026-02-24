@@ -21,8 +21,8 @@ class PermissionService {
       debugPrint('Permission $permission: $status');
     });
 
-    // Request battery optimization exemption for background service survival
-    await requestBatteryOptimizationExemption();
+    // Request display over other apps for the floating PiP video
+    await requestOverlayPermission();
   }
 
   /// Request a specific permission
@@ -36,22 +36,21 @@ class PermissionService {
     return await permission.isGranted;
   }
 
-  /// Request battery optimization exemption (Android only)
-  /// This is critical for keeping the background service alive when the app
-  /// is removed from recents on aggressive OEM Android skins (Xiaomi, Samsung, etc.)
-  static Future<void> requestBatteryOptimizationExemption() async {
+  /// Request "Display over other apps" permission (Android only)
+  /// Required for picture-in-picture floating video calls
+  static Future<void> requestOverlayPermission() async {
     if (!Platform.isAndroid) return;
 
     try {
-      final status = await Permission.ignoreBatteryOptimizations.status;
+      final status = await Permission.systemAlertWindow.status;
       if (!status.isGranted) {
-        final result = await Permission.ignoreBatteryOptimizations.request();
-        debugPrint('Battery optimization exemption: $result');
+        final result = await Permission.systemAlertWindow.request();
+        debugPrint('Overlay permission: $result');
       } else {
-        debugPrint('Battery optimization already exempted');
+        debugPrint('Overlay permission already granted');
       }
     } catch (e) {
-      debugPrint('Error requesting battery optimization exemption: $e');
+      debugPrint('Error requesting overlay permission: $e');
     }
   }
 }

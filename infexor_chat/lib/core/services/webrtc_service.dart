@@ -19,6 +19,7 @@ class WebRTCService {
 
   // Call State
   bool isCallActive = false;
+  bool _isVideoCall = false;
   String? currentChatId;
   String? _remoteUserId;
 
@@ -47,10 +48,27 @@ class WebRTCService {
     await remoteRenderer.initialize();
   }
 
+  /// Re-apply audio routing after remote stream arrives.
+  /// On many Android devices, WebRTC resets the audio route when
+  /// the remote audio track starts playing, so we force it again
+  /// with a small delay to let the audio session settle.
+  void _reapplyAudioRouting() {
+    final speaker = _isVideoCall;
+    Helper.setSpeakerphoneOn(speaker);
+    Future.delayed(const Duration(milliseconds: 300), () {
+      Helper.setSpeakerphoneOn(speaker);
+    });
+    Future.delayed(const Duration(milliseconds: 800), () {
+      Helper.setSpeakerphoneOn(speaker);
+    });
+    debugPrint('📞 WebRTC: Audio routing → ${speaker ? "SPEAKER" : "EARPIECE"}');
+  }
+
   /// Start an outgoing call (caller side)
   Future<void> startCall(String chatId, String remoteUserId, bool video) async {
     currentChatId = chatId;
     _remoteUserId = remoteUserId;
+    _isVideoCall = video;
     isCallActive = true;
     _pendingCandidates.clear();
 
@@ -85,6 +103,7 @@ class WebRTCService {
   Future<void> joinCall(String chatId, String remoteUserId, bool video) async {
     currentChatId = chatId;
     _remoteUserId = remoteUserId;
+    _isVideoCall = video;
     isCallActive = true;
     _pendingCandidates.clear();
 
@@ -116,8 +135,10 @@ class WebRTCService {
     });
     localRenderer.srcObject = _localStream;
 
-    // Force audio to earpiece for voice calls, loudspeaker for video
-    if (!video) {
+    // Force audio routing after media is acquired
+    if (video) {
+      Helper.setSpeakerphoneOn(true);
+    } else {
       Helper.setSpeakerphoneOn(false);
     }
   }
@@ -130,6 +151,8 @@ class WebRTCService {
       debugPrint('📞 WebRTC: onTrack - ${event.track.kind}');
       if (event.streams.isNotEmpty) {
         remoteRenderer.srcObject = event.streams.first;
+        // Re-apply audio routing after remote audio track arrives
+        _reapplyAudioRouting();
         onRemoteStream?.call();
       }
     };
@@ -138,6 +161,7 @@ class WebRTCService {
     _peerConnection!.onAddStream = (MediaStream stream) {
       debugPrint('📞 WebRTC: onAddStream');
       remoteRenderer.srcObject = stream;
+      _reapplyAudioRouting();
       onRemoteStream?.call();
     };
 

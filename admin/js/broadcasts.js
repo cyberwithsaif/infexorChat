@@ -162,16 +162,16 @@ const BroadcastsModule = (() => {
             <label>Target Audience <span class="required">*</span></label>
             <div class="radio-group">
               <label class="radio-label">
-                <input type="radio" name="segment" value="active_week" checked />
-                <span>Active This Week (Recommended)</span>
-              </label>
-              <label class="radio-label">
-                <input type="radio" name="segment" value="active_month" />
-                <span>Active This Month</span>
+                <input type="radio" name="segment" value="active" checked />
+                <span>Active Users (Recommended)</span>
               </label>
               <label class="radio-label">
                 <input type="radio" name="segment" value="all" />
                 <span>All Users</span>
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="segment" value="inactive" />
+                <span>Inactive Users</span>
               </label>
             </div>
             <div class="form-help">
@@ -256,7 +256,7 @@ const BroadcastsModule = (() => {
     });
 
     // Estimate recipients
-    estimateRecipients('active_week');
+    estimateRecipients('active');
 
     // Update estimate on segment change
     const segmentRadios = currentModal.querySelectorAll('[name="segment"]');
@@ -289,11 +289,11 @@ const BroadcastsModule = (() => {
         case 'all':
           estimate = stats.totalUsers || 0;
           break;
-        case 'active_week':
-          estimate = stats.activeWeek || 0;
+        case 'active':
+          estimate = stats.activeUsers || stats.activeWeek || Math.floor((stats.totalUsers || 0) * 0.6);
           break;
-        case 'active_month':
-          estimate = stats.activeMonth || 0;
+        case 'inactive':
+          estimate = Math.max(0, (stats.totalUsers || 0) - (stats.activeUsers || stats.activeWeek || 0));
           break;
       }
 

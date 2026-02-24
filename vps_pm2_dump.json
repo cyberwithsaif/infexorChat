@@ -1,0 +1,1544 @@
+[
+  {
+    "node_version": "20.20.0",
+    "version": "1.0.0",
+    "unstable_restarts": 0,
+    "restart_time": 3,
+    "created_at": 1771409052970,
+    "axm_dynamic": {},
+    "axm_options": {
+      "error": true,
+      "heapdump": true,
+      "feature.profiler.heapsnapshot": false,
+      "feature.profiler.heapsampling": true,
+      "feature.profiler.cpu_js": true,
+      "latency": true,
+      "catchExceptions": true,
+      "profiling": true,
+      "metrics": {
+        "http": true,
+        "runtime": true,
+        "eventLoop": true,
+        "network": false,
+        "v8": true
+      },
+      "standalone": false,
+      "module_conf": {},
+      "apm": {
+        "version": "6.1.0",
+        "type": "node"
+      },
+      "module_name": "child-monitor-backend",
+      "module_version": "6.0.14"
+    },
+    "axm_monitor": {
+      "Used Heap Size": {
+        "value": "31.71",
+        "type": "internal/v8/heap/used",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Heap Usage": {
+        "value": 78.39,
+        "type": "internal/v8/heap/usage",
+        "unit": "%",
+        "historic": true
+      },
+      "Heap Size": {
+        "value": "40.45",
+        "type": "internal/v8/heap/total",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Event Loop Latency p95": {
+        "value": "1.14",
+        "type": "internal/libuv/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "Event Loop Latency": {
+        "value": "0.27",
+        "type": "internal/libuv/latency/p50",
+        "unit": "ms",
+        "historic": true
+      },
+      "Active handles": {
+        "value": 40,
+        "type": "internal/libuv/handles",
+        "historic": true
+      },
+      "Active requests": {
+        "value": 0,
+        "type": "internal/libuv/requests",
+        "historic": true
+      },
+      "HTTP": {
+        "value": 0.52,
+        "type": "internal/http/builtin/reqs",
+        "unit": "req/min",
+        "historic": true
+      },
+      "HTTP P95 Latency": {
+        "value": 46.349999999999994,
+        "type": "internal/http/builtin/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "HTTP Mean Latency": {
+        "value": 1,
+        "type": "internal/http/builtin/latency/p50",
+        "unit": "ms",
+        "historic": true
+      }
+    },
+    "axm_actions": [
+      {
+        "action_name": "km:heapdump",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:stop",
+        "action_type": "internal",
+        "arity": 1
+      },
+      {
+        "action_name": "km:heap:sampling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:heap:sampling:stop",
+        "action_type": "internal",
+        "arity": 1
+      }
+    ],
+    "pm_uptime": 1771435696079,
+    "status": "online",
+    "unique_id": "297d799e-5bbc-410e-b75c-9aa8b7cd5a81",
+    "PM2_HOME": "/root/.pm2",
+    "PM2_USAGE": "CLI",
+    "OLDPWD": "/root",
+    "_": "/usr/local/bin/pm2",
+    "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/0/bus",
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+    "XDG_DATA_DIRS": "/usr/local/share:/usr/share:/var/lib/snapd/desktop",
+    "DEBUGINFOD_URLS": "https://debuginfod.ubuntu.com ",
+    "SSH_CLIENT": "152.58.128.184 41782 22",
+    "XDG_RUNTIME_DIR": "/run/user/0",
+    "XDG_SESSION_ID": "1865",
+    "SHLVL": "1",
+    "USER": "root",
+    "XDG_SESSION_CLASS": "user",
+    "SSH_CONNECTION": "152.58.128.184 41782 72.61.171.190 22",
+    "LANG": "C.UTF-8",
+    "HOME": "/root",
+    "XDG_SESSION_TYPE": "tty",
+    "LOGNAME": "root",
+    "PWD": "/var/www/portfolio",
+    "SHELL": "/bin/bash",
+    "NODE_APP_INSTANCE": 0,
+    "vizion_running": false,
+    "km_link": false,
+    "pm_pid_path": "/root/.pm2/pids/child-monitor-backend-0.pid",
+    "pm_err_log_path": "/root/.pm2/logs/child-monitor-backend-error.log",
+    "pm_out_log_path": "/root/.pm2/logs/child-monitor-backend-out.log",
+    "exec_mode": "fork_mode",
+    "exec_interpreter": "node",
+    "pm_cwd": "/var/www/child-monitor/server",
+    "pm_exec_path": "/var/www/child-monitor/server/index.js",
+    "node_args": [],
+    "name": "child-monitor-backend",
+    "filter_env": [],
+    "namespace": "default",
+    "env": {
+      "unique_id": "297d799e-5bbc-410e-b75c-9aa8b7cd5a81",
+      "child-monitor-backend": {},
+      "PM2_HOME": "/root/.pm2",
+      "PM2_USAGE": "CLI",
+      "OLDPWD": "/root",
+      "_": "/usr/local/bin/pm2",
+      "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/0/bus",
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+      "XDG_DATA_DIRS": "/usr/local/share:/usr/share:/var/lib/snapd/desktop",
+      "DEBUGINFOD_URLS": "https://debuginfod.ubuntu.com ",
+      "SSH_CLIENT": "152.58.128.184 41782 22",
+      "XDG_RUNTIME_DIR": "/run/user/0",
+      "XDG_SESSION_ID": "1865",
+      "SHLVL": "1",
+      "USER": "root",
+      "XDG_SESSION_CLASS": "user",
+      "SSH_CONNECTION": "152.58.128.184 41782 72.61.171.190 22",
+      "LANG": "C.UTF-8",
+      "HOME": "/root",
+      "XDG_SESSION_TYPE": "tty",
+      "LOGNAME": "root",
+      "PWD": "/var/www/portfolio",
+      "SHELL": "/bin/bash"
+    },
+    "merge_logs": true,
+    "vizion": true,
+    "autostart": true,
+    "autorestart": true,
+    "watch": false,
+    "instance_var": "NODE_APP_INSTANCE",
+    "pmx": true,
+    "automation": true,
+    "treekill": true,
+    "username": "root",
+    "windowsHide": true,
+    "kill_retry_time": 100,
+    "exit_code": 0
+  },
+  {
+    "exit_code": 0,
+    "node_version": "20.20.0",
+    "version": "1.0.0",
+    "unstable_restarts": 0,
+    "restart_time": 2,
+    "created_at": 1771409052976,
+    "axm_dynamic": {},
+    "axm_options": {
+      "error": true,
+      "heapdump": true,
+      "feature.profiler.heapsnapshot": false,
+      "feature.profiler.heapsampling": true,
+      "feature.profiler.cpu_js": true,
+      "latency": true,
+      "catchExceptions": true,
+      "profiling": true,
+      "metrics": {
+        "http": true,
+        "runtime": true,
+        "eventLoop": true,
+        "network": false,
+        "v8": true
+      },
+      "standalone": false,
+      "module_conf": {},
+      "apm": {
+        "version": "6.1.0",
+        "type": "node"
+      },
+      "module_name": "onrides-backend",
+      "module_version": "6.0.14"
+    },
+    "axm_monitor": {
+      "Used Heap Size": {
+        "value": "52.51",
+        "type": "internal/v8/heap/used",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Heap Usage": {
+        "value": 94.7,
+        "type": "internal/v8/heap/usage",
+        "unit": "%",
+        "historic": true
+      },
+      "Heap Size": {
+        "value": "55.45",
+        "type": "internal/v8/heap/total",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Event Loop Latency p95": {
+        "value": "1.21",
+        "type": "internal/libuv/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "Event Loop Latency": {
+        "value": "0.32",
+        "type": "internal/libuv/latency/p50",
+        "unit": "ms",
+        "historic": true
+      },
+      "Active handles": {
+        "value": 29,
+        "type": "internal/libuv/handles",
+        "historic": true
+      },
+      "Active requests": {
+        "value": 0,
+        "type": "internal/libuv/requests",
+        "historic": true
+      },
+      "HTTP": {
+        "value": 0,
+        "type": "internal/http/builtin/reqs",
+        "unit": "req/min",
+        "historic": true
+      },
+      "HTTP P95 Latency": {
+        "value": 556.4,
+        "type": "internal/http/builtin/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "HTTP Mean Latency": {
+        "value": 1,
+        "type": "internal/http/builtin/latency/p50",
+        "unit": "ms",
+        "historic": true
+      }
+    },
+    "axm_actions": [
+      {
+        "action_name": "km:heapdump",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:stop",
+        "action_type": "internal",
+        "arity": 1
+      },
+      {
+        "action_name": "km:heap:sampling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:heap:sampling:stop",
+        "action_type": "internal",
+        "arity": 1
+      }
+    ],
+    "pm_uptime": 1771409053118,
+    "status": "online",
+    "unique_id": "5beb43db-dc0c-49eb-8472-9433cbb16eec",
+    "PM2_HOME": "/root/.pm2",
+    "PM2_USAGE": "CLI",
+    "_": "/usr/local/bin/pm2",
+    "OLDPWD": "/root",
+    "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/0/bus",
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+    "SSH_CLIENT": "152.58.128.184 41782 22",
+    "XDG_RUNTIME_DIR": "/run/user/0",
+    "XDG_SESSION_ID": "1865",
+    "SHLVL": "1",
+    "USER": "root",
+    "XDG_SESSION_CLASS": "user",
+    "SSH_CONNECTION": "152.58.128.184 41782 72.61.171.190 22",
+    "LANG": "C.UTF-8",
+    "HOME": "/root",
+    "XDG_SESSION_TYPE": "tty",
+    "LOGNAME": "root",
+    "PWD": "/var/www/portfolio",
+    "SHELL": "/bin/bash",
+    "PORT": "5001",
+    "NODE_APP_INSTANCE": 0,
+    "vizion_running": false,
+    "km_link": false,
+    "pm_pid_path": "/root/.pm2/pids/onrides-backend-1.pid",
+    "pm_err_log_path": "/root/.pm2/logs/onrides-backend-error.log",
+    "pm_out_log_path": "/root/.pm2/logs/onrides-backend-out.log",
+    "exec_mode": "fork_mode",
+    "exec_interpreter": "node",
+    "pm_cwd": "/var/www/onrides/server",
+    "pm_exec_path": "/var/www/onrides/server/dist/server.js",
+    "node_args": [],
+    "name": "onrides-backend",
+    "filter_env": [],
+    "namespace": "default",
+    "env": {
+      "unique_id": "5beb43db-dc0c-49eb-8472-9433cbb16eec",
+      "onrides-backend": {},
+      "PM2_HOME": "/root/.pm2",
+      "PM2_USAGE": "CLI",
+      "_": "/usr/local/bin/pm2",
+      "OLDPWD": "/root",
+      "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/0/bus",
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+      "SSH_CLIENT": "152.58.128.184 41782 22",
+      "XDG_RUNTIME_DIR": "/run/user/0",
+      "XDG_SESSION_ID": "1865",
+      "SHLVL": "1",
+      "USER": "root",
+      "XDG_SESSION_CLASS": "user",
+      "SSH_CONNECTION": "152.58.128.184 41782 72.61.171.190 22",
+      "LANG": "C.UTF-8",
+      "HOME": "/root",
+      "XDG_SESSION_TYPE": "tty",
+      "LOGNAME": "root",
+      "PWD": "/var/www/portfolio",
+      "SHELL": "/bin/bash",
+      "PORT": "5001"
+    },
+    "merge_logs": true,
+    "vizion": true,
+    "autostart": true,
+    "autorestart": true,
+    "watch": false,
+    "instance_var": "NODE_APP_INSTANCE",
+    "pmx": true,
+    "automation": true,
+    "treekill": true,
+    "username": "root",
+    "windowsHide": true,
+    "kill_retry_time": 100
+  },
+  {
+    "exit_code": 0,
+    "node_version": "20.20.0",
+    "version": "1.0.0",
+    "unstable_restarts": 0,
+    "restart_time": 223,
+    "created_at": 1771409053627,
+    "axm_dynamic": {},
+    "axm_options": {
+      "error": true,
+      "heapdump": true,
+      "feature.profiler.heapsnapshot": false,
+      "feature.profiler.heapsampling": true,
+      "feature.profiler.cpu_js": true,
+      "latency": true,
+      "catchExceptions": true,
+      "profiling": true,
+      "metrics": {
+        "http": true,
+        "runtime": true,
+        "eventLoop": true,
+        "network": false,
+        "v8": true
+      },
+      "standalone": false,
+      "module_conf": {},
+      "apm": {
+        "version": "6.1.0",
+        "type": "node"
+      },
+      "module_name": "infexor-crm",
+      "module_version": "6.0.14"
+    },
+    "axm_monitor": {
+      "Used Heap Size": {
+        "value": "38.75",
+        "type": "internal/v8/heap/used",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Heap Usage": {
+        "value": 93.37,
+        "type": "internal/v8/heap/usage",
+        "unit": "%",
+        "historic": true
+      },
+      "Heap Size": {
+        "value": "41.50",
+        "type": "internal/v8/heap/total",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Event Loop Latency p95": {
+        "value": "1.11",
+        "type": "internal/libuv/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "Event Loop Latency": {
+        "value": "0.26",
+        "type": "internal/libuv/latency/p50",
+        "unit": "ms",
+        "historic": true
+      },
+      "Active handles": {
+        "value": 15,
+        "type": "internal/libuv/handles",
+        "historic": true
+      },
+      "Active requests": {
+        "value": 0,
+        "type": "internal/libuv/requests",
+        "historic": true
+      },
+      "HTTP": {
+        "value": 0,
+        "type": "internal/http/builtin/reqs",
+        "unit": "req/min",
+        "historic": true
+      },
+      "HTTP P95 Latency": {
+        "value": 97.29999999999995,
+        "type": "internal/http/builtin/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "HTTP Mean Latency": {
+        "value": 2,
+        "type": "internal/http/builtin/latency/p50",
+        "unit": "ms",
+        "historic": true
+      }
+    },
+    "axm_actions": [
+      {
+        "action_name": "km:heapdump",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:stop",
+        "action_type": "internal",
+        "arity": 1
+      },
+      {
+        "action_name": "km:heap:sampling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:heap:sampling:stop",
+        "action_type": "internal",
+        "arity": 1
+      }
+    ],
+    "pm_uptime": 1771435787013,
+    "status": "online",
+    "unique_id": "4e94fc6b-88e7-4591-af4e-101fbf067660",
+    "PM2_HOME": "/root/.pm2",
+    "PM2_USAGE": "CLI",
+    "_": "/usr/local/bin/pm2",
+    "OLDPWD": "/root",
+    "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/0/bus",
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+    "SSH_CLIENT": "152.58.128.184 41782 22",
+    "XDG_RUNTIME_DIR": "/run/user/0",
+    "XDG_SESSION_ID": "1865",
+    "SHLVL": "1",
+    "USER": "root",
+    "XDG_SESSION_CLASS": "user",
+    "SSH_CONNECTION": "152.58.128.184 41782 72.61.171.190 22",
+    "LANG": "C.UTF-8",
+    "HOME": "/root",
+    "XDG_SESSION_TYPE": "tty",
+    "LOGNAME": "root",
+    "PWD": "/var/www/portfolio",
+    "SHELL": "/bin/bash",
+    "NODE_APP_INSTANCE": 0,
+    "vizion_running": false,
+    "km_link": false,
+    "pm_pid_path": "/root/.pm2/pids/infexor-crm-6.pid",
+    "pm_err_log_path": "/root/.pm2/logs/infexor-crm-error.log",
+    "pm_out_log_path": "/root/.pm2/logs/infexor-crm-out.log",
+    "exec_mode": "fork_mode",
+    "exec_interpreter": "node",
+    "pm_cwd": "/var/www/client-portal",
+    "pm_exec_path": "/var/www/client-portal/server.js",
+    "node_args": [],
+    "name": "infexor-crm",
+    "filter_env": [],
+    "namespace": "default",
+    "env": {
+      "unique_id": "4e94fc6b-88e7-4591-af4e-101fbf067660",
+      "infexor-crm": {},
+      "PM2_HOME": "/root/.pm2",
+      "PM2_USAGE": "CLI",
+      "_": "/usr/local/bin/pm2",
+      "OLDPWD": "/root",
+      "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/0/bus",
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+      "SSH_CLIENT": "152.58.128.184 41782 22",
+      "XDG_RUNTIME_DIR": "/run/user/0",
+      "XDG_SESSION_ID": "1865",
+      "SHLVL": "1",
+      "USER": "root",
+      "XDG_SESSION_CLASS": "user",
+      "SSH_CONNECTION": "152.58.128.184 41782 72.61.171.190 22",
+      "LANG": "C.UTF-8",
+      "HOME": "/root",
+      "XDG_SESSION_TYPE": "tty",
+      "LOGNAME": "root",
+      "PWD": "/var/www/portfolio",
+      "SHELL": "/bin/bash"
+    },
+    "merge_logs": true,
+    "vizion": true,
+    "autostart": true,
+    "autorestart": true,
+    "watch": false,
+    "instance_var": "NODE_APP_INSTANCE",
+    "pmx": true,
+    "automation": true,
+    "treekill": true,
+    "username": "root",
+    "windowsHide": true,
+    "kill_retry_time": 100
+  },
+  {
+    "kill_retry_time": 100,
+    "windowsHide": true,
+    "username": "root",
+    "treekill": true,
+    "automation": true,
+    "pmx": true,
+    "instance_var": "NODE_APP_INSTANCE",
+    "watch": false,
+    "autorestart": true,
+    "autostart": true,
+    "vizion": true,
+    "merge_logs": true,
+    "env": {
+      "SHELL": "/bin/bash",
+      "PWD": "/var/www/infexerwebsite",
+      "LOGNAME": "root",
+      "XDG_SESSION_TYPE": "tty",
+      "HOME": "/root",
+      "LANG": "C.UTF-8",
+      "SSH_CONNECTION": "152.58.128.184 37378 72.61.171.190 22",
+      "XDG_SESSION_CLASS": "user",
+      "USER": "root",
+      "SHLVL": "1",
+      "XDG_SESSION_ID": "1917",
+      "XDG_RUNTIME_DIR": "/run/user/0",
+      "SSH_CLIENT": "152.58.128.184 37378 22",
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+      "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/0/bus",
+      "_": "/usr/local/bin/pm2",
+      "OLDPWD": "/root",
+      "PM2_USAGE": "CLI",
+      "PM2_HOME": "/root/.pm2",
+      "infexerwebsite": {},
+      "unique_id": "276aad2c-91c3-458c-8505-a9373815402b"
+    },
+    "namespace": "default",
+    "filter_env": [],
+    "name": "infexerwebsite",
+    "node_args": [],
+    "pm_exec_path": "/var/www/infexerwebsite/server.js",
+    "pm_cwd": "/var/www/infexerwebsite",
+    "exec_interpreter": "node",
+    "exec_mode": "fork_mode",
+    "pm_out_log_path": "/root/.pm2/logs/infexerwebsite-out.log",
+    "pm_err_log_path": "/root/.pm2/logs/infexerwebsite-error.log",
+    "pm_pid_path": "/root/.pm2/pids/infexerwebsite-7.pid",
+    "km_link": false,
+    "vizion_running": false,
+    "NODE_APP_INSTANCE": 0,
+    "SHELL": "/bin/bash",
+    "PWD": "/var/www/infexerwebsite",
+    "LOGNAME": "root",
+    "XDG_SESSION_TYPE": "tty",
+    "HOME": "/root",
+    "LANG": "C.UTF-8",
+    "SSH_CONNECTION": "152.58.128.184 37378 72.61.171.190 22",
+    "XDG_SESSION_CLASS": "user",
+    "USER": "root",
+    "SHLVL": "1",
+    "XDG_SESSION_ID": "1917",
+    "XDG_RUNTIME_DIR": "/run/user/0",
+    "SSH_CLIENT": "152.58.128.184 37378 22",
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+    "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/0/bus",
+    "_": "/usr/local/bin/pm2",
+    "OLDPWD": "/root",
+    "PM2_USAGE": "CLI",
+    "PM2_HOME": "/root/.pm2",
+    "unique_id": "276aad2c-91c3-458c-8505-a9373815402b",
+    "status": "online",
+    "pm_uptime": 1771410737714,
+    "axm_actions": [
+      {
+        "action_name": "km:heapdump",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:stop",
+        "action_type": "internal",
+        "arity": 1
+      },
+      {
+        "action_name": "km:heap:sampling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:heap:sampling:stop",
+        "action_type": "internal",
+        "arity": 1
+      }
+    ],
+    "axm_monitor": {
+      "Used Heap Size": {
+        "value": "14.12",
+        "type": "internal/v8/heap/used",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Heap Usage": {
+        "value": 70.18,
+        "type": "internal/v8/heap/usage",
+        "unit": "%",
+        "historic": true
+      },
+      "Heap Size": {
+        "value": "20.13",
+        "type": "internal/v8/heap/total",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Event Loop Latency p95": {
+        "value": "1.48",
+        "type": "internal/libuv/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "Event Loop Latency": {
+        "value": "0.51",
+        "type": "internal/libuv/latency/p50",
+        "unit": "ms",
+        "historic": true
+      },
+      "Active handles": {
+        "value": 4,
+        "type": "internal/libuv/handles",
+        "historic": true
+      },
+      "Active requests": {
+        "value": 0,
+        "type": "internal/libuv/requests",
+        "historic": true
+      },
+      "HTTP": {
+        "value": 0,
+        "type": "internal/http/builtin/reqs",
+        "unit": "req/min",
+        "historic": true
+      },
+      "HTTP P95 Latency": {
+        "value": 58.74999999999994,
+        "type": "internal/http/builtin/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "HTTP Mean Latency": {
+        "value": 4,
+        "type": "internal/http/builtin/latency/p50",
+        "unit": "ms",
+        "historic": true
+      }
+    },
+    "axm_options": {
+      "error": true,
+      "heapdump": true,
+      "feature.profiler.heapsnapshot": false,
+      "feature.profiler.heapsampling": true,
+      "feature.profiler.cpu_js": true,
+      "latency": true,
+      "catchExceptions": true,
+      "profiling": true,
+      "metrics": {
+        "http": true,
+        "runtime": true,
+        "eventLoop": true,
+        "network": false,
+        "v8": true
+      },
+      "standalone": false,
+      "module_conf": {},
+      "apm": {
+        "version": "6.1.0",
+        "type": "node"
+      },
+      "module_name": "infexerwebsite",
+      "module_version": "6.0.14"
+    },
+    "axm_dynamic": {},
+    "created_at": 1771410737714,
+    "restart_time": 0,
+    "unstable_restarts": 0,
+    "version": "1.0.0",
+    "node_version": "20.20.0"
+  },
+  {
+    "exit_code": 0,
+    "node_version": "20.20.0",
+    "version": "1.0.0",
+    "unstable_restarts": 0,
+    "restart_time": 1,
+    "created_at": 1771414880335,
+    "axm_dynamic": {},
+    "axm_options": {
+      "error": true,
+      "heapdump": true,
+      "feature.profiler.heapsnapshot": false,
+      "feature.profiler.heapsampling": true,
+      "feature.profiler.cpu_js": true,
+      "latency": true,
+      "catchExceptions": true,
+      "profiling": true,
+      "metrics": {
+        "http": true,
+        "runtime": true,
+        "eventLoop": true,
+        "network": false,
+        "v8": true
+      },
+      "standalone": false,
+      "module_conf": {},
+      "apm": {
+        "version": "6.1.0",
+        "type": "node"
+      },
+      "module_name": "text-profile",
+      "module_version": "6.0.14"
+    },
+    "axm_monitor": {
+      "HTTP": {
+        "value": 0,
+        "type": "internal/http/builtin/reqs",
+        "unit": "req/min",
+        "historic": true
+      },
+      "HTTP P95 Latency": {
+        "value": 11.449999999999989,
+        "type": "internal/http/builtin/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "HTTP Mean Latency": {
+        "value": 1,
+        "type": "internal/http/builtin/latency/p50",
+        "unit": "ms",
+        "historic": true
+      },
+      "Used Heap Size": {
+        "value": "25.24",
+        "type": "internal/v8/heap/used",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Heap Usage": {
+        "value": 74.57,
+        "type": "internal/v8/heap/usage",
+        "unit": "%",
+        "historic": true
+      },
+      "Heap Size": {
+        "value": "33.85",
+        "type": "internal/v8/heap/total",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Event Loop Latency p95": {
+        "value": "1.10",
+        "type": "internal/libuv/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "Event Loop Latency": {
+        "value": "0.25",
+        "type": "internal/libuv/latency/p50",
+        "unit": "ms",
+        "historic": true
+      },
+      "Active handles": {
+        "value": 8,
+        "type": "internal/libuv/handles",
+        "historic": true
+      },
+      "Active requests": {
+        "value": 0,
+        "type": "internal/libuv/requests",
+        "historic": true
+      }
+    },
+    "axm_actions": [
+      {
+        "action_name": "km:heapdump",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:stop",
+        "action_type": "internal",
+        "arity": 1
+      },
+      {
+        "action_name": "km:heap:sampling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:heap:sampling:stop",
+        "action_type": "internal",
+        "arity": 1
+      }
+    ],
+    "pm_uptime": 1771414880451,
+    "status": "online",
+    "unique_id": "7d4ffdf0-8a33-4e7e-882e-8bfd81e4a5fb",
+    "PM2_HOME": "/root/.pm2",
+    "PM2_USAGE": "CLI",
+    "_": "/usr/local/bin/pm2",
+    "OLDPWD": "/root",
+    "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/0/bus",
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+    "SSH_CLIENT": "152.58.128.184 30790 22",
+    "XDG_RUNTIME_DIR": "/run/user/0",
+    "XDG_SESSION_ID": "1939",
+    "SHLVL": "1",
+    "USER": "root",
+    "XDG_SESSION_CLASS": "user",
+    "SSH_CONNECTION": "152.58.128.184 30790 72.61.171.190 22",
+    "LANG": "C.UTF-8",
+    "HOME": "/root",
+    "XDG_SESSION_TYPE": "tty",
+    "LOGNAME": "root",
+    "PWD": "/var/www/profile/server",
+    "SHELL": "/bin/bash",
+    "PORT": "5006",
+    "NODE_APP_INSTANCE": 0,
+    "vizion_running": false,
+    "km_link": false,
+    "pm_pid_path": "/root/.pm2/pids/text-profile-9.pid",
+    "pm_err_log_path": "/root/.pm2/logs/text-profile-error.log",
+    "pm_out_log_path": "/root/.pm2/logs/text-profile-out.log",
+    "exec_mode": "fork_mode",
+    "exec_interpreter": "node",
+    "pm_cwd": "/var/www/profile/server",
+    "pm_exec_path": "/var/www/profile/server/server.js",
+    "node_args": [],
+    "name": "text-profile",
+    "filter_env": [],
+    "namespace": "default",
+    "env": {
+      "unique_id": "7d4ffdf0-8a33-4e7e-882e-8bfd81e4a5fb",
+      "text-profile": {},
+      "PM2_HOME": "/root/.pm2",
+      "PM2_USAGE": "CLI",
+      "_": "/usr/local/bin/pm2",
+      "OLDPWD": "/root",
+      "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/0/bus",
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+      "SSH_CLIENT": "152.58.128.184 30790 22",
+      "XDG_RUNTIME_DIR": "/run/user/0",
+      "XDG_SESSION_ID": "1939",
+      "SHLVL": "1",
+      "USER": "root",
+      "XDG_SESSION_CLASS": "user",
+      "SSH_CONNECTION": "152.58.128.184 30790 72.61.171.190 22",
+      "LANG": "C.UTF-8",
+      "HOME": "/root",
+      "XDG_SESSION_TYPE": "tty",
+      "LOGNAME": "root",
+      "PWD": "/var/www/profile/server",
+      "SHELL": "/bin/bash",
+      "PORT": "5006"
+    },
+    "merge_logs": true,
+    "vizion": true,
+    "autostart": true,
+    "autorestart": true,
+    "watch": false,
+    "instance_var": "NODE_APP_INSTANCE",
+    "pmx": true,
+    "automation": true,
+    "treekill": true,
+    "username": "root",
+    "windowsHide": true,
+    "kill_retry_time": 100
+  },
+  {
+    "kill_retry_time": 100,
+    "windowsHide": true,
+    "username": "root",
+    "treekill": true,
+    "automation": true,
+    "pmx": true,
+    "instance_var": "NODE_APP_INSTANCE",
+    "watch": false,
+    "autorestart": true,
+    "autostart": true,
+    "vizion": true,
+    "merge_logs": true,
+    "env": {
+      "SHELL": "/bin/bash",
+      "PWD": "/root",
+      "LOGNAME": "root",
+      "XDG_SESSION_TYPE": "tty",
+      "HOME": "/root",
+      "LANG": "C.UTF-8",
+      "SSH_CONNECTION": "152.56.142.202 45111 72.61.171.190 22",
+      "XDG_SESSION_CLASS": "user",
+      "USER": "root",
+      "SHLVL": "0",
+      "XDG_SESSION_ID": "3381",
+      "XDG_RUNTIME_DIR": "/run/user/0",
+      "SSH_CLIENT": "152.56.142.202 45111 22",
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+      "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/0/bus",
+      "OLDPWD": "/root",
+      "_": "/usr/local/bin/pm2",
+      "PM2_USAGE": "CLI",
+      "PM2_HOME": "/root/.pm2",
+      "whatsapp-backend": {},
+      "unique_id": "0f0a5319-6ccb-432d-a536-21fa6131b25b"
+    },
+    "namespace": "default",
+    "filter_env": [],
+    "name": "whatsapp-backend",
+    "node_args": [],
+    "pm_exec_path": "/var/www/whatsapplikeapp/server.js",
+    "pm_cwd": "/var/www/whatsapplikeapp",
+    "exec_interpreter": "node",
+    "exec_mode": "fork_mode",
+    "pm_out_log_path": "/root/.pm2/logs/whatsapp-backend-out.log",
+    "pm_err_log_path": "/root/.pm2/logs/whatsapp-backend-error.log",
+    "pm_pid_path": "/root/.pm2/pids/whatsapp-backend-10.pid",
+    "km_link": false,
+    "vizion_running": false,
+    "NODE_APP_INSTANCE": 0,
+    "SHELL": "/bin/bash",
+    "PWD": "/root",
+    "LOGNAME": "root",
+    "XDG_SESSION_TYPE": "tty",
+    "HOME": "/root",
+    "LANG": "C.UTF-8",
+    "SSH_CONNECTION": "152.56.142.202 45111 72.61.171.190 22",
+    "XDG_SESSION_CLASS": "user",
+    "USER": "root",
+    "SHLVL": "0",
+    "XDG_SESSION_ID": "3381",
+    "XDG_RUNTIME_DIR": "/run/user/0",
+    "SSH_CLIENT": "152.56.142.202 45111 22",
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+    "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/0/bus",
+    "OLDPWD": "/root",
+    "_": "/usr/local/bin/pm2",
+    "PM2_USAGE": "CLI",
+    "PM2_HOME": "/root/.pm2",
+    "unique_id": "0f0a5319-6ccb-432d-a536-21fa6131b25b",
+    "status": "online",
+    "pm_uptime": 1771872860334,
+    "axm_actions": [
+      {
+        "action_name": "km:heapdump",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:stop",
+        "action_type": "internal",
+        "arity": 1
+      },
+      {
+        "action_name": "km:heap:sampling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:heap:sampling:stop",
+        "action_type": "internal",
+        "arity": 1
+      }
+    ],
+    "axm_monitor": {
+      "Used Heap Size": {
+        "value": "32.50",
+        "type": "internal/v8/heap/used",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Heap Usage": {
+        "value": 94.18,
+        "type": "internal/v8/heap/usage",
+        "unit": "%",
+        "historic": true
+      },
+      "Heap Size": {
+        "value": "34.50",
+        "type": "internal/v8/heap/total",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Event Loop Latency p95": {
+        "value": "1.20",
+        "type": "internal/libuv/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "Event Loop Latency": {
+        "value": "0.42",
+        "type": "internal/libuv/latency/p50",
+        "unit": "ms",
+        "historic": true
+      },
+      "Active handles": {
+        "value": 16,
+        "type": "internal/libuv/handles",
+        "historic": true
+      },
+      "Active requests": {
+        "value": 0,
+        "type": "internal/libuv/requests",
+        "historic": true
+      },
+      "HTTP": {
+        "value": 0.1,
+        "type": "internal/http/builtin/reqs",
+        "unit": "req/min",
+        "historic": true
+      },
+      "HTTP P95 Latency": {
+        "value": 461,
+        "type": "internal/http/builtin/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "HTTP Mean Latency": {
+        "value": 5,
+        "type": "internal/http/builtin/latency/p50",
+        "unit": "ms",
+        "historic": true
+      }
+    },
+    "axm_options": {
+      "error": true,
+      "heapdump": true,
+      "feature.profiler.heapsnapshot": false,
+      "feature.profiler.heapsampling": true,
+      "feature.profiler.cpu_js": true,
+      "latency": true,
+      "catchExceptions": true,
+      "profiling": true,
+      "metrics": {
+        "http": true,
+        "runtime": true,
+        "eventLoop": true,
+        "network": false,
+        "v8": true
+      },
+      "standalone": false,
+      "module_conf": {},
+      "apm": {
+        "version": "6.1.0",
+        "type": "node"
+      },
+      "module_name": "whatsapp-backend",
+      "module_version": "6.0.14"
+    },
+    "axm_dynamic": {},
+    "created_at": 1771872860220,
+    "restart_time": 318,
+    "unstable_restarts": 0,
+    "version": "1.0.0",
+    "node_version": "20.20.0",
+    "exit_code": 0
+  },
+  {
+    "exit_code": 0,
+    "node_version": "20.20.0",
+    "version": "1.0.0",
+    "unstable_restarts": 0,
+    "restart_time": 39,
+    "created_at": 1771662664239,
+    "axm_dynamic": {},
+    "axm_options": {
+      "error": true,
+      "heapdump": true,
+      "feature.profiler.heapsnapshot": false,
+      "feature.profiler.heapsampling": true,
+      "feature.profiler.cpu_js": true,
+      "latency": true,
+      "catchExceptions": true,
+      "profiling": true,
+      "metrics": {
+        "http": true,
+        "runtime": true,
+        "eventLoop": true,
+        "network": false,
+        "v8": true
+      },
+      "standalone": false,
+      "module_conf": {},
+      "apm": {
+        "version": "6.1.0",
+        "type": "node"
+      },
+      "module_name": "hydroman",
+      "module_version": "6.0.14"
+    },
+    "axm_monitor": {
+      "Used Heap Size": {
+        "value": "18.23",
+        "type": "internal/v8/heap/used",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Heap Usage": {
+        "value": 91.06,
+        "type": "internal/v8/heap/usage",
+        "unit": "%",
+        "historic": true
+      },
+      "Heap Size": {
+        "value": "20.02",
+        "type": "internal/v8/heap/total",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Event Loop Latency p95": {
+        "value": "1.56",
+        "type": "internal/libuv/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "Event Loop Latency": {
+        "value": "0.63",
+        "type": "internal/libuv/latency/p50",
+        "unit": "ms",
+        "historic": true
+      },
+      "Active handles": {
+        "value": 4,
+        "type": "internal/libuv/handles",
+        "historic": true
+      },
+      "Active requests": {
+        "value": 0,
+        "type": "internal/libuv/requests",
+        "historic": true
+      },
+      "HTTP": {
+        "value": 0,
+        "type": "internal/http/builtin/reqs",
+        "unit": "req/min",
+        "historic": true
+      },
+      "HTTP P95 Latency": {
+        "value": 48.4,
+        "type": "internal/http/builtin/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "HTTP Mean Latency": {
+        "value": 2,
+        "type": "internal/http/builtin/latency/p50",
+        "unit": "ms",
+        "historic": true
+      }
+    },
+    "axm_actions": [
+      {
+        "action_name": "km:heapdump",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:stop",
+        "action_type": "internal",
+        "arity": 1
+      },
+      {
+        "action_name": "km:heap:sampling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:heap:sampling:stop",
+        "action_type": "internal",
+        "arity": 1
+      }
+    ],
+    "pm_uptime": 1771662664357,
+    "status": "online",
+    "unique_id": "cd81d688-5c10-4381-b31e-13d3800a1d1c",
+    "PM2_HOME": "/root/.pm2",
+    "PM2_USAGE": "CLI",
+    "_": "/usr/local/bin/pm2",
+    "OLDPWD": "/root",
+    "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/0/bus",
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+    "SSH_CLIENT": "49.43.113.184 61186 22",
+    "XDG_RUNTIME_DIR": "/run/user/0",
+    "XDG_SESSION_ID": "2549",
+    "SHLVL": "1",
+    "USER": "root",
+    "XDG_SESSION_CLASS": "user",
+    "SSH_CONNECTION": "49.43.113.184 61186 72.61.171.190 22",
+    "LANG": "C.UTF-8",
+    "HOME": "/root",
+    "XDG_SESSION_TYPE": "tty",
+    "LOGNAME": "root",
+    "PWD": "/var/www/hydroman",
+    "SHELL": "/bin/bash",
+    "NODE_APP_INSTANCE": 0,
+    "vizion_running": false,
+    "km_link": false,
+    "pm_pid_path": "/root/.pm2/pids/hydroman-11.pid",
+    "pm_err_log_path": "/root/.pm2/logs/hydroman-error.log",
+    "pm_out_log_path": "/root/.pm2/logs/hydroman-out.log",
+    "exec_mode": "fork_mode",
+    "exec_interpreter": "node",
+    "pm_cwd": "/var/www/hydroman",
+    "pm_exec_path": "/var/www/hydroman/server.js",
+    "node_args": [],
+    "name": "hydroman",
+    "filter_env": [],
+    "namespace": "default",
+    "env": {
+      "unique_id": "cd81d688-5c10-4381-b31e-13d3800a1d1c",
+      "hydroman": {},
+      "PM2_HOME": "/root/.pm2",
+      "PM2_USAGE": "CLI",
+      "_": "/usr/local/bin/pm2",
+      "OLDPWD": "/root",
+      "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/0/bus",
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+      "SSH_CLIENT": "49.43.113.184 61186 22",
+      "XDG_RUNTIME_DIR": "/run/user/0",
+      "XDG_SESSION_ID": "2549",
+      "SHLVL": "1",
+      "USER": "root",
+      "XDG_SESSION_CLASS": "user",
+      "SSH_CONNECTION": "49.43.113.184 61186 72.61.171.190 22",
+      "LANG": "C.UTF-8",
+      "HOME": "/root",
+      "XDG_SESSION_TYPE": "tty",
+      "LOGNAME": "root",
+      "PWD": "/var/www/hydroman",
+      "SHELL": "/bin/bash"
+    },
+    "merge_logs": true,
+    "vizion": true,
+    "autostart": true,
+    "autorestart": true,
+    "watch": false,
+    "instance_var": "NODE_APP_INSTANCE",
+    "pmx": true,
+    "automation": true,
+    "treekill": true,
+    "username": "root",
+    "windowsHide": true,
+    "kill_retry_time": 100
+  },
+  {
+    "kill_retry_time": 100,
+    "windowsHide": true,
+    "username": "root",
+    "treekill": true,
+    "automation": true,
+    "pmx": true,
+    "instance_var": "NODE_APP_INSTANCE",
+    "watch": false,
+    "autorestart": true,
+    "autostart": true,
+    "vizion": true,
+    "merge_logs": true,
+    "env": {
+      "SHELL": "/bin/bash",
+      "PWD": "/var/www/VPN/admin-backend",
+      "LOGNAME": "root",
+      "XDG_SESSION_TYPE": "tty",
+      "HOME": "/root",
+      "LANG": "C.UTF-8",
+      "SSH_CONNECTION": "152.58.153.201 40801 72.61.171.190 22",
+      "XDG_SESSION_CLASS": "user",
+      "USER": "root",
+      "SHLVL": "1",
+      "XDG_SESSION_ID": "2811",
+      "XDG_RUNTIME_DIR": "/run/user/0",
+      "SSH_CLIENT": "152.58.153.201 40801 22",
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+      "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/0/bus",
+      "_": "/usr/local/bin/pm2",
+      "OLDPWD": "/root",
+      "PM2_USAGE": "CLI",
+      "PM2_HOME": "/root/.pm2",
+      "cherryhide": {},
+      "unique_id": "aaef919f-a1e0-42cb-a31a-09ceedfb50ad"
+    },
+    "namespace": "default",
+    "filter_env": [],
+    "name": "cherryhide",
+    "node_args": [],
+    "pm_exec_path": "/var/www/VPN/admin-backend/index.js",
+    "pm_cwd": "/var/www/VPN/admin-backend",
+    "exec_interpreter": "node",
+    "exec_mode": "fork_mode",
+    "pm_out_log_path": "/root/.pm2/logs/cherryhide-out.log",
+    "pm_err_log_path": "/root/.pm2/logs/cherryhide-error.log",
+    "pm_pid_path": "/root/.pm2/pids/cherryhide-12.pid",
+    "km_link": false,
+    "vizion_running": false,
+    "NODE_APP_INSTANCE": 0,
+    "SHELL": "/bin/bash",
+    "PWD": "/var/www/VPN/admin-backend",
+    "LOGNAME": "root",
+    "XDG_SESSION_TYPE": "tty",
+    "HOME": "/root",
+    "LANG": "C.UTF-8",
+    "SSH_CONNECTION": "152.58.153.201 40801 72.61.171.190 22",
+    "XDG_SESSION_CLASS": "user",
+    "USER": "root",
+    "SHLVL": "1",
+    "XDG_SESSION_ID": "2811",
+    "XDG_RUNTIME_DIR": "/run/user/0",
+    "SSH_CLIENT": "152.58.153.201 40801 22",
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin",
+    "DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/0/bus",
+    "_": "/usr/local/bin/pm2",
+    "OLDPWD": "/root",
+    "PM2_USAGE": "CLI",
+    "PM2_HOME": "/root/.pm2",
+    "unique_id": "aaef919f-a1e0-42cb-a31a-09ceedfb50ad",
+    "status": "online",
+    "pm_uptime": 1771658684915,
+    "axm_actions": [
+      {
+        "action_name": "km:heapdump",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:cpu:profiling:stop",
+        "action_type": "internal",
+        "arity": 1
+      },
+      {
+        "action_name": "km:heap:sampling:start",
+        "action_type": "internal",
+        "arity": 2
+      },
+      {
+        "action_name": "km:heap:sampling:stop",
+        "action_type": "internal",
+        "arity": 1
+      }
+    ],
+    "axm_monitor": {
+      "Used Heap Size": {
+        "value": "22.05",
+        "type": "internal/v8/heap/used",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Heap Usage": {
+        "value": 72.46,
+        "type": "internal/v8/heap/usage",
+        "unit": "%",
+        "historic": true
+      },
+      "Heap Size": {
+        "value": "30.43",
+        "type": "internal/v8/heap/total",
+        "unit": "MiB",
+        "historic": true
+      },
+      "Event Loop Latency p95": {
+        "value": "1.18",
+        "type": "internal/libuv/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "Event Loop Latency": {
+        "value": "0.30",
+        "type": "internal/libuv/latency/p50",
+        "unit": "ms",
+        "historic": true
+      },
+      "Active handles": {
+        "value": 9,
+        "type": "internal/libuv/handles",
+        "historic": true
+      },
+      "Active requests": {
+        "value": 0,
+        "type": "internal/libuv/requests",
+        "historic": true
+      },
+      "HTTP": {
+        "value": 0,
+        "type": "internal/http/builtin/reqs",
+        "unit": "req/min",
+        "historic": true
+      },
+      "HTTP P95 Latency": {
+        "value": 2,
+        "type": "internal/http/builtin/latency/p95",
+        "unit": "ms",
+        "historic": true
+      },
+      "HTTP Mean Latency": {
+        "value": 1,
+        "type": "internal/http/builtin/latency/p50",
+        "unit": "ms",
+        "historic": true
+      }
+    },
+    "axm_options": {
+      "error": true,
+      "heapdump": true,
+      "feature.profiler.heapsnapshot": false,
+      "feature.profiler.heapsampling": true,
+      "feature.profiler.cpu_js": true,
+      "latency": true,
+      "catchExceptions": true,
+      "profiling": true,
+      "metrics": {
+        "http": true,
+        "runtime": true,
+        "eventLoop": true,
+        "network": false,
+        "v8": true
+      },
+      "standalone": false,
+      "module_conf": {},
+      "apm": {
+        "version": "6.1.0",
+        "type": "node"
+      },
+      "module_name": "cherryhide",
+      "module_version": "6.0.14"
+    },
+    "axm_dynamic": {},
+    "created_at": 1771658684915,
+    "restart_time": 0,
+    "unstable_restarts": 0,
+    "version": "1.0.0",
+    "node_version": "20.20.0"
+  }
+]

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_background_service/flutter_background_service.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/services/permission_service.dart';
 import '../../core/services/notification_service.dart';
@@ -9,6 +8,7 @@ import '../chat/screens/chat_list_screen.dart';
 import '../chat/services/socket_service.dart';
 import '../settings/screens/settings_screen.dart';
 import '../status/status_screen.dart';
+import '../chat/screens/calls_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -24,6 +24,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   List<Widget> get _screens => [
     const ChatListScreen(),
     const StatusScreen(),
+    const CallsScreen(),
     const SettingsScreen(),
   ];
 
@@ -33,9 +34,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     WidgetsBinding.instance.addObserver(this);
     Future.microtask(() {
       // Sync app status
-      FlutterBackgroundService().invoke('setAppStatus', {
-        'status': 'foreground',
-      });
+      // Background service disabled by user request
+      // FlutterBackgroundService().invoke('setAppStatus', {
+      //   'status': 'foreground',
+      // });
 
       // Request permissions
       PermissionService.requestAllPermissions();
@@ -56,7 +58,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   void dispose() {
     // Last-ditch effort: tell background service the UI is gone
-    FlutterBackgroundService().invoke('setAppStatus', {'status': 'background'});
+    // FlutterBackgroundService().invoke('setAppStatus', {'status': 'background'});
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -67,9 +69,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     if (state == AppLifecycleState.resumed) {
       ref.read(notificationServiceProvider).isAppInForeground = true;
-      FlutterBackgroundService().invoke('setAppStatus', {
-        'status': 'foreground',
-      });
+      // FlutterBackgroundService().invoke('setAppStatus', {
+      //   'status': 'foreground',
+      // });
 
       final socket = ref.read(socketServiceProvider);
       if (!socket.isConnected) {
@@ -82,9 +84,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       // paused, inactive, hidden, detached — all mean "not in foreground"
       ref.read(notificationServiceProvider).activeChatId = null;
       ref.read(notificationServiceProvider).isAppInForeground = false;
-      FlutterBackgroundService().invoke('setAppStatus', {
-        'status': 'background',
-      });
+      // FlutterBackgroundService().invoke('setAppStatus', {
+      //   'status': 'background',
+      // });
     }
   }
 
@@ -120,23 +122,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   _NavItem(
-                    icon: Icons.chat_bubble,
+                    icon: Icons.chat_bubble_outline,
                     label: 'Chats',
                     isSelected: _currentIndex == 0,
                     onTap: () => setState(() => _currentIndex = 0),
                     badgeCount: 0,
                   ),
                   _NavItem(
-                    icon: Icons.circle_outlined,
+                    icon: Icons
+                        .data_usage, // Using data_usage as generic Status icon matching Material
                     label: 'Status',
                     isSelected: _currentIndex == 1,
                     onTap: () => setState(() => _currentIndex = 1),
                   ),
                   _NavItem(
-                    icon: Icons.settings,
-                    label: 'Settings',
+                    icon: Icons.phone_outlined,
+                    label: 'Calls',
                     isSelected: _currentIndex == 2,
                     onTap: () => setState(() => _currentIndex = 2),
+                  ),
+                  _NavItem(
+                    icon: Icons.more_vert,
+                    label: 'More',
+                    isSelected: _currentIndex == 3,
+                    onTap: () => setState(() => _currentIndex = 3),
                   ),
                 ],
               ),
@@ -165,7 +174,9 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isSelected ? AppColors.accentBlue : const Color(0xFF8696A0);
+    final color = isSelected
+        ? const Color(0xFFFF6D00)
+        : const Color(0xFF64748B);
 
     return InkWell(
       onTap: onTap,

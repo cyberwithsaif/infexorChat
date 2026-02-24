@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/constants/api_endpoints.dart';
@@ -33,29 +34,26 @@ class ContactService {
       withPhoto: false,
     );
 
-    final List<Map<String, String>> result = [];
-
     // Debug logging
     print('Found ${contacts.length} device contacts');
 
-    for (final contact in contacts) {
-      for (final phone in contact.phones) {
-        // Use normalizedNumber if available (usually E.164), otherwise raw number
-        String numberToUse = phone.normalizedNumber.isNotEmpty
-            ? phone.normalizedNumber
-            : phone.number;
+    // Convert flutter_contacts objects to primitive maps so we can pass them to an Isolate
+    final rawContactsData = contacts.map((c) {
+      return {
+        'displayName': c.displayName,
+        'phones': c.phones
+            .map(
+              (p) => {
+                'normalizedNumber': p.normalizedNumber,
+                'number': p.number,
+              },
+            )
+            .toList(),
+      };
+    }).toList();
 
-        final normalized = _normalizePhone(numberToUse);
-
-        if (normalized.isNotEmpty) {
-          result.add({
-            'name': contact.displayName,
-            'phone': normalized,
-            'phoneHash': _hashPhone(normalized),
-          });
-        }
-      }
-    }
+    // Offload the heavy Regex parsing and SHA-256 hashing to a background Isolate
+    final result = await compute(_parseAndHashContacts, rawContactsData);
 
     print('Normalized ${result.length} phone numbers for sync');
     return result;
@@ -123,4 +121,51 @@ class ContactService {
     final bytes = utf8.encode(phone);
     return sha256.convert(bytes).toString();
   }
+}
+
+// -----------------------------------------------------------------------------
+// TOP LEVEL COMPUTE FUNCTION FOR BACKGROUND ISOLATE
+// -----------------------------------------------------------------------------
+List<Map<String, String>> _parseAndHashContacts(List<dynamic> rawContactsData) {
+  final List<Map<String, String>> result = [];
+
+  for (final contactData in rawContactsData) {
+    if (contactData is! Map) continue;
+
+    final displayName = contactData['displayName']?.toString() ?? 'Unknown';
+    final phonesRaw = contactData['phones'];
+
+    if (phonesRaw is List) {
+      for (final phoneData in phonesRaw) {
+        if (phoneData is! Map) continue;
+
+        final normalizedNumber =
+            phoneData['normalizedNumber']?.toString() ?? '';
+        final number = phoneData['number']?.toString() ?? '';
+
+        String numberToUse = normalizedNumber.isNotEmpty
+            ? normalizedNumber
+            : number;
+        // Normalize
+        final normalized = numberToUse.replaceAll(
+          RegExp(r'[\s\-\(\)\.\+]'),
+          '',
+        );
+
+        if (normalized.isNotEmpty) {
+          // Hash
+          final bytes = utf8.encode(normalized);
+          final hash = sha256.convert(bytes).toString();
+
+          result.add({
+            'name': displayName,
+            'phone': normalized,
+            'phoneHash': hash,
+          });
+        }
+      }
+    }
+  }
+
+  return result;
 }

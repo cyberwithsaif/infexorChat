@@ -1,400 +1,484 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/url_utils.dart';
 import '../../../core/utils/animated_page_route.dart';
 import '../../../core/utils/animation_helpers.dart';
 import '../../auth/providers/auth_provider.dart';
 import 'privacy_settings_screen.dart';
 import 'profile_edit_screen.dart';
-import 'blocked_contacts_screen.dart';
 import 'notification_settings_screen.dart';
 import 'storage_data_screen.dart';
 import 'help_screen.dart';
 import 'chat_settings_screen.dart';
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  @override
+  Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     final user = authState.user;
     final name = user?['name'] ?? 'User';
-    final about = user?['about'] ?? '';
+    final phone = user?['phone'] ?? '+1 (555) 123-4567';
     final rawAvatar = user?['avatar'] ?? '';
     final avatar = UrlUtils.getFullUrl(rawAvatar);
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = Theme.of(context).scaffoldBackgroundColor;
+    final bgColor = isDark ? const Color(0xFF0B141A) : const Color(0xFFFAF8F5);
     final textColor =
         Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black;
     final subtitleColor =
         Theme.of(context).textTheme.bodyMedium?.color ?? Colors.grey;
-    final dividerColor =
-        Theme.of(context).dividerTheme.color ?? const Color(0xFFE9EDEF);
 
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
         backgroundColor: bgColor,
         elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: AppColors.primaryPurple),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Text(
           'Settings',
           style: TextStyle(
-            color: textColor,
+            color: AppColors.primaryPurple,
             fontWeight: FontWeight.w700,
             fontSize: 22,
           ),
         ),
         iconTheme: IconThemeData(color: subtitleColor),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(color: dividerColor(context), height: 1),
+        ),
         actions: [
           IconButton(
             icon: Icon(Icons.search, color: subtitleColor),
             onPressed: () {},
           ),
-          PopupMenuButton<String>(
-            icon: Icon(Icons.more_vert, color: subtitleColor),
-            color: bgColor,
-            onSelected: (value) {},
-            itemBuilder: (ctx) => [],
-          ),
         ],
       ),
       body: ListView(
+        padding: const EdgeInsets.only(top: 8, bottom: 40),
         children: [
-          // Profile header card
-          TapScaleFeedback(
-            onTap: () => Navigator.push(
-              context,
-              AnimatedPageRoute(builder: (_) => const ProfileEditScreen()),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              child: Row(
-                children: [
-                  // Avatar
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: isDark
-                        ? const Color(0xFF2A2F32)
-                        : const Color(0xFFE8EDF2),
-                    backgroundImage: avatar.isNotEmpty
-                        ? CachedNetworkImageProvider(avatar)
-                        : null,
-                    child: avatar.isEmpty
-                        ? Text(
-                            name.isNotEmpty ? name[0].toUpperCase() : '?',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w600,
-                              color: subtitleColor,
-                            ),
-                          )
-                        : null,
+          // ─── Profile Header ───
+          _SettingsCard(
+            children: [
+              TapScaleFeedback(
+                onTap: () => Navigator.push(
+                  context,
+                  AnimatedPageRoute(builder: (_) => const ProfileEditScreen()),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
                   ),
-                  const SizedBox(width: 14),
-                  // Name + About
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          name,
-                          style: TextStyle(
-                            color: textColor,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
+                  child: Row(
+                    children: [
+                      // Avatar
+                      Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 34,
+                            backgroundColor: isDark
+                                ? const Color(0xFF2A2F32)
+                                : const Color(0xFFE8EDF2),
+                            backgroundImage: avatar.isNotEmpty
+                                ? CachedNetworkImageProvider(avatar)
+                                : null,
+                            child: avatar.isEmpty
+                                ? Text(
+                                    name.isNotEmpty
+                                        ? name[0].toUpperCase()
+                                        : '?',
+                                    style: TextStyle(
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.w600,
+                                      color: subtitleColor,
+                                    ),
+                                  )
+                                : null,
                           ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                color: AppColors.primaryPurple,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: Colors.white,
+                                  width: 2.5,
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt,
+                                color: Colors.white,
+                                size: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 16),
+                      // Name + Meta
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  name,
+                                  style: TextStyle(
+                                    color: textColor,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                Icon(
+                                  Icons.edit_outlined,
+                                  size: 16,
+                                  color: AppColors.primaryPurple,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Available',
+                              style: TextStyle(
+                                color: subtitleColor,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              phone,
+                              style: TextStyle(
+                                color: subtitleColor,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          about.isNotEmpty
-                              ? about
-                              : 'Hey there! I am using Infexor Chat',
-                          style: TextStyle(color: subtitleColor, fontSize: 13),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                      ),
+                      // QR Code Icon
+                      Icon(
+                        Icons.qr_code_2,
+                        color: AppColors.primaryPurple,
+                        size: 32,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // ─── Account ───
+          const _SectionHeader(title: 'Account'),
+          _SettingsCard(
+            children: [
+              _SettingsTile(
+                icon: Icons.key_outlined,
+                title: 'Account',
+                subtitle: 'Security notifications, change number',
+                hasChevron: true,
+                onTap: () {},
+              ),
+              _Divider(context),
+              _SettingsTile(
+                icon: Icons.shield_outlined,
+                title: 'Privacy',
+                subtitle: 'Block contacts, disappearing messages',
+                hasChevron: true,
+                onTap: () => Navigator.push(
+                  context,
+                  AnimatedPageRoute(
+                    builder: (_) => const PrivacySettingsScreen(),
+                  ),
+                ),
+              ),
+              _Divider(context),
+              _SettingsTile(
+                icon: Icons.person_outline,
+                title: 'Avatar',
+                subtitle: 'Create, edit, profile photo',
+                hasChevron: true,
+                onTap: () {},
+              ),
+            ],
+          ),
+
+          // ─── Chats & Media ───
+          const _SectionHeader(title: 'Chats & Media'),
+          _SettingsCard(
+            children: [
+              _SettingsTile(
+                icon: Icons.chat_bubble_outline,
+                title: 'Chats',
+                subtitle: 'Theme, wallpapers, chat history',
+                hasChevron: true,
+                onTap: () => Navigator.push(
+                  context,
+                  AnimatedPageRoute(builder: (_) => const ChatSettingsScreen()),
+                ),
+              ),
+              _Divider(context),
+              _SettingsTile(
+                icon: Icons.notifications_outlined,
+                title: 'Notifications',
+                subtitle: 'Message, group & call tones',
+                hasChevron: true,
+                onTap: () => Navigator.push(
+                  context,
+                  AnimatedPageRoute(
+                    builder: (_) => const NotificationSettingsScreen(),
+                  ),
+                ),
+              ),
+              _Divider(context),
+              _SettingsTile(
+                icon: Icons.data_usage,
+                title: 'Storage and Data',
+                subtitle: 'Network usage, auto-download',
+                hasChevron: true,
+                onTap: () => Navigator.push(
+                  context,
+                  AnimatedPageRoute(builder: (_) => const StorageDataScreen()),
+                ),
+              ),
+            ],
+          ),
+
+          // ─── App Settings ───
+          const _SectionHeader(title: 'App Settings'),
+          _SettingsCard(
+            children: [
+              _SettingsTile(
+                icon: Icons.language,
+                title: 'App Language',
+                subtitle: 'English (device\'s language)',
+                hasChevron: true,
+                onTap: () {},
+              ),
+            ],
+          ),
+
+          // ─── Help ───
+          const _SectionHeader(title: 'Help'),
+          _SettingsCard(
+            children: [
+              _SettingsTile(
+                icon: Icons.help_outline_rounded,
+                title: 'Help',
+                subtitle: 'Help center, contact us, privacy policy',
+                hasChevron: true,
+                onTap: () => Navigator.push(
+                  context,
+                  AnimatedPageRoute(builder: (_) => const HelpScreen()),
+                ),
+              ),
+              _Divider(context),
+              _SettingsTile(
+                icon: Icons.group_add_outlined,
+                title: 'Invite a Friend',
+                hasChevron: true,
+                onTap: () {},
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // ─── Logout ───
+          _SettingsCard(
+            children: [
+              _SettingsTile(
+                icon: Icons.logout_rounded,
+                title: 'Logout',
+                iconColor: Colors.redAccent,
+                titleColor: Colors.redAccent,
+                hasChevron: false,
+                onTap: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      backgroundColor: bgColor,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      title: Text(
+                        'Logout',
+                        style: TextStyle(
+                          color: textColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      content: Text(
+                        'Are you sure you want to logout?',
+                        style: TextStyle(color: subtitleColor),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text(
+                            'Logout',
+                            style: TextStyle(color: Colors.redAccent),
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                ],
+                  );
+
+                  if (confirm == true) {
+                    ref.read(authProvider.notifier).logout();
+                  }
+                },
               ),
-            ),
+            ],
           ),
-
-          // Divider
-          Divider(color: dividerColor, height: 1),
-          const SizedBox(height: 4),
-
-          // ─── SETTINGS ITEMS ───
-          _SettingsTile(
-            icon: Icons.person_outline_rounded,
-            iconBgColor: const Color(0xFF2196F3),
-            title: 'Account',
-            subtitle: 'Number, Bio',
-            onTap: () => Navigator.push(
-              context,
-              AnimatedPageRoute(builder: (_) => const ProfileEditScreen()),
-            ),
-          ),
-
-          _SettingsTile(
-            icon: Icons.chat_bubble_outline_rounded,
-            iconBgColor: const Color(0xFF4CAF50),
-            title: 'Chat Settings',
-            subtitle: 'Theme, Wallpaper, Animations',
-            onTap: () => Navigator.push(
-              context,
-              AnimatedPageRoute(builder: (_) => const ChatSettingsScreen()),
-            ),
-          ),
-
-          _SettingsTile(
-            icon: Icons.lock_outline_rounded,
-            iconBgColor: const Color(0xFF009688),
-            title: 'Privacy & Security',
-            subtitle: 'Last Seen, Devices, Passkeys',
-            onTap: () => Navigator.push(
-              context,
-              AnimatedPageRoute(builder: (_) => const PrivacySettingsScreen()),
-            ),
-          ),
-
-          _SettingsTile(
-            icon: Icons.notifications_outlined,
-            iconBgColor: const Color(0xFFFF5722),
-            title: 'Notifications',
-            subtitle: 'Sounds, Calls, Badges',
-            onTap: () => Navigator.push(
-              context,
-              AnimatedPageRoute(
-                builder: (_) => const NotificationSettingsScreen(),
-              ),
-            ),
-          ),
-
-          _SettingsTile(
-            icon: Icons.data_usage_rounded,
-            iconBgColor: const Color(0xFF8BC34A),
-            title: 'Data and Storage',
-            subtitle: 'Media download settings',
-            onTap: () => Navigator.push(
-              context,
-              AnimatedPageRoute(builder: (_) => const StorageDataScreen()),
-            ),
-          ),
-
-          _SettingsTile(
-            icon: Icons.folder_outlined,
-            iconBgColor: const Color(0xFF3F51B5),
-            title: 'Chat Folders',
-            subtitle: 'Sort chats into folders',
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Coming soon'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
-          ),
-
-          _SettingsTile(
-            icon: Icons.devices_rounded,
-            iconBgColor: const Color(0xFF607D8B),
-            title: 'Devices',
-            subtitle: 'Manage connected devices',
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Coming soon'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
-          ),
-
-          _SettingsTile(
-            icon: Icons.battery_saver_rounded,
-            iconBgColor: const Color(0xFFFF9800),
-            title: 'Power Saving',
-            subtitle: 'Reduce power usage on low charge',
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Coming soon'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
-          ),
-
-          _SettingsTile(
-            icon: Icons.language_rounded,
-            iconBgColor: const Color(0xFF9C27B0),
-            title: 'Language',
-            subtitle: 'English',
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Coming soon'),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
-          ),
-
-          Divider(color: dividerColor, height: 1),
-
-          // Help
-          _SettingsTile(
-            icon: Icons.help_outline_rounded,
-            iconBgColor: const Color(0xFF2196F3),
-            title: 'Help',
-            subtitle: 'Contact us, privacy policy',
-            onTap: () => Navigator.push(
-              context,
-              AnimatedPageRoute(builder: (_) => const HelpScreen()),
-            ),
-          ),
-
-          // Blocked contacts
-          _SettingsTile(
-            icon: Icons.block_rounded,
-            iconBgColor: const Color(0xFFE53935),
-            title: 'Blocked Contacts',
-            subtitle: 'Manage blocked users',
-            onTap: () => Navigator.push(
-              context,
-              AnimatedPageRoute(builder: (_) => const BlockedContactsScreen()),
-            ),
-          ),
-
-          Divider(color: dividerColor, height: 1),
-
-          // Logout
-          _SettingsTile(
-            icon: Icons.logout_rounded,
-            iconBgColor: const Color(0xFFE53935),
-            title: 'Logout',
-            onTap: () async {
-              final confirm = await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  backgroundColor: bgColor,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  title: Text(
-                    'Logout',
-                    style: TextStyle(
-                      color: textColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  content: Text(
-                    'Are you sure you want to logout?',
-                    style: TextStyle(color: subtitleColor),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('Cancel'),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text(
-                        'Logout',
-                        style: TextStyle(color: Color(0xFFE53935)),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-
-              if (confirm == true) {
-                ref.read(authProvider.notifier).logout();
-              }
-            },
-          ),
-
-          const SizedBox(height: 24),
-
-          // App info
-          Center(
-            child: Column(
-              children: [
-                Text(
-                  'Infexor Chat',
-                  style: TextStyle(
-                    color: subtitleColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Version 1.0.0',
-                  style: TextStyle(color: subtitleColor, fontSize: 11),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
         ],
       ),
+    );
+  }
+
+  Color dividerColor(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark
+        ? Colors.grey.withValues(alpha: 0.1)
+        : const Color(0xFFF0F2F5);
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+
+  const _SectionHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    final subtitleColor =
+        Theme.of(context).textTheme.bodyMedium?.color ?? Colors.grey;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: subtitleColor.withValues(alpha: 0.8),
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsCard extends StatelessWidget {
+  final List<Widget> children;
+
+  const _SettingsCard({required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF202C33) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: isDark
+            ? []
+            : [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+      ),
+      child: Column(children: children),
+    );
+  }
+}
+
+class _Divider extends StatelessWidget {
+  final BuildContext context;
+  const _Divider(this.context);
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Divider(
+      height: 1,
+      color: isDark
+          ? Colors.grey.withValues(alpha: 0.1)
+          : const Color(0xFFF6F8FA),
+      indent: 56,
     );
   }
 }
 
 class _SettingsTile extends StatelessWidget {
   final IconData icon;
-  final Color iconBgColor;
   final String title;
   final String? subtitle;
-  final VoidCallback onTap;
+  final bool hasChevron;
+  final bool? value;
+  final ValueChanged<bool>? onChanged;
+  final VoidCallback? onTap;
+
+  final Color? iconColor;
+  final Color? titleColor;
 
   const _SettingsTile({
     required this.icon,
-    required this.iconBgColor,
     required this.title,
     this.subtitle,
-    required this.onTap,
+    this.hasChevron = false,
+    this.value,
+    this.onChanged,
+    this.onTap,
+    this.iconColor,
+    this.titleColor,
   });
 
   @override
   Widget build(BuildContext context) {
     final textColor =
-        Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black;
+        titleColor ??
+        (Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black);
     final subtitleColor =
         Theme.of(context).textTheme.bodyMedium?.color ?? Colors.grey;
+    final activeIconColor = iconColor ?? AppColors.primaryPurple;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        splashFactory: InkRipple.splashFactory,
-        highlightColor: Theme.of(context).brightness == Brightness.dark
-            ? Colors.white.withValues(alpha: 0.1)
-            : Colors.black.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
-              // Colored circle icon
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: iconBgColor,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: Colors.white, size: 20),
-              ),
+              Icon(icon, color: activeIconColor, size: 22),
               const SizedBox(width: 16),
-              // Title + subtitle
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -417,6 +501,25 @@ class _SettingsTile extends StatelessWidget {
                   ],
                 ),
               ),
+              if (hasChevron)
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: subtitleColor.withValues(alpha: 0.5),
+                  size: 20,
+                ),
+              if (value != null && onChanged != null)
+                SizedBox(
+                  height: 24,
+                  child: Switch(
+                    value: value!,
+                    onChanged: onChanged,
+                    activeThumbColor: Colors.white,
+                    activeTrackColor: AppColors.primaryPurple,
+                    inactiveThumbColor: Colors.white,
+                    inactiveTrackColor: Colors.grey.withValues(alpha: 0.3),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
             ],
           ),
         ),

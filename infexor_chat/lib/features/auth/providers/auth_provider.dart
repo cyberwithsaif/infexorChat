@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:flutter_background_service/flutter_background_service.dart';
+import '../../../config/routes.dart';
 import '../../../core/network/api_client.dart';
 import '../services/auth_service.dart';
 
@@ -95,7 +96,7 @@ class AuthNotifier extends Notifier<AuthState> {
       }
 
       // Sync token to background service
-      FlutterBackgroundService().invoke('setToken', {'token': token});
+      // FlutterBackgroundService().invoke('setToken', {'token': token});
 
       try {
         final profileRes = await ref.read(authServiceProvider).getProfile();
@@ -176,7 +177,7 @@ class AuthNotifier extends Notifier<AuthState> {
       ref.read(apiClientProvider).setToken(accessToken);
 
       // Sync token to background service
-      FlutterBackgroundService().invoke('setToken', {'token': accessToken});
+      // FlutterBackgroundService().invoke('setToken', {'token': accessToken});
 
       if (!isProfileComplete) {
         state = AuthState(
@@ -269,13 +270,23 @@ class AuthNotifier extends Notifier<AuthState> {
 
   /// Logout
   Future<void> logout() async {
-    await ref.read(authServiceProvider).logout();
+    try {
+      await ref.read(authServiceProvider).logout();
+    } catch (_) {
+      // Ignore server errors during logout (e.g. 401 on expired token)
+    }
     ref.read(apiClientProvider).clearToken();
 
     final box = await Hive.openBox(_boxName);
     await box.clear();
 
     state = const AuthState(status: AuthStatus.unauthenticated);
+
+    // Navigate to login screen
+    final ctx = navigatorKey.currentContext;
+    if (ctx != null) {
+      GoRouter.of(ctx).go('/login');
+    }
   }
 
   String _extractError(dynamic e) {

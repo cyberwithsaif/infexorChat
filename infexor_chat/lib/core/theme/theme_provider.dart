@@ -13,10 +13,10 @@ class ThemeNotifier extends Notifier<ThemeMode> {
   @override
   ThemeMode build() {
     // Return system as default if the box isn't ready or value missing
-    if (!Hive.isBoxOpen(_boxName)) return ThemeMode.system;
+    if (!Hive.isBoxOpen(_boxName)) return ThemeMode.light;
 
     final box = Hive.box(_boxName);
-    final themeIndex = box.get(_themeKey, defaultValue: ThemeMode.system.index);
+    final themeIndex = box.get(_themeKey, defaultValue: ThemeMode.light.index);
     return ThemeMode.values[themeIndex];
   }
 

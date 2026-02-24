@@ -45,9 +45,9 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     final picker = ImagePicker();
     final picked = await picker.pickImage(
       source: ImageSource.gallery,
-      maxWidth: 512,
-      maxHeight: 512,
-      imageQuality: 80,
+      maxWidth: 1920,
+      maxHeight: 1920,
+      imageQuality: 100,
     );
 
     if (picked == null) return;
@@ -137,10 +137,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
         backgroundColor: bgColor,
         title: Text(
           'Edit Profile',
-          style: TextStyle(
-            color: textColor,
-            fontWeight: FontWeight.w600,
-          ),
+          style: TextStyle(color: textColor, fontWeight: FontWeight.w600),
         ),
         iconTheme: IconThemeData(color: textColor),
         actions: [
@@ -193,7 +190,9 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
                         width: 112,
                         height: 112,
                         decoration: BoxDecoration(
-                          color: isDark ? AppColors.darkBgSecondary : AppColors.bgHover,
+                          color: isDark
+                              ? AppColors.darkBgSecondary
+                              : AppColors.bgHover,
                           shape: BoxShape.circle,
                         ),
                         child: ClipOval(
@@ -207,12 +206,11 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
                                       color: AppColors.accentBlue,
                                     ),
                                   ),
-                                  errorWidget: (context, url, error) =>
-                                      Icon(
-                                        Icons.person,
-                                        size: 48,
-                                        color: subtitleColor,
-                                      ),
+                                  errorWidget: (context, url, error) => Icon(
+                                    Icons.person,
+                                    size: 48,
+                                    color: subtitleColor,
+                                  ),
                                 )
                               : Icon(
                                   Icons.person,
@@ -234,10 +232,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
                         decoration: BoxDecoration(
                           color: AppColors.accentBlue,
                           shape: BoxShape.circle,
-                          border: Border.all(
-                            color: bgColor,
-                            width: 3,
-                          ),
+                          border: Border.all(color: bgColor, width: 3),
                         ),
                         child: const Icon(
                           Icons.camera_alt,
@@ -260,10 +255,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
               decoration: InputDecoration(
                 labelText: 'Name',
                 labelStyle: TextStyle(color: subtitleColor),
-                prefixIcon: Icon(
-                  Icons.person_outline,
-                  color: subtitleColor,
-                ),
+                prefixIcon: Icon(Icons.person_outline, color: subtitleColor),
                 enabledBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: borderColor),
                   borderRadius: BorderRadius.circular(12),
@@ -287,10 +279,7 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
               decoration: InputDecoration(
                 labelText: 'About',
                 labelStyle: TextStyle(color: subtitleColor),
-                prefixIcon: Icon(
-                  Icons.info_outline,
-                  color: subtitleColor,
-                ),
+                prefixIcon: Icon(Icons.info_outline, color: subtitleColor),
                 enabledBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: borderColor),
                   borderRadius: BorderRadius.circular(12),

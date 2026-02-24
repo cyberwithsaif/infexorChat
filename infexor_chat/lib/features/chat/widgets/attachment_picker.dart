@@ -93,13 +93,14 @@ void showAttachmentPicker(
                       color: AppColors.accentPurple,
                       onTap: () async {
                         Navigator.pop(dialogContext);
-                        final images = await imagePicker.pickMultiImage();
-                        if (images.isNotEmpty) {
+                        final mediaFiles = await imagePicker
+                            .pickMultipleMedia();
+                        if (mediaFiles.isNotEmpty) {
                           if (onMultiGallery != null) {
-                            onMultiGallery(images);
+                            onMultiGallery(mediaFiles);
                           } else {
-                            for (final image in images) {
-                              onGallery(image);
+                            for (final media in mediaFiles) {
+                              onGallery(media);
                             }
                           }
                         }

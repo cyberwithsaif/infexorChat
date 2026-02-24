@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/chat_provider.dart';
 import '../services/chat_service.dart';
@@ -41,12 +43,48 @@ final messageProvider = NotifierProvider<MessageNotifier, MessageState>(
 );
 
 class MessageNotifier extends Notifier<MessageState> {
+  static const _cacheBoxName = 'messages_cache';
+
   @override
   MessageState build() => const MessageState();
 
+  Future<List<Map<String, dynamic>>> _loadFromCache(String chatId) async {
+    try {
+      if (!Hive.isBoxOpen(_cacheBoxName)) {
+        await Hive.openBox(_cacheBoxName);
+      }
+      final box = Hive.box(_cacheBoxName);
+      final cachedStr = box.get(chatId);
+      if (cachedStr != null && cachedStr is String) {
+        final List<dynamic> decoded = jsonDecode(cachedStr);
+        return decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+      }
+    } catch (e) {
+      // Ignore cache errors quietly
+    }
+    return [];
+  }
+
+  void _saveToCache(String chatId, List<Map<String, dynamic>> messages) {
+    if (chatId.isEmpty) return;
+    try {
+      if (Hive.isBoxOpen(_cacheBoxName)) {
+        final box = Hive.box(_cacheBoxName);
+        box.put(chatId, jsonEncode(messages));
+      }
+    } catch (e) {
+      // Ignore cache save errors quietly
+    }
+  }
+
   /// Open a chat — reset state and load messages
   Future<void> openChat(String chatId) async {
-    state = MessageState(chatId: chatId, isLoading: true);
+    final cachedMessages = await _loadFromCache(chatId);
+    state = MessageState(
+      chatId: chatId,
+      messages: cachedMessages,
+      isLoading: true,
+    );
 
     final socket = ref.read(socketServiceProvider);
     socket.joinChat(chatId);
@@ -67,18 +105,20 @@ class MessageNotifier extends Notifier<MessageState> {
       }
       final hasMore = response['data']?['hasMore'] == true;
 
+      final reversed = messages.reversed.toList();
       state = state.copyWith(
-        messages: messages.reversed.toList(),
+        messages: reversed,
         isLoading: false,
         hasMore: hasMore,
       );
+      _saveToCache(chatId, reversed);
 
       // Mark as read ONLY after messages are loaded and displayed
-      // This ensures blue ticks are sent only when user actually sees messages
       if (state.chatId == chatId) {
         socket.markRead(chatId);
       }
     } catch (e) {
+      // Offline fallback: Keep cached messages on the screen
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
@@ -104,11 +144,13 @@ class MessageNotifier extends Notifier<MessageState> {
       }
       final hasMore = response['data']?['hasMore'] == true;
 
+      final merged = [...state.messages, ...older.reversed];
       state = state.copyWith(
-        messages: [...state.messages, ...older.reversed], // Append older to end
+        messages: merged, // Append older to end
         isLoading: false,
         hasMore: hasMore,
       );
+      _saveToCache(state.chatId, merged);
     } catch (e) {
       state = state.copyWith(isLoading: false);
     }
@@ -183,7 +225,9 @@ class MessageNotifier extends Notifier<MessageState> {
   void _addMessage(Map<String, dynamic> message) {
     final exists = state.messages.any((m) => m['_id'] == message['_id']);
     if (!exists) {
-      state = state.copyWith(messages: [message, ...state.messages]);
+      final newMessages = [message, ...state.messages];
+      state = state.copyWith(messages: newMessages);
+      _saveToCache(state.chatId, newMessages);
     }
   }
 
@@ -306,6 +350,7 @@ class MessageNotifier extends Notifier<MessageState> {
     if (index != -1) {
       messages[index] = {...messages[index], 'status': newStatus};
       state = state.copyWith(messages: messages);
+      _saveToCache(state.chatId, messages);
     }
   }
 
@@ -323,6 +368,7 @@ class MessageNotifier extends Notifier<MessageState> {
     }
     if (changed) {
       state = state.copyWith(messages: messages);
+      _saveToCache(state.chatId, messages);
     }
   }
 
@@ -334,6 +380,7 @@ class MessageNotifier extends Notifier<MessageState> {
     if (index != -1) {
       messages[index] = newMessage;
       state = state.copyWith(messages: messages);
+      _saveToCache(state.chatId, messages);
     }
   }
 
@@ -365,6 +412,7 @@ class MessageNotifier extends Notifier<MessageState> {
         msg['reactions'] = reactions;
         messages[index] = msg;
         state = state.copyWith(messages: messages);
+        _saveToCache(state.chatId, messages);
       }
 
       await ref
@@ -394,6 +442,7 @@ class MessageNotifier extends Notifier<MessageState> {
           msg['deletedForEveryone'] = true;
           messages[index] = msg;
           state = state.copyWith(messages: messages);
+          _saveToCache(state.chatId, messages);
         }
       } else {
         // Remove the message from local state (for 'delete for me')
@@ -401,6 +450,7 @@ class MessageNotifier extends Notifier<MessageState> {
             .where((m) => m['_id'] != messageId)
             .toList();
         state = state.copyWith(messages: messages);
+        _saveToCache(state.chatId, messages);
       }
     } catch (e) {
       // throw to let UI handle error

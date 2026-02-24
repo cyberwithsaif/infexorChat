@@ -27,22 +27,15 @@ Future<void> initializeBackgroundService() async {
   final service = FlutterBackgroundService();
 
   const AndroidNotificationChannel channel = AndroidNotificationChannel(
-    'foreground_sync_service', // new id to force update
-    'Background Sync', // title
-    description: 'Keeps the app connected to receive messages',
-    importance: Importance.min, // min importance hides it from status bar
-    showBadge: false,
+    'my_foreground', // id
+    'Infexor Chat Background', // title
+    description:
+        'Required to receive messages and calls when the app is closed.', // description
+    importance: Importance.high,
   );
 
   final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
       FlutterLocalNotificationsPlugin();
-
-  const AndroidNotificationChannel chatChannel = AndroidNotificationChannel(
-    'chat_channel',
-    'Chat Messages',
-    description: 'Notifications for new messages',
-    importance: Importance.max,
-  );
 
   await flutterLocalNotificationsPlugin
       .resolvePlatformSpecificImplementation<
@@ -50,41 +43,14 @@ Future<void> initializeBackgroundService() async {
       >()
       ?.createNotificationChannel(channel);
 
-  await flutterLocalNotificationsPlugin
-      .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin
-      >()
-      ?.createNotificationChannel(chatChannel);
-
-  const AndroidNotificationChannel callChannel = AndroidNotificationChannel(
-    'call_channel',
-    'Incoming Calls',
-    description: 'Notifications for incoming calls',
-    importance: Importance.max,
-    playSound: true,
-    enableVibration: true,
-  );
-
-  await flutterLocalNotificationsPlugin
-      .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin
-      >()
-      ?.createNotificationChannel(callChannel);
-
   await service.configure(
     androidConfiguration: AndroidConfiguration(
-      // Executed in separate isolate
       onStart: onStart,
-
-      // auto start service
       autoStart: true,
-      autoStartOnBoot: true, // Restart service after device reboot
-      isForegroundMode:
-          true, // Run as foreground service to survive app removal from recents
-
-      notificationChannelId: 'foreground_sync_service',
+      isForegroundMode: true,
+      notificationChannelId: 'my_foreground',
       initialNotificationTitle: 'Infexor Chat',
-      initialNotificationContent: 'Syncing messages...',
+      initialNotificationContent: 'Connected to server',
       foregroundServiceNotificationId: 888,
     ),
     iosConfiguration: IosConfiguration(
@@ -93,6 +59,8 @@ Future<void> initializeBackgroundService() async {
       onBackground: onIosBackground,
     ),
   );
+
+  await service.startService();
 }
 
 // Top-level function for background execution
@@ -280,6 +248,7 @@ void onStart(ServiceInstance service) async {
         await Hive.openBox('auth');
         await Hive.openBox('contacts_cache');
         await Hive.openBox('server_names');
+        await Hive.openBox('messages_cache');
 
         final box = Hive.box('auth');
         final token = box.get('accessToken');

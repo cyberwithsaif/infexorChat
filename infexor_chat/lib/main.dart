@@ -10,6 +10,8 @@ import 'core/services/background_service.dart';
 import 'config/routes.dart';
 
 import 'core/services/call_manager.dart';
+import 'core/widgets/active_call_banner.dart';
+import 'core/widgets/active_call_pip.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,6 +22,7 @@ void main() async {
   // Initialize Hive for local storage
   await Hive.initFlutter();
   await Hive.openBox('settings');
+  await Hive.openBox('messages_cache');
 
   // Lock to portrait mode
   await SystemChrome.setPreferredOrientations([
@@ -86,6 +89,20 @@ class _InfexorChatAppState extends ConsumerState<InfexorChatApp> {
           darkTheme: AppTheme.darkTheme,
           themeMode: themeMode,
           routerConfig: router,
+          builder: (context, child) {
+            return Stack(
+              children: [
+                Column(
+                  children: [
+                    const ActiveCallBanner(),
+                    Expanded(child: child ?? const SizedBox.shrink()),
+                  ],
+                ),
+                // Floating PiP for active video calls
+                const ActiveCallPip(),
+              ],
+            );
+          },
         );
       },
     );

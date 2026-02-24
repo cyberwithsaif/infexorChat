@@ -5,6 +5,7 @@ import '../../config/routes.dart';
 import '../utils/animated_page_route.dart';
 import '../../features/chat/screens/incoming_call_screen.dart';
 import '../../features/chat/services/socket_service.dart';
+import 'webrtc_service.dart';
 
 final callManagerProvider = Provider<CallManager>((ref) {
   return CallManager(ref);
@@ -34,6 +35,17 @@ class CallManager {
         final chatId = data['chatId']?.toString() ?? '';
         final callerId = data['callerId']?.toString() ?? '';
         final type = data['type']?.toString() ?? 'audio';
+
+        // ─── BUSY CHECK: Auto-decline if already on an active call ───
+        final webrtc = WebRTCService();
+        if (webrtc.isCallActive) {
+          debugPrint('📞 User is busy on another call — sending busy signal');
+          socketService.socket?.emit('call:busy', {
+            'chatId': chatId,
+            'callerId': callerId,
+          });
+          return;
+        }
 
         // Extract caller info from the server data
         String callerName = 'Unknown';

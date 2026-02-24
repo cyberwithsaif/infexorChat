@@ -35,11 +35,32 @@ exports.createStatus = async (req, res, next) => {
         // Populate user info for the response
         await status.populate('userId', 'name avatar phone');
 
-        // Emit real-time event via socket (if io is available on req.app)
+        // Emit real-time event via socket only to MUTUAL contacts & self
         const io = req.app.get('io');
         if (io) {
-            io.emit('status:new', {
-                status: status.toObject(),
+            // My registered contacts
+            const contacts = await Contact.find({
+                userId: req.user.userId,
+                isRegistered: true,
+                contactUserId: { $ne: null },
+            }).lean();
+            const myContactUserIds = contacts.map((c) => c.contactUserId).filter(Boolean);
+
+            // Out of my contacts, who also has ME saved?
+            const mutualContacts = await Contact.find({
+                userId: { $in: myContactUserIds },
+                contactUserId: req.user.userId,
+            }).lean();
+
+            const receivers = mutualContacts.map((c) => c.userId.toString());
+            receivers.push(req.user.userId.toString());
+
+            const uniqueReceivers = [...new Set(receivers)];
+
+            uniqueReceivers.forEach((receiverId) => {
+                io.to(`user:${receiverId}`).emit('status:new', {
+                    status: status.toObject(),
+                });
             });
         }
 
@@ -93,13 +114,15 @@ exports.getContactStatuses = async (req, res, next) => {
 
         const mutualContactUserIds = mutualContacts.map((c) => c.userId);
 
-        // Find all unexpired statuses from mutual contacts
+        // Find all unexpired statuses from MUTUAL contacts
         const statuses = await Status.find({
             userId: { $in: mutualContactUserIds },
             expiresAt: { $gt: new Date() },
         })
             .populate('userId', 'name avatar phone')
             .sort({ createdAt: -1 });
+
+        console.log(`[Status API] Found ${statuses.length} statuses from ${mutualContactUserIds.length} mutual contacts for user ${req.user.userId}`);
 
         // Group by user
         const grouped = {};
@@ -115,9 +138,14 @@ exports.getContactStatuses = async (req, res, next) => {
             grouped[uid].statuses.push(status);
 
             // Check if current user has viewed this status
-            const viewed = status.viewers.some(
-                (v) => v.userId?.toString() === req.user.userId
-            );
+            const viewed = status.viewers.some((v) => {
+                const u = v.userId;
+                if (!u) return false;
+                const uidString = typeof u === 'object' && u._id
+                    ? u._id.toString()
+                    : u.toString();
+                return uidString === req.user.userId.toString();
+            });
             if (!viewed) {
                 grouped[uid].hasUnviewed = true;
             }
@@ -188,12 +216,33 @@ exports.deleteStatus = async (req, res, next) => {
             return ApiResponse.notFound(res, 'Status not found');
         }
 
-        // Emit real-time deletion event
+        // Emit real-time deletion event only to MUTUAL contacts & self
         const io = req.app.get('io');
         if (io) {
-            io.emit('status:deleted', {
-                statusId: req.params.id,
+            // My registered contacts
+            const contacts = await Contact.find({
                 userId: req.user.userId,
+                isRegistered: true,
+                contactUserId: { $ne: null },
+            }).lean();
+            const myContactUserIds = contacts.map((c) => c.contactUserId).filter(Boolean);
+
+            // Out of my contacts, who also has ME saved?
+            const mutualContacts = await Contact.find({
+                userId: { $in: myContactUserIds },
+                contactUserId: req.user.userId,
+            }).lean();
+
+            const receivers = mutualContacts.map((c) => c.userId.toString());
+            receivers.push(req.user.userId.toString());
+
+            const uniqueReceivers = [...new Set(receivers)];
+
+            uniqueReceivers.forEach((receiverId) => {
+                io.to(`user:${receiverId}`).emit('status:deleted', {
+                    statusId: req.params.id,
+                    userId: req.user.userId,
+                });
             });
         }
 

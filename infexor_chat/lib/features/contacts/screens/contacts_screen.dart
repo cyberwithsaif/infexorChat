@@ -157,14 +157,8 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
   Future<void> _startDirectChat(String phone) async {
     if (phone.isEmpty) return;
 
-    // Show loading
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(color: AppColors.accentBlue),
-      ),
-    );
+    // Show loading silently in background (UI smoothness requested by user)
+    // No more blocking CircularProgressIndicator overlay
 
     try {
       // 1. Find user by phone
@@ -194,7 +188,6 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
         }
 
         if (!mounted) return;
-        Navigator.pop(context); // Hide loading
 
         // 3. Navigate to chat (Replace so back goes to Chat List like WhatsApp)
         final rawParticipants = chat['participants'] ?? [];
@@ -229,7 +222,6 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
         );
       } else {
         if (!mounted) return;
-        Navigator.pop(context); // Hide loading
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('User not found on Infexor Chat'),
@@ -239,7 +231,6 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      Navigator.pop(context); // Hide loading
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
@@ -257,14 +248,7 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
       return;
     }
 
-    // Show loading
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(
-        child: CircularProgressIndicator(color: AppColors.accentBlue),
-      ),
-    );
+    // Removed blocking CircularProgressIndicator for smoother UX
 
     try {
       // Create/Get chat
@@ -277,14 +261,17 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
         throw Exception('Invalid chat data received');
       }
 
-      Navigator.pop(context); // Hide loading
-
       // Navigate to chat (Replace)
-      final name = contact['name']?.toString().isNotEmpty == true
-          ? contact['name']
-          : contact['serverName']?.toString().isNotEmpty == true
-          ? contact['serverName']
-          : contact['phone'] ?? 'Unknown';
+      final phone = contact['phone']?.toString();
+      final isAIBot = phone != null && phone.endsWith('0000000000');
+
+      final name = isAIBot
+          ? 'Infexor AI'
+          : (contact['name']?.toString().isNotEmpty == true
+                ? contact['name']
+                : contact['serverName']?.toString().isNotEmpty == true
+                ? contact['serverName']
+                : contact['phone'] ?? 'Unknown');
 
       Navigator.pushReplacement(
         context,
@@ -301,7 +288,6 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      Navigator.pop(context); // Hide loading
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
       );
@@ -455,14 +441,21 @@ class _ContactTile extends StatelessWidget {
     final subtitleColor = theme.textTheme.bodyMedium?.color ?? Colors.grey;
     final bgColor = theme.scaffoldBackgroundColor;
 
-    final displayName = contact['name']?.toString().isNotEmpty == true
+    final phone = contact['phone']?.toString();
+    final isAIBot = phone != null && phone.endsWith('0000000000');
+
+    final rawName = contact['name']?.toString().isNotEmpty == true
         ? contact['name']
         : contact['serverName']?.toString().isNotEmpty == true
         ? contact['serverName']
-        : contact['phone'] ?? 'Unknown';
+        : phone ?? 'Unknown';
+
+    final displayName = isAIBot ? 'Infexor AI' : rawName;
 
     final about = contact['about'] ?? '';
-    final avatar = contact['avatar'] ?? '';
+    final avatar = isAIBot
+        ? 'ai_bot_avatar_placeholder'
+        : (contact['avatar'] ?? '');
     final isOnline = contact['isOnline'] ?? false;
 
     return TapScaleFeedback(

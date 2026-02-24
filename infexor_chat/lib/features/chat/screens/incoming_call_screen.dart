@@ -8,7 +8,9 @@ import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/url_utils.dart';
 import '../../../core/utils/animated_page_route.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../services/socket_service.dart';
+import '../providers/call_history_provider.dart';
 import 'call_screen.dart';
 
 class IncomingCallScreen extends ConsumerStatefulWidget {
@@ -146,6 +148,20 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen> {
       'chatId': widget.chatId,
       'callerId': widget.callerId,
     });
+
+    final currentUserId = ref.read(authProvider).user?['_id']?.toString() ?? '';
+
+    // Log as a declined/missed call
+    ref
+        .read(callHistoryProvider.notifier)
+        .logCall(
+          callerId: widget.callerId,
+          receiverId: currentUserId,
+          type: widget.isVideo ? 'video' : 'audio',
+          status: 'declined',
+          duration: 0,
+        );
+
     Navigator.pop(context);
   }
 

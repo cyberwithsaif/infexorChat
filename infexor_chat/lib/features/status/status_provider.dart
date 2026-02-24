@@ -105,6 +105,57 @@ class StatusNotifier extends Notifier<StatusState> {
   /// Mark status as viewed
   Future<void> viewStatus(String statusId) async {
     try {
+      final currentUserId =
+          ref.read(authProvider).user?['_id']?.toString() ?? '';
+
+      final updatedContacts = state.contactStatuses.map((group) {
+        final newStatuses = List<Map<String, dynamic>>.from(
+          group['statuses'] ?? [],
+        );
+        bool changesMade = false;
+
+        for (int i = 0; i < newStatuses.length; i++) {
+          if (newStatuses[i]['_id'] == statusId) {
+            final viewers = List<dynamic>.from(newStatuses[i]['viewers'] ?? []);
+            if (!viewers.any((v) {
+              final u = v['userId'];
+              if (u is Map) return u['_id']?.toString() == currentUserId;
+              return u?.toString() == currentUserId;
+            })) {
+              viewers.add({
+                'userId': currentUserId,
+                'viewedAt': DateTime.now().toIso8601String(),
+              });
+              newStatuses[i] = {...newStatuses[i], 'viewers': viewers};
+              changesMade = true;
+            }
+          }
+        }
+
+        if (!changesMade) return group;
+
+        bool stillHasUnviewed = false;
+        for (final s in newStatuses) {
+          final vws = List<dynamic>.from(s['viewers'] ?? []);
+          if (!vws.any((v) {
+            final u = v['userId'];
+            if (u is Map) return u['_id']?.toString() == currentUserId;
+            return u?.toString() == currentUserId;
+          })) {
+            stillHasUnviewed = true;
+            break;
+          }
+        }
+
+        return {
+          ...group,
+          'statuses': newStatuses,
+          'hasUnviewed': stillHasUnviewed,
+        };
+      }).toList();
+
+      state = state.copyWith(contactStatuses: updatedContacts);
+
       await ref.read(statusServiceProvider).viewStatus(statusId);
     } catch (_) {}
   }

@@ -3,15 +3,17 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../constants/api_endpoints.dart';
+import '../../features/auth/providers/auth_provider.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) {
-  return ApiClient();
+  return ApiClient(ref);
 });
 
 class ApiClient {
   late final Dio _dio;
+  final Ref ref;
 
-  ApiClient() {
+  ApiClient(this.ref) {
     _dio = Dio(
       BaseOptions(
         baseUrl: ApiEndpoints.baseUrl,
@@ -25,7 +27,7 @@ class ApiClient {
       ),
     );
 
-    _dio.interceptors.add(_AuthInterceptor());
+    _dio.interceptors.add(_AuthInterceptor(ref));
     // Parse every response.data into Map<String, dynamic> safely
     _dio.interceptors.add(_ResponseParserInterceptor());
     _dio.interceptors.add(
@@ -77,10 +79,24 @@ class ApiClient {
 }
 
 class _AuthInterceptor extends Interceptor {
+  final Ref ref;
+
+  _AuthInterceptor(this.ref);
+
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
     if (err.response?.statusCode == 401) {
-      // TODO: Handle token refresh in Phase 2
+      final path = err.requestOptions.path;
+      debugPrint('⚠️ 401 Unauthorized on path: $path');
+
+      // Prevent infinite loop: don't trigger logout if the request was ALREADY a logout request
+      if (!path.contains('logout')) {
+        // Clear token from Dio
+        err.requestOptions.headers.remove('Authorization');
+
+        // Force user to login screen by triggering global logout
+        ref.read(authProvider.notifier).logout();
+      }
     }
     handler.next(err);
   }

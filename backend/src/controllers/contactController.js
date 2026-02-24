@@ -16,8 +16,8 @@ exports.syncContacts = async (req, res, next) => {
     }
 
     // Limit batch size
-    if (contacts.length > 1000) {
-      return ApiResponse.badRequest(res, 'Maximum 1000 contacts per sync');
+    if (contacts.length > 5000) {
+      return ApiResponse.badRequest(res, 'Maximum 5000 contacts per sync');
     }
 
     const hashes = contacts.map((c) => c.phoneHash);

@@ -1,0 +1,249 @@
+{
+  "name": "InfexorChat AI Auto-Reply",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "infexor-ai-reply",
+        "responseMode": "lastNode",
+        "options": {
+          "rawBody": false
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "infexor-ai-reply"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─── PRE-PROCESSING NODE ───\n// Validates, cleans, and applies anti-spam guards\n\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const body = item.json.body || item.json;\n  const userId = body.userId || '';\n  const message = (body.message || '').trim();\n  const chatId = body.chatId || '';\n  const webhookSecret = body.headers?.['x-webhook-secret'] || item.json.headers?.['x-webhook-secret'] || '';\n\n  // 1. Validate required fields\n  if (!userId || !chatId) {\n    results.push({ json: { error: 'Missing userId or chatId', skip: true } });\n    continue;\n  }\n\n  // 2. Reject empty messages\n  if (!message || message.length === 0) {\n    results.push({ json: { error: 'Empty message', skip: true } });\n    continue;\n  }\n\n  // 3. Reject very short or spam-like messages\n  if (message.length < 2) {\n    results.push({ json: { error: 'Message too short', skip: true } });\n    continue;\n  }\n\n  // 4. Anti-spam: reject if message is just repeated chars\n  const uniqueChars = new Set(message.toLowerCase().replace(/\\s/g, '')).size;\n  if (message.length > 5 && uniqueChars < 3) {\n    results.push({ json: { error: 'Spam detected', skip: true } });\n    continue;\n  }\n\n  // 5. Cap message length for AI processing\n  const cleanMessage = message.substring(0, 1000);\n\n  results.push({\n    json: {\n      userId,\n      chatId,\n      message: cleanMessage,\n      skip: false,\n      timestamp: new Date().toISOString()\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "pre-processing",
+      "name": "Pre-Processing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-not-skip",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-valid",
+      "name": "Filter Valid Messages",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        660,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "message",
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are InfexorChat AI assistant. Reply naturally, briefly, and helpfully like a real human chat partner. Keep responses concise (1-3 sentences max). Be friendly but professional. Never mention that you are an AI unless directly asked. Do not use markdown formatting. Respond in the same language as the user's message."
+            },
+            {
+              "role": "user",
+              "content": "={{ $json.message }}"
+            }
+          ]
+        },
+        "options": {
+          "temperature": 0.7,
+          "maxTokens": 300,
+          "timeout": 10000
+        }
+      },
+      "id": "openai-chat",
+      "name": "OpenAI Chat",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        860,
+        300
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "OpenAI API"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ─── POST-PROCESSING NODE ───\n// Trims, caps length, and prepares final reply\n\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  // Get AI response text\n  let aiReply = '';\n  \n  // Handle different OpenAI node output formats\n  if (item.json.message?.content) {\n    aiReply = item.json.message.content;\n  } else if (item.json.text) {\n    aiReply = item.json.text;\n  } else if (item.json.choices?.[0]?.message?.content) {\n    aiReply = item.json.choices[0].message.content;\n  } else if (typeof item.json.output === 'string') {\n    aiReply = item.json.output;\n  }\n\n  // Get original context from previous nodes\n  const preProcessed = $('Pre-Processing').first().json;\n  const userId = preProcessed.userId || '';\n  const chatId = preProcessed.chatId || '';\n\n  // 1. Trim whitespace\n  aiReply = aiReply.trim();\n\n  // 2. Fallback if empty\n  if (!aiReply || aiReply.length === 0) {\n    aiReply = \"I'm here to help! Could you rephrase that?\";\n  }\n\n  // 3. Cap at 500 chars to prevent very long replies\n  if (aiReply.length > 500) {\n    aiReply = aiReply.substring(0, 497) + '...';\n  }\n\n  // 4. Remove any markdown formatting\n  aiReply = aiReply\n    .replace(/\\*\\*(.*?)\\*\\*/g, '$1')\n    .replace(/\\*(.*?)\\*/g, '$1')\n    .replace(/```[\\s\\S]*?```/g, '')\n    .replace(/`(.*?)`/g, '$1')\n    .trim();\n\n  results.push({\n    json: {\n      chatId,\n      userId,\n      message: aiReply,\n      isAI: true\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "post-processing",
+      "name": "Post-Processing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://72.61.171.190:5655/api/ai/send-ai-message",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Webhook-Secret",
+              "value": "infexor-secure-ai-secret-2025"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 10000,
+          "retry": {
+            "enabled": true,
+            "maxRetries": 3,
+            "retryInterval": 1000,
+            "retryOnTimeout": true
+          },
+          "redirect": {
+            "redirect": {
+              "followRedirects": true,
+              "maxRedirects": 3
+            }
+          }
+        }
+      },
+      "id": "send-reply",
+      "name": "Send Reply to Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1260,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Pre-Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pre-Processing": {
+      "main": [
+        [
+          {
+            "node": "Filter Valid Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Valid Messages": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat": {
+      "main": [
+        [
+          {
+            "node": "Post-Processing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post-Processing": {
+      "main": [
+        [
+          {
+            "node": "Send Reply to Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "AI",
+      "createdAt": "2026-02-24T00:00:00.000Z",
+      "updatedAt": "2026-02-24T00:00:00.000Z"
+    },
+    {
+      "name": "InfexorChat",
+      "createdAt": "2026-02-24T00:00:00.000Z",
+      "updatedAt": "2026-02-24T00:00:00.000Z"
+    }
+  ],
+  "triggerCount": 1,
+  "active": true,
+  "pinData": {}
+}

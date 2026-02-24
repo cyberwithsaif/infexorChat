@@ -88,9 +88,34 @@ class ContactNotifier extends Notifier<ContactState> {
         return;
       }
 
-      final response = await service.syncWithServer(deviceContacts);
-      final data = response['data'];
-      final matched = _safeListOfMaps(data?['contacts']);
+      // --- Batch Processing Implementation ---
+      // Backend restricts payload size to 1000. Chunk into 500 limits for safety.
+      final int chunkSize = 500;
+      final List<Map<String, dynamic>> allMatched = [];
+
+      final chunks = <List<Map<String, String>>>[];
+      for (var i = 0; i < deviceContacts.length; i += chunkSize) {
+        chunks.add(
+          deviceContacts.sublist(
+            i,
+            i + chunkSize > deviceContacts.length
+                ? deviceContacts.length
+                : i + chunkSize,
+          ),
+        );
+      }
+
+      // Execute syncing in parallel
+      final responses = await Future.wait(
+        chunks.map((chunk) => service.syncWithServer(chunk)),
+      );
+
+      // Aggregate all matched contacts
+      for (final response in responses) {
+        final data = response['data'];
+        final matchedInChunk = _safeListOfMaps(data?['contacts']);
+        allMatched.addAll(matchedInChunk);
+      }
 
       // Create map of normalized phone -> local name
       final deviceNameMap = <String, String>{};
@@ -101,7 +126,8 @@ class ContactNotifier extends Notifier<ContactState> {
       }
 
       // Enrich matched contacts with local names
-      for (final m in matched) {
+      // Enrich matched contacts with local names
+      for (final m in allMatched) {
         // Check phone in 'phone' or inside 'user' object
         final serverPhone =
             m['phone']?.toString() ?? m['user']?['phone']?.toString();
@@ -121,12 +147,12 @@ class ContactNotifier extends Notifier<ContactState> {
 
       state = state.copyWith(
         status: ContactSyncStatus.synced,
-        registeredContacts: matched,
+        registeredContacts: allMatched,
         allContacts: deviceContacts
             .map((c) => <String, dynamic>{...c})
             .toList(),
       );
-      _cacheContactNames(matched);
+      _cacheContactNames(allMatched);
     } catch (e) {
       debugPrint('❌ Contact sync error: $e');
       state = state.copyWith(
