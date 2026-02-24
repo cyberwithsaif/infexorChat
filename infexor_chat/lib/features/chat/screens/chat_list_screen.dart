@@ -87,36 +87,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
             ),
             child: Row(
               children: [
-                IconButton(
-                  icon: const Icon(Icons.menu, color: Colors.white),
-                  onPressed: () {}, // Can be wired to a drawer later if needed
-                ),
-                const Spacer(),
-                const Text(
-                  'Messages',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.search, color: Colors.white),
-                  onPressed: () {
-                    showSearch(
-                      context: context,
-                      delegate: ChatSearchDelegate(
-                        chats: chatState.chats,
-                        currentUserId: currentUserId,
-                        contactsBox: _contactsBox,
-                      ),
-                    );
-                  },
-                ),
                 PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert, color: Colors.white),
+                  icon: const Icon(Icons.menu, color: Colors.white),
                   color: bgColor,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -150,6 +122,30 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                       ),
                     ),
                   ],
+                ),
+                const Spacer(),
+                const Text(
+                  'Messages',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.search, color: Colors.white),
+                  onPressed: () {
+                    showSearch(
+                      context: context,
+                      delegate: ChatSearchDelegate(
+                        chats: chatState.chats,
+                        currentUserId: currentUserId,
+                        contactsBox: _contactsBox,
+                      ),
+                    );
+                  },
                 ),
               ],
             ),

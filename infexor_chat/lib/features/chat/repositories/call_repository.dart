@@ -38,7 +38,7 @@ class CallRepository {
       final response = await _apiClient.post(
         '/calls',
         data: {
-          if (callerId != null) 'callerId': callerId,
+          'callerId': ?callerId,
           'receiverId': receiverId,
           'type': type,
           'status': status,

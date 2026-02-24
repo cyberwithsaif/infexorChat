@@ -42,10 +42,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       appBar: AppBar(
         backgroundColor: bgColor,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: AppColors.primaryPurple),
-          onPressed: () => Navigator.pop(context),
-        ),
+        leading: Navigator.canPop(context)
+            ? IconButton(
+                icon: Icon(Icons.arrow_back, color: AppColors.primaryPurple),
+                onPressed: () => Navigator.pop(context),
+              )
+            : null,
         title: Text(
           'Settings',
           style: TextStyle(
@@ -210,14 +212,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     builder: (_) => const PrivacySettingsScreen(),
                   ),
                 ),
-              ),
-              _Divider(context),
-              _SettingsTile(
-                icon: Icons.person_outline,
-                title: 'Avatar',
-                subtitle: 'Create, edit, profile photo',
-                hasChevron: true,
-                onTap: () {},
               ),
             ],
           ),

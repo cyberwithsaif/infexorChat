@@ -26,6 +26,7 @@ import '../services/media_service.dart';
 import '../widgets/attachment_picker.dart';
 import '../widgets/media_bubbles.dart';
 import '../widgets/gif_picker.dart';
+import '../widgets/chat_search.dart';
 import 'image_viewer_screen.dart';
 import 'video_player_screen.dart';
 import 'user_profile_screen.dart';
@@ -1134,6 +1135,27 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   void _showChatOptions() {
     final sheetBg = Theme.of(context).scaffoldBackgroundColor;
+
+    // Resolve targetUserId for blocking functionality
+    final chatListState = ref.read(chatListProvider);
+    final currentChat = chatListState.chats.firstWhere(
+      (c) => c['_id'] == widget.chatId,
+      orElse: () => <String, dynamic>{},
+    );
+    String targetUserId = '';
+    if (currentChat.isNotEmpty) {
+      final participants = currentChat['participants'];
+      if (participants is List) {
+        final currentUser = ref.read(authProvider).user;
+        final currentUserId = currentUser?['_id'] ?? '';
+        final other = participants.firstWhere(
+          (p) => p is Map && p['_id'] != currentUserId,
+          orElse: () => null,
+        );
+        if (other != null) targetUserId = other['_id'];
+      }
+    }
+
     showModalBottomSheet(
       context: context,
       backgroundColor: sheetBg,
@@ -1150,6 +1172,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                 title: const Text('View Contact'),
                 onTap: () {
                   Navigator.pop(context);
+                  // Optional: Push to user profile screen
                 },
               ),
               ListTile(
@@ -1157,6 +1180,16 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                 title: const Text('Search'),
                 onTap: () {
                   Navigator.pop(context);
+                  showSearch<String?>(
+                    context: context,
+                    delegate: ChatSearchDelegate(
+                      chatId: widget.chatId,
+                      ref: ref,
+                    ),
+                  ).then((msgId) {
+                    // Optional: Scroll to message if a message is selected
+                    // if (msgId != null) { ... }
+                  });
                 },
               ),
               ListTile(
@@ -1174,16 +1207,41 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                   );
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.block, color: AppColors.danger),
-                title: const Text(
-                  'Block',
-                  style: TextStyle(color: AppColors.danger),
+              if (!widget.isGroup)
+                ListTile(
+                  leading: const Icon(Icons.block, color: AppColors.danger),
+                  title: const Text(
+                    'Block',
+                    style: TextStyle(color: AppColors.danger),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    if (targetUserId.isNotEmpty) {
+                      try {
+                        await ref
+                            .read(userServiceProvider)
+                            .blockUser(targetUserId);
+                        setState(() {
+                          _isBlockedByMe = true;
+                          _otherUserId = targetUserId;
+                        });
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Contact blocked')),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Failed to block contact'),
+                            ),
+                          );
+                        }
+                      }
+                    }
+                  },
                 ),
-                onTap: () {
-                  Navigator.pop(context);
-                },
-              ),
             ],
           ),
         );
@@ -2188,356 +2246,381 @@ class _InputBarState extends State<_InputBar> with TickerProviderStateMixin {
     final themeBlue = const Color(0xFFFF6D00);
     final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
 
-    return Container(
-      color: isDark ? AppColors.darkBgSecondary : const Color(0xFFF0F2F5),
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (widget.replyMessage != null)
-            Container(
-              padding: const EdgeInsets.all(8),
-              child: Row(
-                children: [
-                  Container(width: 4, height: 40, color: AppColors.accentBlue),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Replying to',
-                          style: TextStyle(
-                            color: AppColors.accentBlue,
-                            fontSize: 12,
-                          ),
-                        ),
-                        Text(
-                          widget.replyMessage!['content']?.toString() ??
-                              'Media',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: textColor.withValues(alpha: 0.7),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.close, color: iconColor),
-                    onPressed: widget.onCancelReply,
-                  ),
-                ],
-              ),
-            ),
-
-          Container(
-            padding: EdgeInsets.fromLTRB(
-              8,
-              8,
-              8,
-              8 + MediaQuery.of(context).padding.bottom, // Safe area padding
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (_isRecording) ...[
-                  // Recording UI - Styled
-                  Expanded(
-                    child: Container(
-                      height: 50,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: inputBg,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 5,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.mic, color: Colors.red, size: 24),
-                          const SizedBox(width: 8),
-                          Text(
-                            _timeDisplay,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: textColor,
-                            ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            'Slide to cancel <',
-                            style: TextStyle(
-                              color: Colors.grey.withOpacity(
-                                (1.0 + (_dragOffset / 100)).clamp(0.0, 1.0),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ] else ...[
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: inputBg,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: const Color(0xFFCBD5E1),
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          IconButton(
-                            padding: const EdgeInsets.all(8),
-                            constraints: const BoxConstraints(),
-                            icon: const Icon(
-                              Icons.emoji_emotions_outlined,
-                              color: Color(0xFF64748B),
-                              size: 26,
-                            ),
-                            onPressed: () {
-                              FocusScope.of(context).unfocus();
-                              // Toggle emoji picker (you can implement widget.onEmoji)
-                            },
-                          ),
-                          Expanded(
-                            child: TextField(
-                              focusNode: _focusNode,
-                              controller: widget.controller,
-                              onChanged: (value) {
-                                setState(() {});
-                                widget.onChanged(value);
-                              },
-                              style: TextStyle(color: textColor, fontSize: 16),
-                              maxLines: 6,
-                              minLines: 1,
-                              decoration: InputDecoration(
-                                hintText: 'Message',
-                                hintStyle: TextStyle(color: hintColor),
-                                border: InputBorder.none,
-                                contentPadding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
-                                isDense: true,
-                              ),
-                              textInputAction: TextInputAction.newline,
-                            ),
-                          ),
-                          IconButton(
-                            padding: const EdgeInsets.all(8),
-                            constraints: const BoxConstraints(),
-                            icon: const Icon(
-                              Icons.attach_file,
-                              color: Color(0xFF64748B),
-                              size: 26,
-                            ),
-                            onPressed: widget.isUploading
-                                ? null
-                                : widget.onAttachment,
-                          ),
-                          if (widget.controller.text.isEmpty)
-                            IconButton(
-                              padding: const EdgeInsets.only(
-                                right: 8,
-                                top: 8,
-                                bottom: 8,
-                                left: 4,
-                              ),
-                              constraints: const BoxConstraints(),
-                              icon: const Icon(
-                                Icons.camera_alt_outlined,
-                                color: Color(0xFF64748B),
-                                size: 24,
-                              ),
-                              onPressed: widget.isUploading
-                                  ? null
-                                  : widget.onCamera,
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-
-                const SizedBox(width: 8),
-
-                // Custom Send / Mic Button
-                GestureDetector(
-                  onLongPressStart: (_) {
-                    if (widget.controller.text.trim().isEmpty &&
-                        !widget.isUploading) {
-                      setState(() => _dragOffset = 0.0);
-                      _startRecording();
-                    }
-                  },
-                  onLongPressMoveUpdate: (details) {
-                    if (_isRecording && details.localPosition.dx < 0) {
-                      setState(() {
-                        _dragOffset = details.localPosition.dx;
-                      });
-                    }
-                  },
-                  onLongPressEnd: (details) {
-                    if (_isRecording) {
-                      if (_dragOffset < -60) {
-                        _stopRecording(cancel: true);
-                      } else {
-                        _stopRecording(cancel: false);
-                      }
-                      setState(() => _dragOffset = 0.0);
-                    }
-                  },
-                  onTap: () {
-                    if (widget.controller.text.trim().isNotEmpty) {
-                      widget.onSend();
-                    } else {
-                      // Mic tap animation feedback
-                      HapticFeedback.lightImpact();
-                      _voiceAnimController.forward().then((_) {
-                        _voiceAnimController.reverse();
-                      });
-                    }
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    child: Transform.translate(
-                      offset: Offset(_dragOffset, 0),
-                      child: ScaleTransition(
-                        scale: _voiceScaleAnim,
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          margin: const EdgeInsets.only(bottom: 2),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: themeBlue,
-                            boxShadow: [
-                              BoxShadow(
-                                color: _isRecording
-                                    ? Colors.red.withOpacity(0.5)
-                                    : themeBlue.withOpacity(0.4),
-                                blurRadius: _isRecording ? 12 : 6,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            widget.controller.text.trim().isNotEmpty
-                                ? Icons.send_rounded
-                                : _dragOffset < -40
-                                ? Icons.delete_outline
-                                : _isRecording
-                                ? Icons.stop_rounded
-                                : Icons.mic_rounded,
-                            color: Colors.white,
-                            size: 24,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (_showEmojiPicker)
-            SizedBox(
-              height: 300,
-              child: Stack(
-                children: [
-                  // Blur Effect
-                  Positioned.fill(
-                    child: ClipRect(
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                        child: Container(
-                          color:
-                              (isDark
-                                      ? AppColors.darkBgSecondary
-                                      : const Color(0xFFF2F2F2))
-                                  .withOpacity(0.85),
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Picker Content
-                  Column(
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
+        child: Container(
+          color: isDark
+              ? AppColors.darkBgSecondary.withOpacity(0.85)
+              : Colors.white.withOpacity(0.85),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.replyMessage != null)
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  child: Row(
                     children: [
-                      TabBar(
-                        controller: _tabController,
-                        indicatorColor: themeBlue,
-                        labelColor: isDark ? Colors.white : Colors.black,
-                        unselectedLabelColor: Colors.grey,
-                        tabs: const [
-                          Tab(icon: Icon(Icons.emoji_emotions_outlined)),
-                          Tab(icon: Icon(Icons.gif)),
-                        ],
+                      Container(
+                        width: 4,
+                        height: 40,
+                        color: AppColors.accentBlue,
                       ),
+                      const SizedBox(width: 8),
                       Expanded(
-                        child: TabBarView(
-                          controller: _tabController,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            EmojiPicker(
-                              textEditingController: widget.controller,
-                              onEmojiSelected: (category, emoji) {
-                                setState(() {});
-                              },
-                              config: Config(
-                                checkPlatformCompatibility: true,
-                                emojiViewConfig: EmojiViewConfig(
-                                  backgroundColor: Colors.transparent,
-                                  columns: 7,
-                                  emojiSizeMax: 28,
-                                ),
-                                skinToneConfig: SkinToneConfig(
-                                  dialogBackgroundColor: isDark
-                                      ? AppColors.darkBgSecondary
-                                      : Colors.white,
-                                  indicatorColor: themeBlue,
-                                ),
-                                categoryViewConfig: CategoryViewConfig(
-                                  indicatorColor: themeBlue,
-                                  iconColorSelected: themeBlue,
-                                  backspaceColor: themeBlue,
-                                  tabBarHeight: 46,
-                                  backgroundColor: Colors
-                                      .transparent, // Ensure bar is transparent
-                                ),
-                                bottomActionBarConfig:
-                                    const BottomActionBarConfig(enabled: false),
-                                searchViewConfig: SearchViewConfig(
-                                  backgroundColor: isDark
-                                      ? AppColors.darkBgSecondary
-                                      : AppColors.bgSecondary,
-                                ),
+                            const Text(
+                              'Replying to',
+                              style: TextStyle(
+                                color: AppColors.accentBlue,
+                                fontSize: 12,
                               ),
                             ),
-                            GifPicker(
-                              isInline: true,
-                              onGifSelected: (gifUrl, previewUrl) {
-                                widget.onGifSelected?.call(gifUrl, previewUrl);
-                              },
+                            Text(
+                              widget.replyMessage!['content']?.toString() ??
+                                  'Media',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: textColor.withValues(alpha: 0.7),
+                              ),
                             ),
                           ],
                         ),
                       ),
+                      IconButton(
+                        icon: Icon(Icons.close, color: iconColor),
+                        onPressed: widget.onCancelReply,
+                      ),
                     ],
                   ),
-                ],
+                ),
+
+              Container(
+                padding: EdgeInsets.fromLTRB(
+                  8,
+                  8,
+                  8,
+                  8 +
+                      MediaQuery.of(
+                        context,
+                      ).padding.bottom, // Safe area padding
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (_isRecording) ...[
+                      // Recording UI - Styled
+                      Expanded(
+                        child: Container(
+                          height: 50,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: inputBg,
+                            borderRadius: BorderRadius.circular(24),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 5,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.mic,
+                                color: Colors.red,
+                                size: 24,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                _timeDisplay,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: textColor,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                'Slide to cancel <',
+                                style: TextStyle(
+                                  color: Colors.grey.withOpacity(
+                                    (1.0 + (_dragOffset / 100)).clamp(0.0, 1.0),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ] else ...[
+                      Expanded(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: inputBg,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: const Color(0xFFCBD5E1),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              IconButton(
+                                padding: const EdgeInsets.all(8),
+                                constraints: const BoxConstraints(),
+                                icon: const Icon(
+                                  Icons.emoji_emotions_outlined,
+                                  color: Color(0xFF64748B),
+                                  size: 26,
+                                ),
+                                onPressed: _toggleEmojiPicker,
+                              ),
+                              Expanded(
+                                child: TextField(
+                                  focusNode: _focusNode,
+                                  controller: widget.controller,
+                                  onChanged: (value) {
+                                    setState(() {});
+                                    widget.onChanged(value);
+                                  },
+                                  style: TextStyle(
+                                    color: textColor,
+                                    fontSize: 16,
+                                  ),
+                                  maxLines: 6,
+                                  minLines: 1,
+                                  decoration: InputDecoration(
+                                    hintText: 'Message',
+                                    hintStyle: TextStyle(color: hintColor),
+                                    border: InputBorder.none,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                    isDense: true,
+                                  ),
+                                  textInputAction: TextInputAction.newline,
+                                ),
+                              ),
+                              IconButton(
+                                padding: const EdgeInsets.all(8),
+                                constraints: const BoxConstraints(),
+                                icon: const Icon(
+                                  Icons.attach_file,
+                                  color: Color(0xFF64748B),
+                                  size: 26,
+                                ),
+                                onPressed: widget.isUploading
+                                    ? null
+                                    : widget.onAttachment,
+                              ),
+                              if (widget.controller.text.isEmpty)
+                                IconButton(
+                                  padding: const EdgeInsets.only(
+                                    right: 8,
+                                    top: 8,
+                                    bottom: 8,
+                                    left: 4,
+                                  ),
+                                  constraints: const BoxConstraints(),
+                                  icon: const Icon(
+                                    Icons.camera_alt_outlined,
+                                    color: Color(0xFF64748B),
+                                    size: 24,
+                                  ),
+                                  onPressed: widget.isUploading
+                                      ? null
+                                      : widget.onCamera,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(width: 8),
+
+                    // Custom Send / Mic Button
+                    Listener(
+                      onPointerDown: (_) {
+                        if (widget.controller.text.trim().isEmpty &&
+                            !widget.isUploading) {
+                          setState(() => _dragOffset = 0.0);
+                          _startRecording();
+                        }
+                      },
+                      onPointerMove: (event) {
+                        if (_isRecording && event.delta.dx < 0) {
+                          setState(() {
+                            _dragOffset += event.delta.dx;
+                          });
+                        }
+                      },
+                      onPointerUp: (_) {
+                        if (_isRecording) {
+                          if (_dragOffset < -60) {
+                            _stopRecording(cancel: true);
+                          } else {
+                            _stopRecording(cancel: false);
+                          }
+                          setState(() => _dragOffset = 0.0);
+                        } else if (widget.controller.text.trim().isNotEmpty) {
+                          widget.onSend();
+                        } else {
+                          HapticFeedback.lightImpact();
+                          _voiceAnimController.forward().then((_) {
+                            _voiceAnimController.reverse();
+                          });
+                        }
+                      },
+                      onPointerCancel: (_) {
+                        if (_isRecording) {
+                          _stopRecording(cancel: true);
+                          setState(() => _dragOffset = 0.0);
+                        }
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        child: Transform.translate(
+                          offset: Offset(_dragOffset, 0),
+                          child: ScaleTransition(
+                            scale: _voiceScaleAnim,
+                            child: Container(
+                              width: 48,
+                              height: 48,
+                              margin: const EdgeInsets.only(bottom: 2),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: themeBlue,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: _isRecording
+                                        ? Colors.red.withOpacity(0.5)
+                                        : themeBlue.withOpacity(0.4),
+                                    blurRadius: _isRecording ? 12 : 6,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                widget.controller.text.trim().isNotEmpty
+                                    ? Icons.send_rounded
+                                    : _dragOffset < -40
+                                    ? Icons.delete_outline
+                                    : _isRecording
+                                    ? Icons.stop_rounded
+                                    : Icons.mic_rounded,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-        ],
+              if (_showEmojiPicker)
+                SizedBox(
+                  height: 300,
+                  child: Stack(
+                    children: [
+                      // Blur Effect
+                      Positioned.fill(
+                        child: ClipRect(
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                            child: Container(
+                              color:
+                                  (isDark
+                                          ? AppColors.darkBgSecondary
+                                          : const Color(0xFFF2F2F2))
+                                      .withOpacity(0.85),
+                            ),
+                          ),
+                        ),
+                      ),
+                      // Picker Content
+                      Column(
+                        children: [
+                          TabBar(
+                            controller: _tabController,
+                            indicatorColor: themeBlue,
+                            labelColor: isDark ? Colors.white : Colors.black,
+                            unselectedLabelColor: Colors.grey,
+                            tabs: const [
+                              Tab(icon: Icon(Icons.emoji_emotions_outlined)),
+                              Tab(icon: Icon(Icons.gif)),
+                            ],
+                          ),
+                          Expanded(
+                            child: TabBarView(
+                              controller: _tabController,
+                              children: [
+                                EmojiPicker(
+                                  textEditingController: widget.controller,
+                                  onEmojiSelected: (category, emoji) {
+                                    setState(() {});
+                                  },
+                                  config: Config(
+                                    checkPlatformCompatibility: true,
+                                    emojiViewConfig: EmojiViewConfig(
+                                      backgroundColor: Colors.transparent,
+                                      columns: 7,
+                                      emojiSizeMax: 28,
+                                    ),
+                                    skinToneConfig: SkinToneConfig(
+                                      dialogBackgroundColor: isDark
+                                          ? AppColors.darkBgSecondary
+                                          : Colors.white,
+                                      indicatorColor: themeBlue,
+                                    ),
+                                    categoryViewConfig: CategoryViewConfig(
+                                      indicatorColor: themeBlue,
+                                      iconColorSelected: themeBlue,
+                                      backspaceColor: themeBlue,
+                                      tabBarHeight: 46,
+                                      backgroundColor: Colors
+                                          .transparent, // Ensure bar is transparent
+                                    ),
+                                    bottomActionBarConfig:
+                                        const BottomActionBarConfig(
+                                          enabled: false,
+                                        ),
+                                    searchViewConfig: SearchViewConfig(
+                                      backgroundColor: isDark
+                                          ? AppColors.darkBgSecondary
+                                          : AppColors.bgSecondary,
+                                    ),
+                                  ),
+                                ),
+                                GifPicker(
+                                  isInline: true,
+                                  onGifSelected: (gifUrl, previewUrl) {
+                                    widget.onGifSelected?.call(
+                                      gifUrl,
+                                      previewUrl,
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
