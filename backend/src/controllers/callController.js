@@ -8,7 +8,7 @@ const User = require('../models/User');
 exports.recordCall = async (req, res) => {
     try {
         const { callerId: providedCaller, receiverId, type, status, duration } = req.body;
-        const currentUserId = req.user.id;
+        const currentUserId = req.user.userId;
 
         if (!receiverId || !type || !status) {
             return res.status(400).json({ message: 'Missing required call parameters' });
@@ -66,7 +66,7 @@ exports.recordCall = async (req, res) => {
  */
 exports.getCallHistory = async (req, res) => {
     try {
-        const userId = req.user.id;
+        const userId = req.user.userId;
 
         // Get calls where user was caller or receiver
         const calls = await Call.find({

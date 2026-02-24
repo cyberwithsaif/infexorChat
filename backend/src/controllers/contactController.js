@@ -59,12 +59,12 @@ exports.syncContacts = async (req, res, next) => {
       await Contact.bulkWrite(bulkOps, { ordered: false });
     }
 
-    // Remove stale contacts that were not part of any sync chunks in the last 1 hour
-    // Because flutter app chunks the sync (500 per req), we must only delete very old ghost records
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    // Remove stale contacts that were not part of any sync chunks in the last 10 minutes
+    // This prevents ghost records from persisting and breaking mutual contact filtering
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
     await Contact.deleteMany({
       userId,
-      updatedAt: { $lt: oneHourAgo },
+      updatedAt: { $lt: tenMinutesAgo },
     });
 
     // Return matched (registered) contacts with profile info
