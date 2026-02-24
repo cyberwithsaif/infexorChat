@@ -294,7 +294,7 @@ function initSocketHandlers(io) {
         );
 
         // Notify senders
-        const senderIds = [...new Set(unread.map((m) => m.senderId.toString()))];
+        const senderIds = [...new Set(unread.map((m) => m.senderId?.toString()).filter(Boolean))];
         senderIds.forEach((senderId) => {
           io.to(`user:${senderId}`).emit('message:read-ack', {
             chatId,
