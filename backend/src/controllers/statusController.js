@@ -11,16 +11,16 @@ exports.createStatus = async (req, res, next) => {
     try {
         const { type, content, backgroundColor, media } = req.body;
 
-        if (!type || !['text', 'image'].includes(type)) {
-            return ApiResponse.badRequest(res, 'Type must be "text" or "image"');
+        if (!type || !['text', 'image', 'video'].includes(type)) {
+            return ApiResponse.badRequest(res, 'Type must be "text", "image", or "video"');
         }
 
         if (type === 'text' && (!content || !content.trim())) {
             return ApiResponse.badRequest(res, 'Text content is required');
         }
 
-        if (type === 'image' && (!media || !media.url)) {
-            return ApiResponse.badRequest(res, 'Image URL is required');
+        if ((type === 'image' || type === 'video') && (!media || !media.url)) {
+            return ApiResponse.badRequest(res, 'Media URL is required');
         }
 
         const status = await Status.create({
@@ -28,7 +28,7 @@ exports.createStatus = async (req, res, next) => {
             type,
             content: content || '',
             backgroundColor: backgroundColor || '#075E54',
-            media: type === 'image' ? media : {},
+            media: (type === 'image' || type === 'video') ? media : {},
             expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
         });
 
@@ -112,7 +112,8 @@ exports.getContactStatuses = async (req, res, next) => {
             contactUserId: req.user.userId,
         }).lean();
 
-        const mutualContactUserIds = mutualContacts.map((c) => c.userId);
+        // Extract the raw string IDs for the mutual contacts
+        const mutualContactUserIds = mutualContacts.map((c) => c.userId.toString());
 
         // Find all unexpired statuses from MUTUAL contacts
         const statuses = await Status.find({

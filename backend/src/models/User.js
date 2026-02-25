@@ -45,7 +45,10 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    fcmTokens: [String],
+    fcmToken: {
+      type: String,
+      default: '',
+    },
     blocked: [
       {
         type: mongoose.Schema.Types.ObjectId,

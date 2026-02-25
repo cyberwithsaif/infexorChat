@@ -32,7 +32,7 @@ const start = async () => {
     try {
       const botCheck = await User.findById(env.ai.botUserId);
       const botData = {
-        name: 'AI BOT',
+        name: 'Saif Bot',
         phone: '+01000000000',
         avatar: 'https://api.dicebear.com/9.x/bottts/png?seed=InfexorAI&backgroundColor=00C853',
         about: 'I am your advanced AI assistant.',
@@ -44,7 +44,7 @@ const start = async () => {
         botData._id = env.ai.botUserId;
         await User.create(botData);
         logger.info(`[Startup] Created missing AI BOT user profile in DB.`);
-      } else if (botCheck.name !== 'AI BOT' || !botCheck.avatar) {
+      } else if (botCheck.name !== 'Saif Bot' || !botCheck.avatar) {
         await User.findByIdAndUpdate(env.ai.botUserId, botData);
         logger.info(`[Startup] Updated AI BOT user profile (name/avatar) in DB.`);
       }
@@ -83,5 +83,18 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('unhandledRejection', (reason) => {
   logger.error('Unhandled Rejection:', reason);
 });
+
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught Exception:', err);
+  // DO NOT exit — let PM2 handle restarts only if truly necessary
+  // Previously this killed the server on any single error
+});
+
+// Memory usage monitoring — log every 5 minutes
+setInterval(() => {
+  const mem = process.memoryUsage();
+  const mb = (bytes) => (bytes / 1024 / 1024).toFixed(1);
+  logger.info(`[Memory] RSS: ${mb(mem.rss)}MB | Heap: ${mb(mem.heapUsed)}/${mb(mem.heapTotal)}MB`);
+}, 5 * 60 * 1000);
 
 start();

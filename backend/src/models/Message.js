@@ -26,6 +26,7 @@ const messageSchema = new mongoose.Schema(
         'gif',
         'sticker',
         'system',
+        'revoked',
       ],
       default: 'text',
     },

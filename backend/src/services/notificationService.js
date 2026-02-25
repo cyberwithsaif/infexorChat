@@ -1,21 +1,27 @@
+const admin = require('firebase-admin');
 const { User } = require('../models');
 const logger = require('../utils/logger');
+let isInitialized = false;
 
-/**
- * Self-hosted notification service.
- * Uses Socket.IO for real-time delivery (already handled by socketHandler).
- * This service handles token cleanup and provides hooks for future
- * self-hosted push solutions (e.g. ntfy, Gotify, UnifiedPush).
- */
+try {
+    // Requires the admin key to be placed at this exact path from the project root
+    const serviceAccount = require('../../infexorchat-firebase-adminsdk.json');
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount)
+    });
+    isInitialized = true;
+    logger.info('Firebase Admin SDK initialized successfully');
+} catch (error) {
+    logger.error('Failed to initialize Firebase Admin SDK. Push notifications will be disabled.', error);
+}
 
 /**
  * Register / update device push token for a user
- * (Reserved for future self-hosted push gateway)
  */
 exports.registerToken = async (userId, token) => {
     if (!token) return;
     await User.findByIdAndUpdate(userId, {
-        $addToSet: { fcmTokens: token },
+        fcmToken: token,
     });
 };
 
@@ -23,27 +29,60 @@ exports.registerToken = async (userId, token) => {
  * Remove push token (on logout)
  */
 exports.removeToken = async (userId, token) => {
-    if (!token) return;
     await User.findByIdAndUpdate(userId, {
-        $pull: { fcmTokens: token },
+        fcmToken: '',
     });
 };
 
 /**
- * Send notification to a user — currently a no-op since
- * Socket.IO handles real-time delivery in socketHandler.js.
- * Offline messages are delivered when the user reconnects.
+ * Send notification to a single user
  */
 exports.sendToUser = async (userId, title, body, data = {}) => {
-    // Socket.IO handles real-time delivery.
-    // Messages are persisted in DB and delivered on reconnect.
-    logger.debug(`Notification queued for user ${userId}: ${title}`);
+    if (!isInitialized) return;
+    try {
+        const user = await User.findById(userId).select('fcmToken');
+        if (!user || !user.fcmToken) return;
+
+        const message = {
+            notification: { title, body },
+            data: { ...data, click_action: 'FLUTTER_NOTIFICATION_CLICK' },
+            token: user.fcmToken,
+            android: {
+                priority: 'high',
+            }
+        };
+
+        const response = await admin.messaging().send(message);
+        logger.debug(`FCM sent to user ${userId} successfully: ${response}`);
+
+    } catch (error) {
+        logger.error(`Error sending FCM to user ${userId}:`, error);
+        // Cleanup expired/invalid tokens
+        if (error.code === 'messaging/invalid-registration-token' ||
+            error.code === 'messaging/registration-token-not-registered') {
+            await User.findByIdAndUpdate(userId, {
+                fcmToken: ''
+            });
+        }
+    }
 };
 
 /**
  * Send notification to all participants of a chat (except excludeUserId)
  */
 exports.sendToChat = async (chatId, excludeUserId, title, body, data = {}) => {
-    // Socket.IO handles real-time delivery.
-    logger.debug(`Chat notification queued for chat ${chatId}`);
+    if (!isInitialized) return;
+    try {
+        const { Chat } = require('../models');
+        const chat = await Chat.findById(chatId).select('participants');
+        if (!chat) return;
+
+        for (const participantId of chat.participants) {
+            if (participantId.toString() !== excludeUserId.toString()) {
+                await exports.sendToUser(participantId, title, body, data);
+            }
+        }
+    } catch (error) {
+        logger.error(`Error sending chat FCM for chat ${chatId}:`, error);
+    }
 };

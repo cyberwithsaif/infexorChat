@@ -52,6 +52,12 @@ const chatSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+    markedUnreadBy: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
   },
   {
     timestamps: true,

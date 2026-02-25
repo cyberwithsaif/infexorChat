@@ -57,4 +57,7 @@ router.post('/logout', auth, authController.logout);
 // Logout all devices (requires auth)
 router.post('/logout-all', auth, authController.logoutAll);
 
+// Update FCM token (requires auth)
+router.put('/fcm-token', auth, authController.updateFcmToken);
+
 module.exports = router;

@@ -3,7 +3,7 @@ const env = require('../config/env');
 
 const globalLimiter = rateLimit({
   windowMs: env.rateLimit.windowMs,
-  max: env.rateLimit.max,
+  max: 500, // Increased from 100 — was throttling normal app usage
   message: {
     success: false,
     message: 'Too many requests, please try again later',

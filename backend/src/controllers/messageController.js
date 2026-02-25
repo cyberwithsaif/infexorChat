@@ -10,7 +10,8 @@ exports.deleteMessage = async (req, res, next) => {
   try {
     const userId = req.user.userId;
     const { chatId, messageId } = req.params;
-    const { forEveryone } = req.body;
+    const { forEveryone: bodyForEveryone } = req.body || {};
+    const forEveryone = bodyForEveryone || req.query.forEveryone === 'true';
 
     const message = await Message.findOne({ _id: messageId, chatId });
     if (!message) {

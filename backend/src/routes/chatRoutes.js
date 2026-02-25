@@ -53,4 +53,22 @@ router.post('/:chatId/messages/:messageId/forward',
   messageController.forwardMessage
 );
 
+// Pin/unpin chat
+router.post('/:chatId/pin', chatController.pinChat);
+
+// Mute/unmute chat
+router.post('/:chatId/mute', chatController.muteChat);
+
+// Archive/unarchive chat
+router.post('/:chatId/archive', chatController.archiveChat);
+
+// Mark chat read
+router.post('/:chatId/mark-read', chatController.markAsRead);
+
+// Mark chat unread
+router.post('/:chatId/mark-unread', chatController.markAsUnread);
+
+// Delete chat
+router.delete('/:chatId', chatController.deleteChat);
+
 module.exports = router;

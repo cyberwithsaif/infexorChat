@@ -100,7 +100,7 @@ exports.verifyOtp = async (req, res, next) => {
     // Update FCM token on user
     if (fcmToken) {
       await User.findByIdAndUpdate(user._id, {
-        $addToSet: { fcmTokens: fcmToken },
+        fcmToken: fcmToken,
       });
     }
 
@@ -208,7 +208,7 @@ exports.logoutAll = async (req, res, next) => {
     );
 
     // Also clear push tokens
-    await User.findByIdAndUpdate(userId, { fcmTokens: [] });
+    await User.findByIdAndUpdate(userId, { fcmToken: '' });
 
     return ApiResponse.success(res, null, 'Logged out from all devices');
   } catch (error) {
@@ -235,6 +235,34 @@ exports.retryOtp = async (req, res, next) => {
     } else {
       return ApiResponse.badRequest(res, result.message);
     }
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * PUT /auth/fcm-token
+ * Update FCM token for the device
+ */
+exports.updateFcmToken = async (req, res, next) => {
+  try {
+    const { fcmToken, deviceId } = req.body;
+    const userId = req.user.userId;
+
+    if (!fcmToken) {
+      return ApiResponse.badRequest(res, 'FCM token is required');
+    }
+
+    // Update in device
+    await Device.findOneAndUpdate(
+      { userId, deviceId: deviceId || 'default' },
+      { fcmToken }
+    );
+
+    // Update in user (single token per user)
+    await User.findByIdAndUpdate(userId, { fcmToken });
+
+    return ApiResponse.success(res, null, 'FCM token updated successfully');
   } catch (error) {
     next(error);
   }

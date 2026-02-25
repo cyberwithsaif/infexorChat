@@ -6,6 +6,31 @@ const presenceService = require('./presenceService');
 const notificationService = require('./notificationService');
 const logger = require('../utils/logger');
 
+// ─── SOCKET RATE LIMITER ───
+// Prevents a single client from flooding the server with events
+const socketRateLimits = new Map(); // socketId -> { count, resetAt }
+const SOCKET_RATE_WINDOW = 5000;    // 5 second window
+const SOCKET_RATE_MAX = 30;         // max 30 events per window
+
+function isSocketRateLimited(socketId) {
+  const now = Date.now();
+  let entry = socketRateLimits.get(socketId);
+  if (!entry || now > entry.resetAt) {
+    entry = { count: 0, resetAt: now + SOCKET_RATE_WINDOW };
+    socketRateLimits.set(socketId, entry);
+  }
+  entry.count++;
+  return entry.count > SOCKET_RATE_MAX;
+}
+
+// Cleanup stale rate limit entries every 30s
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of socketRateLimits.entries()) {
+    if (now > entry.resetAt + 10000) socketRateLimits.delete(key);
+  }
+}, 30000);
+
 /**
  * Fire-and-forget webhook to n8n for AI auto-reply
  * Only triggers for non-AI text messages when AI is enabled
@@ -107,43 +132,84 @@ function initSocketHandlers(io) {
       socket.to(`chat:${chatId}`).emit('recording:stop', { chatId, userId });
     });
 
+    // ─── TYPING INDICATORS ───
+    socket.on('typing:start', (data) => {
+      try {
+        const { chatId } = data;
+        if (!chatId) return;
+        // Broadcast to all other participants in this chat
+        Chat.findOne({ _id: chatId, participants: userId })
+          .select('participants')
+          .lean()
+          .then((chat) => {
+            if (!chat) return;
+            chat.participants.forEach((pid) => {
+              const p = pid.toString();
+              if (p !== userId) {
+                io.to(`user:${p}`).emit('typing:start', { chatId, userId });
+              }
+            });
+          })
+          .catch(() => { });
+      } catch (_) { }
+    });
+
+    socket.on('typing:stop', (data) => {
+      try {
+        const { chatId } = data;
+        if (!chatId) return;
+        Chat.findOne({ _id: chatId, participants: userId })
+          .select('participants')
+          .lean()
+          .then((chat) => {
+            if (!chat) return;
+            chat.participants.forEach((pid) => {
+              const p = pid.toString();
+              if (p !== userId) {
+                io.to(`user:${p}`).emit('typing:stop', { chatId, userId });
+              }
+            });
+          })
+          .catch(() => { });
+      } catch (_) { }
+    });
+
     // ─── SEND MESSAGE ───
     socket.on('message:send', async (data, callback) => {
       try {
+        // Rate limit check
+        if (isSocketRateLimited(socket.id)) {
+          return callback?.({ error: 'Rate limited. Please slow down.' });
+        }
+
         const { chatId, type, content, media, replyTo, location, contactShare } = data;
 
-        logger.info(`[message:send] userId=${userId}, chatId=${chatId}`);
-
         // Verify user is in chat
-        const chat = await Chat.findOne({ _id: chatId, participants: userId });
+        const chat = await Chat.findOne({ _id: chatId, participants: userId }).lean();
         if (!chat) {
-          // Debug: check if chat exists at all
-          const chatExists = await Chat.findById(chatId);
-          logger.warn(`[message:send] Chat not found. chatExists=${!!chatExists}, chatParticipants=${chatExists?.participants?.map(p => p.toString())}, userId=${userId}`);
           return callback?.({ error: 'Chat not found' });
         }
 
-        // Block check: reject if either party has blocked the other
+        // Block check: run ALL block checks in PARALLEL (was sequential before)
         const otherParticipants = chat.participants
           .map(p => p.toString())
           .filter(p => p !== userId);
 
         if (otherParticipants.length > 0) {
-          // Check if sender has blocked any participant OR any participant has blocked sender
-          const sender = await User.findById(userId).select('blocked').lean();
+          // Fetch sender + all recipients blocked lists concurrently
+          const [sender, ...recipients] = await Promise.all([
+            User.findById(userId).select('blocked').lean(),
+            ...otherParticipants.map(pid => User.findById(pid).select('blocked').lean())
+          ]);
           const senderBlocked = (sender?.blocked || []).map(b => b.toString());
 
-          for (const pid of otherParticipants) {
-            // Sender blocked the recipient
+          for (let i = 0; i < otherParticipants.length; i++) {
+            const pid = otherParticipants[i];
             if (senderBlocked.includes(pid)) {
-              logger.info(`[message:send] Blocked: sender ${userId} has blocked ${pid}`);
               return callback?.({ error: 'blocked', message: 'You have blocked this contact' });
             }
-            // Recipient blocked the sender
-            const recipient = await User.findById(pid).select('blocked').lean();
-            const recipientBlocked = (recipient?.blocked || []).map(b => b.toString());
+            const recipientBlocked = (recipients[i]?.blocked || []).map(b => b.toString());
             if (recipientBlocked.includes(userId)) {
-              logger.info(`[message:send] Blocked: recipient ${pid} has blocked sender ${userId}`);
               return callback?.({ error: 'blocked', message: 'You cannot send messages to this contact' });
             }
           }
@@ -162,42 +228,19 @@ function initSocketHandlers(io) {
           status: 'sent',
         });
 
-        // Update chat lastMessage
-        await Chat.findByIdAndUpdate(chatId, {
-          lastMessage: message._id,
-          lastMessageAt: message.createdAt,
-        });
+        // Update chat lastMessage + populate sender in PARALLEL
+        const [, populatedMsg] = await Promise.all([
+          Chat.findByIdAndUpdate(chatId, {
+            lastMessage: message._id,
+            lastMessageAt: message.createdAt,
+          }),
+          Message.findById(message._id)
+            .populate('senderId', 'name avatar')
+            .populate('replyTo', 'content type senderId')
+            .lean()
+        ]);
 
-        // Populate sender info
-        const populatedMsg = await Message.findById(message._id)
-          .populate('senderId', 'name avatar')
-          .populate('replyTo', 'content type senderId')
-          .lean();
-
-        // Send to all participants
-        chat.participants.forEach((participantId) => {
-          const pid = participantId.toString();
-          if (pid !== userId) {
-            io.to(`user:${pid}`).emit('message:new', populatedMsg);
-          }
-        });
-
-        // Auto-deliver if recipient is online
-        chat.participants.forEach((participantId) => {
-          const pid = participantId.toString();
-          if (pid !== userId && getUserSockets(pid).size > 0) {
-            Message.findByIdAndUpdate(message._id, {
-              status: 'delivered',
-              $addToSet: { deliveredTo: { userId: pid, at: new Date() } },
-            }).catch(() => { });
-
-            io.to(`user:${userId}`).emit('message:status', {
-              messageId: message._id,
-              status: 'delivered',
-            });
-          }
-        });
-        // Push notification to offline participants
+        // Send to all participants + handle delivery/notifications
         const senderUser = populatedMsg.senderId;
         const senderName = senderUser?.name || 'Someone';
         let previewBody = content || '';
@@ -209,18 +252,36 @@ function initSocketHandlers(io) {
         else if (type === 'contact') previewBody = '👤 Contact';
         else if (type === 'gif') previewBody = 'GIF';
 
-        // Determine if group chat
         const isGroupChat = chat.type === 'group';
         let pushTitle = senderName;
         if (isGroupChat) {
-          const Group = require('../models').Group;
-          const group = await Group.findById(chat.groupId).select('name').lean();
-          pushTitle = `${senderName} @ ${group?.name || 'Group'}`;
+          try {
+            const Group = require('../models').Group;
+            const group = await Group.findById(chat.groupId).select('name').lean();
+            pushTitle = `${senderName} @ ${group?.name || 'Group'}`;
+          } catch (_) { }
         }
 
         chat.participants.forEach((participantId) => {
           const pid = participantId.toString();
-          if (pid !== userId && getUserSockets(pid).size === 0) {
+          if (pid === userId) return;
+
+          // Emit message to recipient
+          io.to(`user:${pid}`).emit('message:new', populatedMsg);
+
+          if (getUserSockets(pid).size > 0) {
+            // Online — mark as delivered (fire-and-forget)
+            Message.findByIdAndUpdate(message._id, {
+              status: 'delivered',
+              $addToSet: { deliveredTo: { userId: pid, at: new Date() } },
+            }).catch(() => { });
+
+            io.to(`user:${userId}`).emit('message:status', {
+              messageId: message._id,
+              status: 'delivered',
+            });
+          } else {
+            // Offline — push notification (fire-and-forget)
             notificationService.sendToUser(pid, pushTitle, previewBody, {
               chatId: chatId.toString(),
               messageId: message._id.toString(),
@@ -229,10 +290,10 @@ function initSocketHandlers(io) {
           }
         });
 
+        // Reply to sender immediately
         callback?.({ success: true, message: populatedMsg });
 
-        // ─── AI AUTO-REPLY (built-in bot) ───
-        // Only trigger for non-AI, text messages to prevent loops
+        // AI auto-reply (fire-and-forget, non-blocking)
         if (!data.isAI && (type === 'text' || !type) && content) {
           const { handleAutoReply } = require('./aiBotService');
           handleAutoReply(chatId, userId, content).catch((err) =>
@@ -372,7 +433,13 @@ function initSocketHandlers(io) {
               targetId,
               callerName,
               `Incoming ${type || 'audio'} call`,
-              { chatId, type: 'call', callerId: userId }
+              {
+                chatId,
+                type: type === 'video' ? 'video_call' : 'audio_call',
+                callerId: userId,
+                callerName: callerName,
+                callerAvatar: callerAvatar || '',
+              }
             );
           }
         });

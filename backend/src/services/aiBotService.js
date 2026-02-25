@@ -201,8 +201,9 @@ async function handleAutoReply(chatId, senderId, messageContent) {
         // Generate the reply
         const replyText = await generateReply(messageContent, senderName);
 
-        // Simulate typing delay
+        // Non-blocking typing simulation + reply
         const io = getIO();
+        const delay = Math.min(1500, Math.max(500, replyText.length * 5));
 
         // Emit typing start
         chat.participants.forEach(pid => {
@@ -212,47 +213,49 @@ async function handleAutoReply(chatId, senderId, messageContent) {
             }
         });
 
-        // Wait (simulates typing)
-        const delay = Math.min(2000, Math.max(800, replyText.length * 8));
-        await new Promise(resolve => setTimeout(resolve, delay));
+        // Use setTimeout (non-blocking) instead of await new Promise
+        setTimeout(async () => {
+            try {
+                // Emit typing stop
+                chat.participants.forEach(pid => {
+                    const p = pid.toString();
+                    if (p !== botId) {
+                        io.to(`user:${p}`).emit('typing:stop', { chatId, userId: botId });
+                    }
+                });
 
-        // Emit typing stop
-        chat.participants.forEach(pid => {
-            const p = pid.toString();
-            if (p !== botId) {
-                io.to(`user:${p}`).emit('typing:stop', { chatId, userId: botId });
+                // Create + update + populate in parallel
+                const aiMessage = await Message.create({
+                    chatId,
+                    senderId: botId,
+                    type: 'text',
+                    content: replyText,
+                    isAI: true,
+                    status: 'sent',
+                });
+
+                const [, populated] = await Promise.all([
+                    Chat.findByIdAndUpdate(chatId, {
+                        lastMessage: aiMessage._id,
+                        lastMessageAt: aiMessage.createdAt,
+                    }),
+                    Message.findById(aiMessage._id)
+                        .populate('senderId', 'name avatar')
+                        .lean()
+                ]);
+
+                chat.participants.forEach(pid => {
+                    const p = pid.toString();
+                    if (p !== botId) {
+                        io.to(`user:${p}`).emit('message:new', populated);
+                    }
+                });
+
+                logger.info(`[AI Bot] Replied in chat ${chatId}: "${replyText.substring(0, 50)}..."`);
+            } catch (err) {
+                logger.error(`[AI Bot] Delayed reply error: ${err.message}`);
             }
-        });
-
-        // Create the reply message
-        const aiMessage = await Message.create({
-            chatId,
-            senderId: botId,
-            type: 'text',
-            content: replyText,
-            isAI: true,
-            status: 'sent',
-        });
-
-        // Update chat's lastMessage
-        await Chat.findByIdAndUpdate(chatId, {
-            lastMessage: aiMessage._id,
-            lastMessageAt: aiMessage.createdAt,
-        });
-
-        // Populate and broadcast
-        const populated = await Message.findById(aiMessage._id)
-            .populate('senderId', 'name avatar')
-            .lean();
-
-        chat.participants.forEach(pid => {
-            const p = pid.toString();
-            if (p !== botId) {
-                io.to(`user:${p}`).emit('message:new', populated);
-            }
-        });
-
-        logger.info(`[AI Bot] Replied in chat ${chatId}: "${replyText.substring(0, 50)}..."`);
+        }, delay);
     } catch (err) {
         logger.error(`[AI Bot] Auto-reply error: ${err.message}`);
     }
