@@ -62,8 +62,12 @@ class CallManager {
         break;
 
       case Event.actionCallEnded:
-      case Event.actionCallTimeout:
         _onCallkitEndedOrTimeout(event.body as Map<String, dynamic>? ?? {});
+        break;
+
+      case Event.actionCallTimeout:
+        // Callkit timed out — treat as a decline so the server knows
+        _onCallkitTimeout(event.body as Map<String, dynamic>? ?? {});
         break;
 
       default:
@@ -134,13 +138,31 @@ class CallManager {
     });
   }
 
-  // ─── Ended / Timeout ─────────────────────────────────────────────────────
+  // ─── Ended ───────────────────────────────────────────────────────────────
 
   void _onCallkitEndedOrTimeout(Map<String, dynamic> body) {
     final extra   = _extra(body);
     final chatId  = extra['chatId']?.toString() ?? body['id']?.toString() ?? '';
-    debugPrint('📞 Callkit ended/timeout — chatId: $chatId');
+    debugPrint('📞 Callkit ended — chatId: $chatId');
     _isShowingIncomingCall = false;
+  }
+
+  // ─── Timeout (callkit auto-dismissed after duration) ─────────────────────
+
+  void _onCallkitTimeout(Map<String, dynamic> body) {
+    final extra    = _extra(body);
+    final chatId   = extra['chatId']?.toString()  ?? body['id']?.toString() ?? '';
+    final callerId = extra['callerId']?.toString() ?? '';
+
+    debugPrint('📞 Callkit timeout — chatId: $chatId, emitting call:reject');
+    _isShowingIncomingCall = false;
+
+    // Notify the server so the caller sees "no answer"
+    final socket = _ref.read(socketServiceProvider);
+    socket.socket?.emit('call:reject', {
+      'chatId':   chatId,
+      'callerId': callerId,
+    });
   }
 
   // ─── Killed-state recovery ───────────────────────────────────────────────
@@ -189,6 +211,44 @@ class CallManager {
   void _registerSocketCallHandlers() {
     final socketService = _ref.read(socketServiceProvider);
 
+    // ─── Caller cancelled before we answered ─────────────────────────────
+    socketService.on('call:cancelled', (data) {
+      if (data is! Map<String, dynamic>) return;
+      final chatId = data['chatId']?.toString() ?? '';
+      debugPrint('📞 call:cancelled received — chatId: $chatId');
+
+      // Dismiss any native callkit UI
+      if (chatId.isNotEmpty) FlutterCallkitIncoming.endCall(chatId);
+      _isShowingIncomingCall = false;
+
+      // Pop IncomingCallScreen if it is on top
+      final nav = navigatorKey.currentState;
+      if (nav != null && nav.canPop()) nav.pop();
+    });
+
+    // ─── Receiver is busy on another call ────────────────────────────────
+    socketService.on('call:busy', (data) {
+      if (data is! Map<String, dynamic>) return;
+      final chatId = data['chatId']?.toString() ?? '';
+      debugPrint('📞 call:busy received — chatId: $chatId');
+
+      // Dismiss callkit if showing (shouldn't normally be visible for the
+      // caller, but end it just in case)
+      if (chatId.isNotEmpty) FlutterCallkitIncoming.endCall(chatId);
+
+      // Show a brief "User is busy" snackbar
+      final ctx = navigatorKey.currentContext;
+      if (ctx != null) {
+        ScaffoldMessenger.of(ctx).showSnackBar(
+          const SnackBar(
+            content: Text('User is busy on another call'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    });
+
+    // ─── Foreground incoming call via socket ──────────────────────────────
     socketService.on('call:incoming', (data) {
       if (data is! Map<String, dynamic>) return;
       if (_isShowingIncomingCall) {

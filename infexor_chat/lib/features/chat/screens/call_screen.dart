@@ -114,7 +114,7 @@ class _CallPageState extends ConsumerState<CallPage>
     final socketService = ref.read(socketServiceProvider);
 
     // Listen for ALL possible call-end events from server
-    for (final event in ['call:ended', 'call:end', 'call:hangup']) {
+    for (final event in ['call:ended', 'call:end', 'call:hangup', 'call:cancelled']) {
       socketService.on(event, (data) {
         if (_disposed) return;
         debugPrint('📞 Received $event from server');
@@ -299,9 +299,15 @@ class _CallPageState extends ConsumerState<CallPage>
     // Guarantee UI refreshes instantly
     ref.read(callHistoryProvider.notifier).fetchCallHistory();
 
-    // Emit end event to server so other side gets notified
+    // Emit the appropriate event depending on whether the call was connected.
+    // - call:cancel → caller hung up before callee answered (pre-connection)
+    // - call:end    → either side hangs up after connection was established
     final socket = ref.read(socketServiceProvider).socket;
-    socket?.emit('call:end', {'chatId': widget.chatId});
+    if (!_isConnected && !widget.isIncoming) {
+      socket?.emit('call:cancel', {'chatId': widget.chatId});
+    } else {
+      socket?.emit('call:end', {'chatId': widget.chatId});
+    }
     _webRTCService.endCall();
     ref.read(activeCallProvider.notifier).endCall();
     if (mounted) Navigator.pop(context);
@@ -389,6 +395,7 @@ class _CallPageState extends ConsumerState<CallPage>
     socketService.off('call:rejected');
     socketService.off('call:hangup');
     socketService.off('call:end');
+    socketService.off('call:cancelled');
 
     // Only end the actual WebRTC call if NOT being minimized
     if (!_minimized) {

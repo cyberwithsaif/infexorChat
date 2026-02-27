@@ -46,6 +46,12 @@ bool isCallPayload(Map<String, dynamic> data) {
   return t == 'call' || t == 'video_call' || t == 'audio_call';
 }
 
+/// True if FCM data is a call-control signal (cancel or busy).
+bool isCallControlPayload(Map<String, dynamic> data) {
+  final t = data['type']?.toString() ?? '';
+  return t == 'call_cancel' || t == 'call_busy';
+}
+
 /// Show a native OS incoming-call UI via flutter_callkit_incoming.
 /// Works in background isolate — no Flutter widget tree needed.
 Future<void> showCallkitIncoming(Map<String, dynamic> data) async {
@@ -96,6 +102,12 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (isCallPayload(data)) {
     // Show the native OS incoming-call screen — no Flutter UI needed.
     await showCallkitIncoming(data);
+  } else if (isCallControlPayload(data)) {
+    // Cancel or busy signal — dismiss any showing callkit UI.
+    final chatId = data['chatId']?.toString() ?? '';
+    if (chatId.isNotEmpty) {
+      await FlutterCallkitIncoming.endCall(chatId);
+    }
   }
 }
 
