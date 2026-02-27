@@ -139,8 +139,8 @@ const BroadcastsModule = (() => {
       document.getElementById('statQueue').textContent = Utils.formatNumber(data.queueSize);
       document.getElementById('statWorkers').textContent = data.activeCount;
       document.getElementById('statTotalSent').textContent = Utils.formatNumber(data.totalSuccess);
-      document.getElementById('statSuccessRate').textContent = \`\${data.successRate.toFixed(1)}%\`;
-    } catch(e) {}
+      document.getElementById('statSuccessRate').textContent = `${data.successRate.toFixed(1)}%`;
+    } catch (e) { }
   }
 
   function startPolling() {
@@ -158,7 +158,7 @@ const BroadcastsModule = (() => {
   async function fetchBroadcasts(state) {
     try {
       const params = new URLSearchParams({ page: state.page, limit: state.limit });
-      const response = await API.get(\`/admin/broadcasts?\${params}\`);
+      const response = await API.get(`/admin/broadcasts?${params}`);
       currentData = response.data.broadcasts || [];
       return {
         items: currentData,
@@ -173,7 +173,7 @@ const BroadcastsModule = (() => {
     currentModal = Components.Modal.open({
       title: 'Create Bulk Push Broadcast',
       size: 'large',
-      content: \`
+      content: `
         <form id="broadcastForm">
           <div class="form-group">
             <label>Push Title <span class="required">*</span></label>
@@ -204,7 +204,7 @@ const BroadcastsModule = (() => {
             </div>
           </div>
         </form>
-      \`,
+      `,
       buttons: [
         {
           label: 'Cancel',
@@ -264,20 +264,20 @@ const BroadcastsModule = (() => {
     currentModal = Components.Modal.open({
       title: 'Broadcast Dispatch Details',
       size: 'medium',
-      content: \`
+      content: `
         <div class="broadcast-detail">
           <div class="detail-section">
-            <h4>\${Utils.escapeHtml(broadcast.title)}</h4>
-            <p style="color: var(--text-muted); margin-top: 10px; line-height: 1.6;">\${Utils.escapeHtml(broadcast.message)}</p>
+            <h4>${Utils.escapeHtml(broadcast.title)}</h4>
+            <p style="color: var(--text-muted); margin-top: 10px; line-height: 1.6;">${Utils.escapeHtml(broadcast.message)}</p>
           </div>
 
           <div class="detail-section">
             <h4>Audience & Status</h4>
             <div class="detail-grid">
-              <div class="detail-item"><label>Platform</label><p style="text-transform:capitalize;">\${broadcast.platform}</p></div>
-              <div class="detail-item"><label>Segment</label><p style="text-transform:capitalize;">\${broadcast.segment}</p></div>
-              <div class="detail-item"><label>Status</label><p><span class="badge badge-info">\${broadcast.status}</span></p></div>
-              <div class="detail-item"><label>Created By</label><p>\${broadcast.createdBy?.username || 'Admin'}</p></div>
+              <div class="detail-item"><label>Platform</label><p style="text-transform:capitalize;">${broadcast.platform}</p></div>
+              <div class="detail-item"><label>Segment</label><p style="text-transform:capitalize;">${broadcast.segment}</p></div>
+              <div class="detail-item"><label>Status</label><p><span class="badge badge-info">${broadcast.status}</span></p></div>
+              <div class="detail-item"><label>Created By</label><p>${broadcast.createdBy?.username || 'Admin'}</p></div>
             </div>
           </div>
 
@@ -285,26 +285,26 @@ const BroadcastsModule = (() => {
             <h4>Push Delivery Statistics</h4>
             <div class="stats-grid-modal" style="display:flex; justify-content:space-between; gap:10px; text-align:center; margin-top:15px;">
               <div style="flex:1; background:var(--bg-secondary); padding:15px; border-radius:8px;">
-                <div style="font-size:24px; font-weight:bold; color:var(--text-color);">\${Utils.formatNumber(total)}</div>
+                <div style="font-size:24px; font-weight:bold; color:var(--text-color);">${Utils.formatNumber(total)}</div>
                 <div style="font-size:12px; color:var(--text-muted);">Target Pool</div>
               </div>
               <div style="flex:1; background:var(--bg-secondary); padding:15px; border-radius:8px;">
-                <div style="font-size:24px; font-weight:bold; color:var(--success-color);">\${Utils.formatNumber(success)}</div>
+                <div style="font-size:24px; font-weight:bold; color:var(--success-color);">${Utils.formatNumber(success)}</div>
                 <div style="font-size:12px; color:var(--text-muted);">Delivered</div>
               </div>
               <div style="flex:1; background:var(--bg-secondary); padding:15px; border-radius:8px;">
-                <div style="font-size:24px; font-weight:bold; color:var(--danger-color);">\${Utils.formatNumber(failed)}</div>
+                <div style="font-size:24px; font-weight:bold; color:var(--danger-color);">${Utils.formatNumber(failed)}</div>
                 <div style="font-size:12px; color:var(--text-muted);">Failed/Dead Tokens</div>
               </div>
               <div style="flex:1; background:var(--bg-secondary); padding:15px; border-radius:8px;">
-                <div style="font-size:24px; font-weight:bold; color:var(--primary-color);">\${sr}%</div>
+                <div style="font-size:24px; font-weight:bold; color:var(--primary-color);">${sr}%</div>
                 <div style="font-size:12px; color:var(--text-muted);">Success Rate</div>
               </div>
             </div>
           </div>
         </div>
-      \`,
-      buttons: [ { label: 'Close', className: 'btn-ghost', onClick: (modal) => Components.Modal.close(modal) } ],
+      `,
+      buttons: [{ label: 'Close', className: 'btn-ghost', onClick: (modal) => Components.Modal.close(modal) }],
       onClose: () => currentModal = null
     });
   }
