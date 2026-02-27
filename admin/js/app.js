@@ -49,7 +49,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     document.getElementById('logoutBtn').addEventListener('click', () => { API.clearToken(); window.location.href = 'index.html'; });
+
+    // Refresh Logic
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', async () => {
+            refreshBtn.classList.add('spinning');
+            try {
+                if (currentModule?.refresh) {
+                    await currentModule.refresh();
+                } else if (currentModule?.loadStats) {
+                    await currentModule.loadStats();
+                } else {
+                    const page = window.location.hash.slice(1) || 'dashboard';
+                    loadPage(page);
+                }
+            } catch (err) {
+                console.error('Refresh error:', err);
+            } finally {
+                setTimeout(() => refreshBtn.classList.remove('spinning'), 600);
+            }
+        });
+    }
+
     const initialPage = window.location.hash.slice(1) || 'dashboard';
     navigateTo(initialPage);
-    window.addEventListener('hashchange', () => navigateTo(window.location.hash.slice(1) || 'dashboard'));
+    window.addEventListener('hashchange', () => {
+        const page = window.location.hash.slice(1) || 'dashboard';
+        const activeNav = document.querySelector(`.nav-item[data-page="${page}"]`);
+        if (activeNav && !activeNav.classList.contains('active')) {
+            navigateTo(page);
+        }
+    });
 });

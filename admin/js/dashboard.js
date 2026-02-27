@@ -102,6 +102,10 @@ const DashboardModule = (() => {
     function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
     function timeAgo(d) { const s = Math.floor((Date.now() - new Date(d)) / 1000); if (s < 60) return 'just now'; if (s < 3600) return Math.floor(s / 60) + 'm ago'; if (s < 86400) return Math.floor(s / 3600) + 'h ago'; return Math.floor(s / 86400) + 'd ago'; }
 
+    async function refresh() {
+        await Promise.all([loadStats(), loadLive()]);
+    }
+
     function destroy() { if (interval) { clearInterval(interval); interval = null; } }
-    return { init, destroy, loadStats };
+    return { init, destroy, loadStats, refresh };
 })();
