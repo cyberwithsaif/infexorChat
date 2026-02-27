@@ -11,12 +11,12 @@ const BroadcastsModule = (() => {
 
   function init(container) {
     container.innerHTML = `
-      <div class="section-header">
+      <div class="card-header" style="margin-bottom: 24px;">
         <div>
           <h2>Broadcast Notifications</h2>
-          <p class="section-subtitle">Push massively via FCM & APNs</p>
+          <p class="section-subtitle" style="color: var(--text-muted); font-size: 13px;">Push massively via FCM & APNs</p>
         </div>
-        <div class="section-actions">
+        <div class="card-actions">
           <button class="btn btn-primary" onclick="BroadcastsModule.createBroadcast()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/>
@@ -27,14 +27,14 @@ const BroadcastsModule = (() => {
       </div>
       
       <!-- Stats Container -->
-      <div class="analytics-grid" id="broadcastStats" style="margin-bottom: 24px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">
-        <div class="stat-card"><div class="stat-title">Queue Size</div><div class="stat-value" id="statQueue">-</div></div>
-        <div class="stat-card"><div class="stat-title">Active Workers</div><div class="stat-value" id="statWorkers">-</div></div>
-        <div class="stat-card"><div class="stat-title">Total Sent</div><div class="stat-value" id="statTotalSent">-</div></div>
-        <div class="stat-card"><div class="stat-title">Success Rate</div><div class="stat-value" id="statSuccessRate">-</div></div>
+      <div class="metrics-grid" id="broadcastStats">
+        <div class="metric-card accent-blue"><div class="metric-label">Queue Size</div><div class="metric-value" id="statQueue">-</div></div>
+        <div class="metric-card accent-orange"><div class="metric-label">Active Workers</div><div class="metric-value" id="statWorkers">-</div></div>
+        <div class="metric-card accent-green"><div class="metric-label">Total Sent</div><div class="metric-value" id="statTotalSent">-</div></div>
+        <div class="metric-card accent-purple"><div class="metric-label">Success Rate</div><div class="metric-value" id="statSuccessRate">-</div></div>
       </div>
 
-      <div id="broadcastsTableWrapper"></div>
+      <div class="table-card" id="broadcastsTableWrapper" style="margin-top: 24px;"></div>
     `;
 
     loadStats();
