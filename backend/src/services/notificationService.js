@@ -6,9 +6,11 @@ let isInitialized = false;
 try {
     // Requires the admin key to be placed at this exact path from the project root
     const serviceAccount = require('../../infexorchat-firebase-adminsdk.json');
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-    });
+    if (!admin.apps.length) {
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount)
+        });
+    }
     isInitialized = true;
     logger.info('Firebase Admin SDK initialized successfully');
 } catch (error) {
