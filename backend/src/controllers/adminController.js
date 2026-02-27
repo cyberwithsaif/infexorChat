@@ -12,6 +12,8 @@ const ApiResponse = require('../utils/apiResponse');
 const logger = require('../utils/logger');
 const path = require('path');
 const fs = require('fs');
+const { broadcastQueue } = require('../config/queue');
+const audienceService = require('../services/audienceService');
 
 // ─────────────────────────────────────
 // SECTION 1 — DASHBOARD OVERVIEW
@@ -717,25 +719,32 @@ exports.resolveReport = async (req, res, next) => {
 
 exports.sendBroadcast = async (req, res, next) => {
     try {
-        const { title, content, segment } = req.body;
-        if (!title || !content) return ApiResponse.badRequest(res, 'Title and content required');
+        const { title, message, segment = 'all', platform = 'both' } = req.body;
+        if (!title || !message) return ApiResponse.badRequest(res, 'Title and message required');
 
-        const segmentMap = { active_week: 'active', active_month: 'active', all: 'all', active: 'active', inactive: 'inactive' };
-        const mappedSegment = segmentMap[segment] || 'all';
-        const filter = { status: 'active' };
-        if (mappedSegment === 'active') filter.lastSeen = { $gte: new Date(Date.now() - 7 * 86400000) };
-        else if (mappedSegment === 'inactive') filter.lastSeen = { $lt: new Date(Date.now() - 30 * 86400000) };
+        // Redis distributed lock to prevent duplicate concurrent broadcasts
+        const redis = getRedis();
+        if (redis) {
+            const lock = await redis.setnx('lock:broadcast:create', '1');
+            if (!lock) return ApiResponse.badRequest(res, 'A broadcast is already being processed');
+            await redis.expire('lock:broadcast:create', 5);
+        }
 
-        const users = await User.find(filter).select('_id fcmTokens').lean();
+        const totalRecipients = await audienceService.countRecipients(segment, platform);
+
         const broadcast = await Broadcast.create({
-            title, content, segment: mappedSegment, createdBy: req.admin.adminId,
-            sentAt: new Date(), recipientCount: users.length, status: 'sent',
+            title,
+            message,
+            segment,
+            platform,
+            createdBy: req.admin.adminId || req.admin._id,
+            totalRecipients,
+            status: 'queued',
         });
 
-        for (const user of users) {
-            notificationService.sendToUser(user._id.toString(), title, content, { type: 'broadcast', broadcastId: broadcast._id.toString() });
-        }
-        return ApiResponse.success(res, { broadcast }, 'Broadcast sent');
+        await broadcastQueue.add('send-broadcast', { broadcastId: broadcast._id });
+
+        return ApiResponse.success(res, { broadcast }, 'Broadcast dispatched to queue');
     } catch (error) { next(error); }
 };
 
@@ -745,9 +754,37 @@ exports.getBroadcasts = async (req, res, next) => {
         const limit = parseInt(req.query.limit) || 20;
         const skip = (page - 1) * limit;
         const [broadcasts, total] = await Promise.all([
-            Broadcast.find().sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+            Broadcast.find().populate('createdBy', 'username name').sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
             Broadcast.countDocuments(),
         ]);
         return ApiResponse.success(res, { broadcasts, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+    } catch (error) { next(error); }
+};
+
+exports.getBroadcastStats = async (req, res, next) => {
+    try {
+        const queueSize = await broadcastQueue.getWaitingCount();
+        const activeCount = await broadcastQueue.getActiveCount();
+        const stats = await Broadcast.aggregate([
+            { $match: { status: 'sent' } },
+            {
+                $group: {
+                    _id: null,
+                    totalSuccess: { $sum: '$successCount' },
+                    totalFailure: { $sum: '$failureCount' },
+                }
+            }
+        ]);
+
+        const sum = stats[0] || { totalSuccess: 0, totalFailure: 0 };
+        const totalSent = sum.totalSuccess + sum.totalFailure;
+
+        return ApiResponse.success(res, {
+            queueSize,
+            activeCount,
+            totalSuccess: sum.totalSuccess,
+            totalFailure: sum.totalFailure,
+            successRate: totalSent > 0 ? (sum.totalSuccess / totalSent) * 100 : 0
+        });
     } catch (error) { next(error); }
 };

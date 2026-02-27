@@ -59,6 +59,9 @@ const start = async () => {
   // Start the background cron job to clear expired media
   startMediaCleanupCron();
 
+  // Initialize BullMQ Workers for background processes
+  require('./src/workers/broadcastWorker');
+
   // Initialize Socket.io
   initSocket(server);
 

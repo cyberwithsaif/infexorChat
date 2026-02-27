@@ -8,50 +8,49 @@ const broadcastSchema = new mongoose.Schema(
       trim: true,
       maxlength: 200,
     },
-    content: {
+    message: {
       type: String,
       required: true,
       maxlength: 1000,
     },
-    type: {
-      type: String,
-      enum: ['push', 'in_app', 'both'],
-      default: 'push',
-    },
     segment: {
       type: String,
-      enum: ['all', 'active', 'inactive', 'android', 'ios', 'custom'],
+      enum: ['active', 'all', 'banned', 'custom'],
       default: 'all',
+      required: true,
     },
-    customFilter: {
-      // For 'custom' segment
-      registeredAfter: { type: Date, default: null },
-      registeredBefore: { type: Date, default: null },
-      platform: { type: String, default: null },
-    },
-    scheduledAt: {
-      type: Date,
-      default: null, // null = send immediately
-    },
-    sentAt: {
-      type: Date,
-      default: null,
+    platform: {
+      type: String,
+      enum: ['android', 'ios', 'both'],
+      default: 'both',
+      required: true,
     },
     status: {
       type: String,
-      enum: ['draft', 'scheduled', 'sending', 'sent', 'failed'],
+      enum: ['draft', 'queued', 'sending', 'sent', 'failed'],
       default: 'draft',
+      required: true,
     },
-    stats: {
-      targetCount: { type: Number, default: 0 },
-      sentCount: { type: Number, default: 0 },
-      failedCount: { type: Number, default: 0 },
-      openedCount: { type: Number, default: 0 },
+    totalRecipients: {
+      type: Number,
+      default: 0,
+    },
+    successCount: {
+      type: Number,
+      default: 0,
+    },
+    failureCount: {
+      type: Number,
+      default: 0,
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Admin',
       required: true,
+    },
+    sentAt: {
+      type: Date,
+      default: null,
     },
   },
   {
@@ -59,7 +58,9 @@ const broadcastSchema = new mongoose.Schema(
   }
 );
 
-broadcastSchema.index({ status: 1, scheduledAt: 1 });
-broadcastSchema.index({ createdBy: 1 });
+// High-performance indexes for sorting and filtering by admin pane
+broadcastSchema.index({ segment: 1 });
+broadcastSchema.index({ status: 1 });
+broadcastSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Broadcast', broadcastSchema);

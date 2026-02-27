@@ -63,7 +63,15 @@ router.get('/reports', adminController.getReports);
 router.put('/reports/:id', adminController.resolveReport);
 
 // Broadcasts
-router.post('/broadcasts', adminController.sendBroadcast);
+const rateLimit = require('express-rate-limit');
+const broadcastLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    max: 3,
+    message: { success: false, message: 'Too many broadcasts sent. Maximum 3 per hour.' }
+});
+
+router.post('/broadcasts', broadcastLimiter, adminController.sendBroadcast);
 router.get('/broadcasts', adminController.getBroadcasts);
+router.get('/broadcasts/stats', adminController.getBroadcastStats);
 
 module.exports = router;

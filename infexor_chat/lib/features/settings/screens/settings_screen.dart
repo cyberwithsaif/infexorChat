@@ -521,6 +521,8 @@ class _SettingsTile extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.hasChevron = false,
+    this.value,
+    this.onChanged,
     this.onTap,
     this.iconColor,
     this.titleColor,
