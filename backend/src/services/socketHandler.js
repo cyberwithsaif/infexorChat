@@ -184,6 +184,30 @@ function initSocketHandlers(io) {
 
         const { chatId, type, content, media, replyTo, location, contactShare } = data;
 
+        // --- ABUSE DETECTION (SPAM) ---
+        const redisClient = require('../config/redis').client;
+        if (redisClient && type === 'text' && content) {
+          try {
+            const penaltyKey = `abuse:penalty:${userId}`;
+            const isRestricted = await redisClient.get(penaltyKey);
+            if (isRestricted) {
+              return callback?.({ error: 'Account temporarily restricted due to anomalous activity.' });
+            }
+
+            const messageHash = require('crypto').createHash('md5').update(content).digest('hex');
+            const spamKey = `abuse:spam:${userId}:${messageHash}`;
+            const count = await redisClient.incr(spamKey);
+            if (count === 1) await redisClient.expire(spamKey, 120); // 2 min window
+
+            if (count > 15) {
+              logger.warn(`Spam detected over Socket: User ${userId} sent identical message > 15 times`);
+              await redisClient.set(penaltyKey, 'spam', 'EX', 3600); // 1 hour timeout
+              return callback?.({ error: 'Account temporarily restricted due to spamming.' });
+            }
+          } catch (e) { logger.error('Socket abuse check error', e); }
+        }
+        // --- END ABUSE DETECTION ---
+
         // Verify user is in chat
         const chat = await Chat.findOne({ _id: chatId, participants: userId }).lean();
         if (!chat) {

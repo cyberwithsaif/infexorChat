@@ -34,6 +34,8 @@ app.use(compression());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
+const xss = require('xss-clean');
+
 // Security: prevent MongoDB injection & HTTP parameter pollution
 // express-mongo-sanitize crashes on Express 5+ (req.query is read-only getter)
 // So we only sanitize req.body and req.params manually
@@ -46,10 +48,11 @@ app.use((req, res, next) => {
   }
   next();
 });
+app.use(xss()); // Sanitize against XSS
 app.use(hpp());
 
-// Serve uploaded media files
-app.use('/uploads', express.static(path.resolve(uploadsDir)));
+// Removed: app.use('/uploads', express.static(path.resolve(uploadsDir)));
+// Media is now served securely via /api/upload/:category/:filename endpoint
 
 // Serve admin panel frontend
 const adminPath = path.resolve(__dirname, '../admin');

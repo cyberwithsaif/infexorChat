@@ -1,5 +1,6 @@
 const express = require('express');
 const { auth } = require('../middleware/auth');
+const { mediaLimiter } = require('../middleware/rateLimiter');
 const uploadController = require('../controllers/uploadController');
 const {
     imageUpload,
@@ -13,6 +14,8 @@ const router = express.Router();
 
 // All upload routes require authentication
 router.use(auth);
+// Apply media rate limiter to prevent bandwidth exhaustion
+router.use(mediaLimiter);
 
 // Image upload (compressed + thumbnail generated)
 router.post('/image', imageUpload.single('image'), uploadController.uploadImage);
@@ -31,5 +34,8 @@ router.post('/document', documentUpload.single('document'), uploadController.upl
 
 // Mark media as downloaded for auto-cleanup
 router.post('/mark-downloaded', uploadController.markDownloaded);
+
+// Secure media serve endpoint
+router.get('/serve/:category/:filename', uploadController.serveMedia);
 
 module.exports = router;

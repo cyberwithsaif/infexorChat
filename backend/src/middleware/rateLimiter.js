@@ -35,5 +35,47 @@ const otpLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+// Message/Chat generic limiter
+const messageLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 60, // 60 requests per minute
+  message: {
+    success: false,
+    message: 'Too many messages sent, please slow down',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
-module.exports = { globalLimiter, authLimiter, otpLimiter };
+// Media upload limiter (prevents bandwidth exhaustion)
+const mediaLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 30, // Max 30 media uploads per 15 minutes
+  message: {
+    success: false,
+    message: 'Media upload limit reached, please try again later',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Group creation / heavy action limiter
+const groupCreateLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // Max 10 groups created per hour
+  message: {
+    success: false,
+    message: 'Too many groups created, please try again later',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+module.exports = {
+  globalLimiter,
+  authLimiter,
+  otpLimiter,
+  messageLimiter,
+  mediaLimiter,
+  groupCreateLimiter
+};

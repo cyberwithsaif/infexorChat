@@ -2,6 +2,7 @@ const express = require('express');
 const { body } = require('express-validator');
 const validate = require('../middleware/validate');
 const { auth } = require('../middleware/auth');
+const { messageLimiter } = require('../middleware/rateLimiter');
 const chatController = require('../controllers/chatController');
 const messageController = require('../controllers/messageController');
 
@@ -9,6 +10,8 @@ const router = express.Router();
 
 // All chat routes require auth
 router.use(auth);
+// Apply message rate limiter
+router.use(messageLimiter);
 
 // Create or get 1:1 chat
 router.post(

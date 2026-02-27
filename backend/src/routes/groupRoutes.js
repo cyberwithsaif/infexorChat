@@ -1,5 +1,6 @@
 const express = require('express');
 const { auth } = require('../middleware/auth');
+const { groupCreateLimiter } = require('../middleware/rateLimiter');
 const groupController = require('../controllers/groupController');
 
 const router = express.Router();
@@ -8,7 +9,7 @@ const router = express.Router();
 router.use(auth);
 
 // Group CRUD
-router.post('/create', groupController.createGroup);
+router.post('/create', groupCreateLimiter, groupController.createGroup);
 router.get('/:groupId', groupController.getGroupInfo);
 router.put('/:groupId', groupController.updateGroup);
 router.put('/:groupId/settings', groupController.updateSettings);

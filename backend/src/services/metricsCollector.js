@@ -239,6 +239,28 @@ async function collectPm2Metrics() {
     return processes;
 }
 
+/**
+ * Get Redis Metrics
+ */
+async function getRedisMetrics() {
+    const redis = getRedis();
+    if (!redis) return { connected: false };
+    try {
+        const info = await redis.info();
+        const usedMemory = (info.match(/used_memory_human:([^\r\n]+)/) || [])[1] || '0B';
+        const connectedClients = (info.match(/connected_clients:(\d+)/) || [])[1] || '0';
+        const opsPerSec = (info.match(/instantaneous_ops_per_sec:(\d+)/) || [])[1] || '0';
+        return {
+            connected: true,
+            usedMemory,
+            connectedClients: parseInt(connectedClients),
+            opsPerSec: parseInt(opsPerSec)
+        };
+    } catch {
+        return { connected: false };
+    }
+}
+
 module.exports = {
     collectMetrics,
     collectStorageMetrics,
@@ -247,5 +269,6 @@ module.exports = {
     getCpuUsage,
     getDiskUsage,
     getNetworkStats,
+    getRedisMetrics,
     eventLoopLag: () => eventLoopLag,
 };

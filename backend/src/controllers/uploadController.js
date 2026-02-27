@@ -10,12 +10,12 @@ const MediaCleanup = require('../models/MediaCleanup');
 // ──────────────────────────────────────────────
 
 /**
- * Build public URL from a file's absolute path.
- * e.g. /uploads/images/abc123.jpg
+ * Build secure URL from a file's absolute path.
+ * e.g. /api/upload/secure/images/abc123.jpg
  */
 function publicUrl(absPath) {
   const relative = path.relative(uploadsDir, absPath).replace(/\\/g, '/');
-  return `/uploads/${relative}`;
+  return `/api/upload/serve/${relative}`;
 }
 
 /**
@@ -194,6 +194,32 @@ exports.markDownloaded = async (req, res, next) => {
     );
 
     return ApiResponse.success(res, null, 'Media marked for deletion in 1 day');
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ──────────────────────────────────────────────
+// SECURE MEDIA SERVING
+// ──────────────────────────────────────────────
+exports.serveMedia = async (req, res, next) => {
+  try {
+    const { category, filename } = req.params;
+
+    // Validate inputs to prevent directory traversal
+    if (!category || !filename || category.includes('..') || filename.includes('..')) {
+      return ApiResponse.badRequest(res, 'Invalid request parameters');
+    }
+
+    const absPath = path.join(uploadsDir, category, filename);
+
+    // Check if the file physically exists inside the restricted uploads folder
+    if (!absPath.startsWith(uploadsDir) || !fs.existsSync(absPath)) {
+      return ApiResponse.notFound(res, 'Media file not found');
+    }
+
+    // Auth middleware (req.user) verified the user is logged in
+    res.sendFile(absPath);
   } catch (error) {
     next(error);
   }
