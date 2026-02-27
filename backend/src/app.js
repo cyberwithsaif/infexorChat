@@ -37,17 +37,13 @@ app.use(compression());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
-const { clean } = require('xss-clean/lib/xss');
-
 // Security: prevent MongoDB injection & HTTP parameter pollution
-// express-mongo-sanitize and xss-clean crash on Express 5+ (req.query is read-only getter)
-// So we only sanitize req.body and req.params manually
 app.use((req, res, next) => {
   if (req.body) {
-    req.body = clean(mongoSanitize.sanitize(req.body));
+    req.body = mongoSanitize.sanitize(req.body);
   }
   if (req.params) {
-    req.params = clean(mongoSanitize.sanitize(req.params));
+    req.params = mongoSanitize.sanitize(req.params);
   }
   next();
 });
