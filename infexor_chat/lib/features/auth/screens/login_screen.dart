@@ -63,7 +63,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const orangeColor = Color(0xFFFF6D00); // Vibrant orange from image
+    const orangeColor = Color(0xFFFF6B6B); // Vibrant orange from image
     final size = MediaQuery.of(context).size;
 
     return Scaffold(

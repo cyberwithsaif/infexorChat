@@ -9,7 +9,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
-      scaffoldBackgroundColor: Colors.white,
+      scaffoldBackgroundColor: const Color(0xFFFFF5F5),
       primaryColor: const Color(0xFF00A884),
       colorScheme: const ColorScheme.light(
         primary: Color(0xFF00A884),
@@ -232,11 +232,13 @@ class AppTheme {
       // Switch
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return AppColors.accentBlue;
+          if (states.contains(WidgetState.selected))
+            return AppColors.accentBlue;
           return AppColors.darkTextSecondary;
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return AppColors.accentBlue.withValues(alpha: 0.5);
+          if (states.contains(WidgetState.selected))
+            return AppColors.accentBlue.withValues(alpha: 0.5);
           return Colors.white.withValues(alpha: 0.1);
         }),
       ),

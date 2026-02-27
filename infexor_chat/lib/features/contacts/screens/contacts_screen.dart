@@ -47,8 +47,34 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final currentUser = ref.watch(authProvider).user;
+    final currentUserId = currentUser?['_id']?.toString() ?? '';
+    final currentUserPhone = currentUser?['phone']?.toString() ?? '';
+
     final contactState = ref.watch(contactProvider);
     final contacts = contactState.registeredContacts.where((c) {
+      // 1. Check ID
+      final userId =
+          c['contactUserId']?.toString() ??
+          c['_id']?.toString() ??
+          c['user']?['_id']?.toString() ??
+          '';
+      if (currentUserId.isNotEmpty && userId == currentUserId) return false;
+
+      // 2. Check Phone Number
+      final phone =
+          c['phone']?.toString() ?? c['user']?['phone']?.toString() ?? '';
+      if (currentUserPhone.isNotEmpty && phone.isNotEmpty) {
+        final cleanCurrent = currentUserPhone.replaceAll(RegExp(r'\D'), '');
+        final cleanContact = phone.replaceAll(RegExp(r'\D'), '');
+        if (cleanCurrent.isNotEmpty && cleanContact.isNotEmpty) {
+          if (cleanContact.endsWith(cleanCurrent) ||
+              cleanCurrent.endsWith(cleanContact)) {
+            return false;
+          }
+        }
+      }
+
       if (_searchQuery.isEmpty) return true;
       final name = (c['name'] ?? c['serverName'] ?? '')
           .toString()
@@ -56,14 +82,44 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
       return name.contains(_searchQuery.toLowerCase());
     }).toList();
 
+    final isSyncing = contactState.status == ContactSyncStatus.syncing;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Select Contact'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Select Contact'),
+            if (isSyncing && contacts.isNotEmpty)
+              Text(
+                'Updating contacts...',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).textTheme.bodyMedium?.color,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+          ],
+        ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            onPressed: () => ref.read(contactProvider.notifier).syncContacts(),
-          ),
+          if (isSyncing && contacts.isNotEmpty)
+            const Padding(
+              padding: EdgeInsets.only(right: 8),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.accentBlue,
+                ),
+              ),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded),
+              onPressed: () =>
+                  ref.read(contactProvider.notifier).syncContacts(),
+            ),
         ],
       ),
       body: Column(
@@ -266,7 +322,7 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
       final isAIBot = phone != null && phone.endsWith('0000000000');
 
       final name = isAIBot
-          ? 'Infexor AI'
+          ? 'Saif Bot'
           : (contact['name']?.toString().isNotEmpty == true
                 ? contact['name']
                 : contact['serverName']?.toString().isNotEmpty == true
@@ -450,7 +506,7 @@ class _ContactTile extends StatelessWidget {
         ? contact['serverName']
         : phone ?? 'Unknown';
 
-    final displayName = isAIBot ? 'Infexor AI' : rawName;
+    final displayName = isAIBot ? 'Saif Bot' : rawName;
 
     final about = contact['about'] ?? '';
     final avatar = isAIBot

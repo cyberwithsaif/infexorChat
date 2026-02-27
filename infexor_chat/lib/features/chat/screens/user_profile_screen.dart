@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/url_utils.dart';
 import '../../../core/utils/phone_utils.dart';
@@ -8,6 +9,8 @@ import '../../../core/utils/animated_page_route.dart';
 import '../services/user_service.dart';
 import '../services/media_service.dart';
 import 'media_gallery_screen.dart';
+import 'starred_messages_screen.dart';
+import 'call_screen.dart';
 
 class UserProfileScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> user;
@@ -29,6 +32,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
   int _mediaCount = 0;
   bool _isBlocked = false;
   bool _isLoadingBlock = true;
+  bool _isMuted = false;
 
   @override
   void initState() {
@@ -47,6 +51,44 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
       if (mounted) setState(() => _mediaCount = count is int ? count : 0);
     } catch (_) {
       // Silently fail — keep at 0
+    }
+  }
+
+  Future<void> _saveContact() async {
+    try {
+      final granted = await FlutterContacts.requestPermission();
+      if (!granted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Contacts permission denied')),
+          );
+        }
+        return;
+      }
+
+      final rawPhone = widget.user['phone'] ?? '';
+      final name = widget.contactName ?? widget.user['name'] ?? 'Unknown';
+
+      final newContact = Contact()
+        ..name = Name(first: name)
+        ..phones = [Phone(rawPhone)];
+
+      await FlutterContacts.insertContact(newContact);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('"$name" saved to contacts'),
+            backgroundColor: AppColors.accentBlue,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to save contact: $e')));
+      }
     }
   }
 
@@ -156,14 +198,20 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
         : UrlUtils.getFullUrl(rawAvatar);
     final isOnline = widget.user['isOnline'] == true;
 
+    final isDark2 = Theme.of(context).brightness == Brightness.dark;
+    final bgColor2 = Theme.of(context).scaffoldBackgroundColor;
+    final appBarBg = isDark2
+        ? AppColors.darkBgSecondary
+        : AppColors.bgSecondary;
+
     return Scaffold(
-      backgroundColor: AppColors.bgPrimary,
+      backgroundColor: bgColor2,
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
             expandedHeight: 300,
             pinned: true,
-            backgroundColor: AppColors.bgSecondary,
+            backgroundColor: appBarBg,
             iconTheme: const IconThemeData(color: Colors.white),
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
@@ -273,17 +321,59 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                           _ActionButton(
                             icon: Icons.call,
                             label: 'Voice',
-                            onTap: () {},
+                            onTap: () {
+                              final userId = widget.user['_id'];
+                              if (userId == null) return;
+                              Navigator.push(
+                                context,
+                                AnimatedPageRoute(
+                                  builder: (_) => CallPage(
+                                    chatId: widget.chatId,
+                                    userId: userId,
+                                    callerName:
+                                        widget.user['name'] ?? 'Unknown',
+                                    callerAvatar: widget.user['avatar'],
+                                    isVideoCall: false,
+                                    isIncoming: false,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                           _ActionButton(
                             icon: Icons.videocam,
                             label: 'Video',
-                            onTap: () {},
+                            onTap: () {
+                              final userId = widget.user['_id'];
+                              if (userId == null) return;
+                              Navigator.push(
+                                context,
+                                AnimatedPageRoute(
+                                  builder: (_) => CallPage(
+                                    chatId: widget.chatId,
+                                    userId: userId,
+                                    callerName:
+                                        widget.user['name'] ?? 'Unknown',
+                                    callerAvatar: widget.user['avatar'],
+                                    isVideoCall: true,
+                                    isIncoming: false,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                           _ActionButton(
                             icon: Icons.search,
                             label: 'Search',
-                            onTap: () {},
+                            onTap: () {
+                              // Pop back to conversation and open search
+                              Navigator.pop(context, 'open_search');
+                            },
+                          ),
+                          _ActionButton(
+                            icon: Icons.person_add,
+                            label: 'Save',
+                            onTap: _saveContact,
                           ),
                         ],
                       ),
@@ -339,7 +429,20 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                           Icons.chevron_right,
                           color: AppColors.textMuted,
                         ),
-                        onTap: () {},
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            AnimatedPageRoute(
+                              builder: (_) => StarredMessagesScreen(
+                                chatId: widget.chatId,
+                                chatName:
+                                    widget.contactName ??
+                                    widget.user['name'] ??
+                                    'Contact',
+                              ),
+                            ),
+                          );
+                        },
                       ),
                       const Divider(height: 1, indent: 72),
                       ListTile(
@@ -348,8 +451,21 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                           color: AppColors.textSecondary,
                         ),
                         title: const Text('Mute notifications'),
-                        trailing: Switch(value: false, onChanged: (v) {}),
-                        onTap: () {},
+                        trailing: Switch(
+                          value: _isMuted,
+                          onChanged: (v) {
+                            setState(() => _isMuted = v);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  v
+                                      ? 'Notifications muted'
+                                      : 'Notifications unmuted',
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                       ),
                     ],
                   ),

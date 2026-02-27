@@ -175,7 +175,7 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = isSelected
-        ? const Color(0xFFFF6D00)
+        ? const Color(0xFFFF6B6B)
         : const Color(0xFF64748B);
 
     return InkWell(

@@ -198,7 +198,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Account',
                 subtitle: 'Security notifications, change number',
                 hasChevron: true,
-                onTap: () {},
+                onTap: () => Navigator.push(
+                  context,
+                  AnimatedPageRoute(
+                    builder: (_) => const PrivacySettingsScreen(),
+                  ),
+                ),
               ),
               _Divider(context),
               _SettingsTile(
@@ -266,7 +271,77 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'App Language',
                 subtitle: 'English (device\'s language)',
                 hasChevron: true,
-                onTap: () {},
+                onTap: () {
+                  showModalBottomSheet(
+                    context: context,
+                    backgroundColor: isDark
+                        ? AppColors.darkBgSecondary
+                        : Colors.white,
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.vertical(
+                        top: Radius.circular(20),
+                      ),
+                    ),
+                    builder: (ctx) {
+                      return SafeArea(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              margin: const EdgeInsets.only(top: 12, bottom: 8),
+                              width: 40,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: Colors.grey,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                            const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Text(
+                                'Choose Language',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            ListTile(
+                              leading: const Text(
+                                '🇺🇸',
+                                style: TextStyle(fontSize: 24),
+                              ),
+                              title: const Text('English'),
+                              trailing: const Icon(
+                                Icons.check,
+                                color: Colors.green,
+                              ),
+                              onTap: () => Navigator.pop(ctx),
+                            ),
+                            ListTile(
+                              leading: const Text(
+                                '🇮🇳',
+                                style: TextStyle(fontSize: 24),
+                              ),
+                              title: const Text('हिन्दी (Hindi)'),
+                              onTap: () {
+                                Navigator.pop(ctx);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Hindi language coming soon!',
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
               ),
             ],
           ),

@@ -144,9 +144,12 @@ class ChatListNotifier extends Notifier<ChatListState> {
 
   /// Update chat with new message (called from socket events)
   void onNewMessage(Map<String, dynamic> message) {
-    final chatId = message['chatId'];
+    final rawChatId = message['chatId'];
+    final chatId = rawChatId is Map
+        ? rawChatId['_id']?.toString()
+        : rawChatId?.toString();
     final chats = [...state.chats];
-    final index = chats.indexWhere((c) => c['_id'] == chatId);
+    final index = chats.indexWhere((c) => c['_id']?.toString() == chatId);
 
     final currentUserId = ref.read(authProvider).user?['_id'];
     final sender = message['senderId'];
@@ -154,8 +157,11 @@ class ChatListNotifier extends Notifier<ChatListState> {
     final isOutgoing = currentUserId != null && senderId == currentUserId;
 
     // Check if user is currently viewing this chat
-    final activeChatId = ref.read(notificationServiceProvider).activeChatId;
-    final isViewingChat = activeChatId != null && activeChatId == chatId;
+    final activeChatIdStr = ref
+        .read(notificationServiceProvider)
+        .activeChatId
+        ?.toString();
+    final isViewingChat = activeChatIdStr != null && activeChatIdStr == chatId;
 
     if (index != -1) {
       final chat = Map<String, dynamic>.from(chats[index]);
@@ -352,7 +358,7 @@ class ChatListNotifier extends Notifier<ChatListState> {
   /// Reset unread count for a specific chat (called when user opens the chat)
   void markChatRead(String chatId) {
     final chats = [...state.chats];
-    final index = chats.indexWhere((c) => c['_id'] == chatId);
+    final index = chats.indexWhere((c) => c['_id']?.toString() == chatId);
     if (index != -1) {
       chats[index] = {...chats[index], 'unreadCount': 0};
       state = state.copyWith(chats: chats);
@@ -383,7 +389,7 @@ class ChatListNotifier extends Notifier<ChatListState> {
   /// Mark last message as read for a given chat
   void _markChatLastMessageRead(String chatId) {
     final chats = [...state.chats];
-    final index = chats.indexWhere((c) => c['_id'] == chatId);
+    final index = chats.indexWhere((c) => c['_id']?.toString() == chatId);
     if (index != -1) {
       final lastMsg = chats[index]['lastMessage'];
       if (lastMsg is Map) {

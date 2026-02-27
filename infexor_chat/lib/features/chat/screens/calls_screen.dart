@@ -73,7 +73,7 @@ class CallsScreen extends ConsumerWidget {
         onPressed: () {
           // Open contact selection to make a call
         },
-        backgroundColor: const Color(0xFFFF6D00),
+        backgroundColor: const Color(0xFFFF6B6B),
         child: const Icon(Icons.add_call, color: Colors.white),
       ),
     );
@@ -194,7 +194,7 @@ class _CallTile extends ConsumerWidget {
       trailing: IconButton(
         icon: Icon(
           callLog.type == 'video' ? Icons.videocam : Icons.call,
-          color: const Color(0xFFFF6D00),
+          color: const Color(0xFFFF6B6B),
         ),
         onPressed: () {
           // Trigger a new call back to this user

@@ -113,10 +113,11 @@ class MessageNotifier extends Notifier<MessageState> {
       );
       _saveToCache(chatId, reversed);
 
-      // Mark as read ONLY after messages are loaded and displayed
-      if (state.chatId == chatId) {
-        socket.markRead(chatId);
-      }
+      // Call backend to mark all messages in this chat as read
+      ref.read(chatServiceProvider).markAsRead(chatId).catchError((_) {});
+
+      // Also emit via socket if needed
+      socket.markRead(chatId);
     } catch (e) {
       // Offline fallback: Keep cached messages on the screen
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -217,8 +218,6 @@ class MessageNotifier extends Notifier<MessageState> {
       if (msgId != null) {
         ref.read(socketServiceProvider).markDelivered(msgId);
       }
-      // Mark as read since user is actively viewing this chat
-      ref.read(socketServiceProvider).markRead(state.chatId);
     }
   }
 

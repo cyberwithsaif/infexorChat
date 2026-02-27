@@ -5,12 +5,12 @@ class AppColors {
 
   // Primary gradient
   static const Color accentBlue = Color(
-    0xFFFF6D00,
+    0xFFFF6B6B,
   ); // Now Orange, keeping name to avoid massive refactor
   static const Color accentPurple = Color(
-    0xFFFF8A65,
+    0xFFFFA07A,
   ); // Warm complimentary orange
-  static const Color primaryPurple = Color(0xFFFF6D00); // Deep Orange Accent
+  static const Color primaryPurple = Color(0xFFFF6B6B); // Deep Orange Accent
 
   // Backgrounds — WhatsApp Light Theme
   static const Color bgPrimary = Color(0xFFFFFFFF);
@@ -39,8 +39,8 @@ class AppColors {
   static const Color msgReceivedBg = Colors.white;
   static const Color checkRead = Color(0xFF34B7F1); // Standard WhatsApp Blue
   static const Color checkSent = Color(0xFF9E9E9E); // Grey
-  static const Color badgeBg = Color(0xFFFF6D00); // Orange (was Blue)
-  static const Color fabBg = Color(0xFFFF6D00); // Orange (was Blue)
+  static const Color badgeBg = Color(0xFFFF6B6B); // Orange (was Blue)
+  static const Color fabBg = Color(0xFFFF6B6B); // Orange (was Blue)
 
   static const LinearGradient primaryGradient = LinearGradient(
     colors: [accentBlue, accentPurple],

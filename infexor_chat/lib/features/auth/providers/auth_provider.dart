@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../../config/routes.dart';
 import '../../../core/network/api_client.dart';
 import '../services/auth_service.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 enum AuthStatus {
   initial,
@@ -95,8 +97,22 @@ class AuthNotifier extends Notifier<AuthState> {
         );
       }
 
-      // Sync token to background service
-      // FlutterBackgroundService().invoke('setToken', {'token': token});
+      // Fetch and sync FCM token on every app startup
+      try {
+        print("======== STARTING FCM TOKEN FETCH ========");
+        final messaging = FirebaseMessaging.instance;
+        print("======== REQUESTING PERMISSION ========");
+        await messaging.requestPermission();
+        print("======== GETTING TOKEN ========");
+        final fcmToken = await messaging.getToken();
+        print("======== TOKEN RECEIVED: $fcmToken ========");
+        if (fcmToken != null) {
+          ref.read(authServiceProvider).updateFcmToken(fcmToken);
+          print("======== TOKEN SENT TO BACKEND ========");
+        }
+      } catch (e) {
+        print("======== FAILED TO SYNC FCM TOKEN ON STARTUP: $e ========");
+      }
 
       try {
         final profileRes = await ref.read(authServiceProvider).getProfile();
@@ -149,6 +165,17 @@ class AuthNotifier extends Notifier<AuthState> {
         throw Exception('Request ID missing. Please resend OTP.');
       }
 
+      // Request FCM permissions and get token
+      final messaging = FirebaseMessaging.instance;
+      await messaging.requestPermission();
+      String? fcmToken;
+      try {
+        fcmToken = await messaging.getToken();
+        print("FCM Token: $fcmToken");
+      } catch (e) {
+        print("Failed to get FCM token: $e");
+      }
+
       final response = await ref
           .read(authServiceProvider)
           .verifyOtp(
@@ -156,6 +183,7 @@ class AuthNotifier extends Notifier<AuthState> {
             countryCode: countryCode,
             otp: otp,
             reqId: state.reqId!, // Pass reqId
+            fcmToken: fcmToken,
           );
 
       final data = response['data'];
@@ -175,9 +203,6 @@ class AuthNotifier extends Notifier<AuthState> {
 
       // Set token on API client
       ref.read(apiClientProvider).setToken(accessToken);
-
-      // Sync token to background service
-      // FlutterBackgroundService().invoke('setToken', {'token': accessToken});
 
       if (!isProfileComplete) {
         state = AuthState(
@@ -290,6 +315,19 @@ class AuthNotifier extends Notifier<AuthState> {
   }
 
   String _extractError(dynamic e) {
+    if (e is DioException) {
+      if (e.response != null && e.response?.data != null) {
+        final data = e.response?.data;
+        if (data is Map && data['message'] != null) {
+          return data['message'].toString();
+        }
+      }
+      if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        return 'Connection timeout. Please try again.';
+      }
+      return 'Invalid OTP or Network Error';
+    }
     if (e is Exception) {
       return e.toString().replaceFirst('Exception: ', '');
     }

@@ -76,8 +76,7 @@ class ChatService {
     bool forEveryone,
   ) async {
     await _api.delete(
-      '${ApiEndpoints.chats}/$chatId/messages/$messageId',
-      data: {'forEveryone': forEveryone},
+      '${ApiEndpoints.chats}/$chatId/messages/$messageId?forEveryone=$forEveryone',
     );
   }
 
@@ -132,5 +131,35 @@ class ChatService {
       queryParams: {'page': page.toString(), 'limit': limit.toString()},
     );
     return _parseResponse(response.data);
+  }
+
+  /// Pin/unpin a chat
+  Future<void> pinChat(String chatId) async {
+    await _api.post('${ApiEndpoints.chats}/$chatId/pin');
+  }
+
+  /// Mute/unmute a chat
+  Future<void> muteChat(String chatId) async {
+    await _api.post('${ApiEndpoints.chats}/$chatId/mute');
+  }
+
+  /// Archive/unarchive a chat
+  Future<void> archiveChat(String chatId) async {
+    await _api.post('${ApiEndpoints.chats}/$chatId/archive');
+  }
+
+  /// Mark a chat as read
+  Future<void> markAsRead(String chatId) async {
+    await _api.post('${ApiEndpoints.chats}/$chatId/mark-read');
+  }
+
+  /// Mark a chat as unread
+  Future<void> markAsUnread(String chatId) async {
+    await _api.post('${ApiEndpoints.chats}/$chatId/mark-unread');
+  }
+
+  /// Delete a chat
+  Future<void> deleteChat(String chatId) async {
+    await _api.delete('${ApiEndpoints.chats}/$chatId');
   }
 }

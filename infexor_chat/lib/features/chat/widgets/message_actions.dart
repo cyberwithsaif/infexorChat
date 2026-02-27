@@ -24,6 +24,7 @@ void showMessageActions({
   required Function(String) onReact,
   required Function() onStar,
   required Function() onCopy,
+  Function()? onInfo,
 }) {
   final content = message['content'] ?? '';
   final isStarred = message['isStarred'] ?? false;
@@ -80,6 +81,15 @@ void showMessageActions({
           onDelete(true);
         },
       ),
+    if (isMe && onInfo != null)
+      MessageAction(
+        label: 'Info',
+        icon: Icons.info_outline_rounded,
+        onTap: () {
+          Navigator.pop(context);
+          onInfo();
+        },
+      ),
   ];
 
   showModalBottomSheet(
@@ -131,18 +141,20 @@ void showMessageActions({
             const Divider(color: AppColors.border, height: 1),
 
             // Actions
-            ...actions.map((action) => ListTile(
-                  leading: Icon(action.icon, color: AppColors.textSecondary),
-                  title: Text(
-                    action.label,
-                    style: TextStyle(
-                      color: action.label.contains('Delete')
-                          ? AppColors.danger
-                          : AppColors.textPrimary,
-                    ),
+            ...actions.map(
+              (action) => ListTile(
+                leading: Icon(action.icon, color: AppColors.textSecondary),
+                title: Text(
+                  action.label,
+                  style: TextStyle(
+                    color: action.label.contains('Delete')
+                        ? AppColors.danger
+                        : AppColors.textPrimary,
                   ),
-                  onTap: action.onTap,
-                )),
+                ),
+                onTap: action.onTap,
+              ),
+            ),
 
             const SizedBox(height: 8),
           ],

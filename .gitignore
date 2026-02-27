@@ -36,3 +36,7 @@ fix.js
 create_admin.js
 create_admin.js
 create_admin_log.txt
+
+# Secrets
+**/google-services.json
+**/adminkey/*.json

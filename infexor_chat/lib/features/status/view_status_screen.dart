@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
+import 'package:video_player/video_player.dart';
 import '../../core/utils/url_utils.dart';
 import '../auth/providers/auth_provider.dart';
 import 'status_provider.dart';
@@ -27,7 +28,9 @@ class _ViewStatusScreenState extends ConsumerState<ViewStatusScreen>
   late int _currentIndex;
   late AnimationController _progressController;
   static const _statusDuration = Duration(seconds: 5);
+  static const _videoDuration = Duration(seconds: 30);
   bool _isPopping = false;
+  VideoPlayerController? _videoController;
 
   @override
   void initState() {
@@ -39,12 +42,54 @@ class _ViewStatusScreenState extends ConsumerState<ViewStatusScreen>
     );
     // Single listener — never stacked
     _progressController.addStatusListener(_onProgressDone);
-    _progressController.forward();
+    _initCurrentStatus();
     _markViewed();
+  }
+
+  void _initCurrentStatus() {
+    final status = widget.statuses[_currentIndex];
+    final isVideo = status['type'] == 'video';
+    if (isVideo) {
+      _progressController.stop();
+      _progressController.duration = _videoDuration;
+      final mediaUrl = status['media'] is Map
+          ? UrlUtils.getFullUrl(status['media']['url'] ?? '')
+          : '';
+      if (mediaUrl.isNotEmpty) {
+        _disposeVideoController();
+        _videoController = VideoPlayerController.networkUrl(Uri.parse(mediaUrl))
+          ..initialize()
+              .then((_) {
+                if (mounted) {
+                  setState(() {});
+                  _videoController!.play();
+                  _progressController.forward(from: 0);
+                }
+              })
+              .catchError((_) {
+                if (mounted) {
+                  _progressController.forward(from: 0);
+                }
+              });
+      } else {
+        _progressController.forward(from: 0);
+      }
+    } else {
+      _disposeVideoController();
+      _progressController.duration = _statusDuration;
+      _progressController.forward(from: 0);
+    }
+  }
+
+  void _disposeVideoController() {
+    _videoController?.pause();
+    _videoController?.dispose();
+    _videoController = null;
   }
 
   @override
   void dispose() {
+    _disposeVideoController();
     _progressController.removeStatusListener(_onProgressDone);
     _progressController.dispose();
     super.dispose();
@@ -66,10 +111,11 @@ class _ViewStatusScreenState extends ConsumerState<ViewStatusScreen>
     if (_currentIndex < widget.statuses.length - 1) {
       setState(() => _currentIndex++);
       _markViewed();
-      _restartProgress();
+      _initCurrentStatus();
     } else {
       _isPopping = true;
       _progressController.stop();
+      _disposeVideoController();
       Navigator.of(context).pop();
     }
   }
@@ -79,10 +125,10 @@ class _ViewStatusScreenState extends ConsumerState<ViewStatusScreen>
     if (_currentIndex > 0) {
       setState(() => _currentIndex--);
       _markViewed();
-      _restartProgress();
+      _initCurrentStatus();
     } else {
-      // Already at first status, just restart the timer
-      _restartProgress();
+      // Already at first status, just restart
+      _initCurrentStatus();
     }
   }
 
@@ -240,9 +286,18 @@ class _ViewStatusScreenState extends ConsumerState<ViewStatusScreen>
         },
         onVerticalDragEnd: (details) {
           if ((details.primaryVelocity ?? 0) > 300) {
+            // Swipe down — close
             _isPopping = true;
             _progressController.stop();
             Navigator.of(context).pop();
+          } else if ((details.primaryVelocity ?? 0) < -300) {
+            // Swipe up — show viewers (for own status)
+            final currentUser = ref.read(authProvider).user;
+            final isMine = widget.user['_id'] == currentUser?['_id'];
+            if (isMine) {
+              _progressController.stop();
+              _showViewers(status['viewers'] as List? ?? []);
+            }
           }
         },
         child: SafeArea(
@@ -264,6 +319,20 @@ class _ViewStatusScreenState extends ConsumerState<ViewStatusScreen>
                             ),
                           ),
                         ),
+                      )
+                    : status['type'] == 'video' && mediaUrl.isNotEmpty
+                    ? Center(
+                        child:
+                            _videoController != null &&
+                                _videoController!.value.isInitialized
+                            ? AspectRatio(
+                                aspectRatio:
+                                    _videoController!.value.aspectRatio,
+                                child: VideoPlayer(_videoController!),
+                              )
+                            : const CircularProgressIndicator(
+                                color: Colors.white,
+                              ),
                       )
                     : mediaUrl.isNotEmpty
                     ? Center(

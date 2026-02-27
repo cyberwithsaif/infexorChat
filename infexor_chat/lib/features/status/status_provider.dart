@@ -86,15 +86,16 @@ class StatusNotifier extends Notifier<StatusState> {
     }
   }
 
-  /// Create an image status
-  Future<bool> createImageStatus(
+  /// Create a media status
+  Future<bool> createMediaStatus(
     Map<String, dynamic> media,
     String caption,
+    String type,
   ) async {
     try {
       await ref
           .read(statusServiceProvider)
-          .createImageStatus(media: media, caption: caption);
+          .createMediaStatus(media: media, caption: caption, type: type);
       await loadStatuses();
       return true;
     } catch (e) {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sms_autofill/sms_autofill.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/permission_service.dart';
 import '../../../core/services/notification_service.dart';
@@ -12,19 +13,17 @@ class OtpScreen extends ConsumerStatefulWidget {
   final String phone;
   final String countryCode;
 
-  const OtpScreen({
-    super.key,
-    required this.phone,
-    required this.countryCode,
-  });
+  const OtpScreen({super.key, required this.phone, required this.countryCode});
 
   @override
   ConsumerState<OtpScreen> createState() => _OtpScreenState();
 }
 
-class _OtpScreenState extends ConsumerState<OtpScreen> {
-  final List<TextEditingController> _controllers =
-      List.generate(6, (_) => TextEditingController());
+class _OtpScreenState extends ConsumerState<OtpScreen> with CodeAutoFill {
+  final List<TextEditingController> _controllers = List.generate(
+    6,
+    (_) => TextEditingController(),
+  );
   final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   bool _isLoading = false;
   int _resendTimer = 30;
@@ -34,6 +33,46 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   void initState() {
     super.initState();
     _startResendTimer();
+    _startListeningForSms();
+  }
+
+  /// Start listening for incoming SMS using Android SMS Retriever API
+  Future<void> _startListeningForSms() async {
+    try {
+      await SmsAutoFill().listenForCode();
+      debugPrint('📱 SMS auto-fill listener started');
+    } catch (e) {
+      debugPrint('📱 SMS auto-fill listen error: $e');
+    }
+  }
+
+  /// Called automatically by CodeAutoFill when an SMS code is detected
+  @override
+  void codeUpdated() {
+    final smsCode = code;
+    debugPrint('📱 SMS code received: $smsCode');
+    if (smsCode != null && smsCode.isNotEmpty) {
+      // Extract only digits from the code
+      final digits = smsCode.replaceAll(RegExp(r'\D'), '');
+      // Take the last 6 digits (OTP is typically 6 digits)
+      final otp = digits.length >= 6
+          ? digits.substring(digits.length - 6)
+          : digits;
+
+      if (otp.length == 6) {
+        _fillOtp(otp);
+      }
+    }
+  }
+
+  /// Fill the OTP boxes with the received code and auto-verify
+  void _fillOtp(String otp) {
+    for (int i = 0; i < 6 && i < otp.length; i++) {
+      _controllers[i].text = otp[i];
+    }
+    setState(() {});
+    // Auto-verify after filling
+    _verifyOtp();
   }
 
   void _startResendTimer() {
@@ -51,6 +90,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    SmsAutoFill().unregisterListener();
+    cancel();
     for (final c in _controllers) {
       c.dispose();
     }
@@ -73,11 +114,13 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
 
     setState(() => _isLoading = true);
 
-    final success = await ref.read(authProvider.notifier).verifyOtp(
-      phone: widget.phone,
-      countryCode: widget.countryCode,
-      otp: otp,
-    );
+    final success = await ref
+        .read(authProvider.notifier)
+        .verifyOtp(
+          phone: widget.phone,
+          countryCode: widget.countryCode,
+          otp: otp,
+        );
 
     setState(() => _isLoading = false);
 
@@ -99,7 +142,13 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     } else {
       final error = ref.read(authProvider).error;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error ?? 'Invalid OTP')),
+        SnackBar(
+          content: Text(
+            error ?? 'Invalid OTP',
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: Colors.red,
+        ),
       );
       // Clear OTP fields
       for (final c in _controllers) {
@@ -112,17 +161,18 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
   Future<void> _resendOtp() async {
     if (_resendTimer > 0) return;
 
-    await ref.read(authProvider.notifier).sendOtp(
-      phone: widget.phone,
-      countryCode: widget.countryCode,
-    );
+    await ref
+        .read(authProvider.notifier)
+        .sendOtp(phone: widget.phone, countryCode: widget.countryCode);
 
     _startResendTimer();
+    // Re-start SMS listener for the new OTP
+    _startListeningForSms();
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('OTP resent')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('OTP resent')));
     }
   }
 
@@ -197,9 +247,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
                         fontWeight: FontWeight.w700,
                         color: AppColors.textPrimary,
                       ),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.digitsOnly,
-                      ],
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       decoration: InputDecoration(
                         counterText: '',
                         contentPadding: EdgeInsets.zero,

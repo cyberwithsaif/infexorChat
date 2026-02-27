@@ -43,14 +43,28 @@ exports.sendToUser = async (userId, title, body, data = {}) => {
         const user = await User.findById(userId).select('fcmToken');
         if (!user || !user.fcmToken) return;
 
+        // Detect call payloads — send data-only FCM so Android doesn't
+        // auto-show a system notification (our background handler creates
+        // a custom full-screen intent notification for calls instead).
+        const isCall = data.type === 'call' || data.type === 'video_call' || data.type === 'audio_call';
+
         const message = {
-            notification: { title, body },
-            data: { ...data, click_action: 'FLUTTER_NOTIFICATION_CLICK' },
+            data: {
+                ...data,
+                title: title || '',
+                body: body || '',
+                click_action: 'FLUTTER_NOTIFICATION_CLICK',
+            },
             token: user.fcmToken,
             android: {
                 priority: 'high',
-            }
+            },
         };
+
+        // Only add notification block for non-call messages
+        if (!isCall) {
+            message.notification = { title, body };
+        }
 
         const response = await admin.messaging().send(message);
         logger.debug(`FCM sent to user ${userId} successfully: ${response}`);

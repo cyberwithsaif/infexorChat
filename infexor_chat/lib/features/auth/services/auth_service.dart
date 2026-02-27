@@ -83,4 +83,16 @@ class AuthService {
       // Ignore errors on logout — clear local state anyway
     }
   }
+
+  Future<void> updateFcmToken(String token, {String? deviceId}) async {
+    try {
+      await _api.put(
+        ApiEndpoints.fcmToken,
+        data: {'fcmToken': token, 'deviceId': deviceId ?? 'default'},
+      );
+    } catch (e) {
+      // Background retry logic can be added here if needed
+      print("Failed to sync FCM token: $e");
+    }
+  }
 }

@@ -67,7 +67,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         : const Color(0xFF54656F);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF3F5FA), // Match image light background
+      backgroundColor: bgColor, // Respects dark/light theme
       body: Column(
         children: [
           // Custom Curved Header
@@ -79,7 +79,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               right: 16,
             ),
             decoration: const BoxDecoration(
-              color: Color(0xFFFF6D00), // Vibrant Orange
+              color: Color(0xFFFF6B6B), // Vibrant Orange
               borderRadius: BorderRadius.only(
                 bottomLeft: Radius.circular(36),
                 bottomRight: Radius.circular(36),
@@ -153,7 +153,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
 
           Expanded(
             child: Container(
-              color: const Color(0xFFF3F5FA),
+              color: bgColor, // Respects dark/light theme
               child:
                   (chatState.isLoading && chatState.chats.isEmpty) ||
                       currentUserId.isEmpty
@@ -191,7 +191,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                   : RefreshIndicator(
                       onRefresh: () =>
                           ref.read(chatListProvider.notifier).loadChats(),
-                      color: const Color(0xFFFF6D00),
+                      color: const Color(0xFFFF6B6B),
                       child: ListView.builder(
                         padding: const EdgeInsets.only(top: 8, bottom: 80),
                         physics: const BouncingScrollPhysics(),
@@ -219,7 +219,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       floatingActionButton: AnimatedFabEntrance(
         child: FloatingActionButton(
           onPressed: () => context.push('/contacts'),
-          backgroundColor: const Color(0xFFFF6D00), // Match vibrant theme
+          backgroundColor: const Color(0xFFFF6B6B), // Match vibrant theme
           foregroundColor: Colors.white,
           elevation: 4,
           child: const Icon(Icons.chat_bubble_outline, size: 26),
@@ -550,9 +550,7 @@ class _ChatTile extends StatelessWidget {
                               fontWeight: unreadCount > 0
                                   ? FontWeight.w800
                                   : FontWeight.w600,
-                              color: const Color(
-                                0xFF1E293B,
-                              ), // Dark slate bold name
+                              color: textColor, // Respects dark/light theme
                             ),
                           ),
                         ),
@@ -562,10 +560,8 @@ class _ChatTile extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 12,
                               color: unreadCount > 0
-                                  ? const Color(0xFFFF6D00)
-                                  : const Color(
-                                      0xFF64748B,
-                                    ), // Slate-500 timestamp
+                                  ? const Color(0xFFFF6B6B)
+                                  : subtitleColor, // Respects dark/light theme
                             ),
                           ),
                       ],
@@ -634,7 +630,7 @@ class _ChatTile extends StatelessWidget {
                               vertical: 2,
                             ),
                             decoration: const BoxDecoration(
-                              color: Color(0xFFFF6D00), // Vibrant Orange Badge
+                              color: Color(0xFFFF6B6B), // Vibrant Orange Badge
                               shape: BoxShape.circle,
                             ),
                             child: Center(

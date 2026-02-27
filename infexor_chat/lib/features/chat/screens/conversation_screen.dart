@@ -110,6 +110,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   final Set<String> _selectedMessageIds = {};
   Map<String, dynamic>? _replyMessage;
 
+  // Add FocusNode to control keyboard state
+  final FocusNode _focusNode = FocusNode();
+
   // Block state
   bool _isBlockedByMe = false;
   bool _isBlockedByThem = false;
@@ -258,6 +261,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     _messageController.dispose();
     _scrollController.dispose();
     _typingTimer?.cancel();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -272,6 +276,13 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     _cancelReply();
     _stopTyping();
     _scrollToBottom();
+
+    // Explicitly request focus to keep keyboard open (deferred to avoid race condition)
+    Future.microtask(() {
+      if (mounted) {
+        FocusScope.of(context).requestFocus(_focusNode);
+      }
+    });
   }
 
   void _scrollToBottom() {
@@ -742,6 +753,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                 _buildBlockedBar(isDark)
               else
                 _InputBar(
+                  focusNode: _focusNode,
                   controller: _messageController,
                   onSend: _sendMessage,
                   onChanged: _onTextChanged,
@@ -918,7 +930,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   ) {
     return AppBar(
       titleSpacing: 0,
-      backgroundColor: const Color(0xFFFF6D00), // Vibrant Orange Theme
+      backgroundColor: const Color(0xFFFF6B6B), // Vibrant Orange Theme
       elevation: 0, // Flat edge
       iconTheme: const IconThemeData(color: Colors.white), // All icons white
       leading: IconButton(
@@ -1009,7 +1021,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                         color: const Color(0xFF00C853), // Bright online green
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: const Color(0xFFFF6D00), // Match AppBar Orange
+                          color: const Color(0xFFFF6B6B), // Match AppBar Orange
                           width: 2,
                         ),
                       ),
@@ -1924,7 +1936,7 @@ class _TextMessageBubble extends StatelessWidget {
     final createdAt = message['createdAt'] ?? '';
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final bubbleBgMe = const Color(0xFFFF6D00); // Solid Orange
+    final bubbleBgMe = const Color(0xFFFF6B6B); // Solid Orange
     final bubbleBgOther = isDark ? const Color(0xFF1E2B33) : Colors.white;
     final msgTextColorMe = Colors.white;
     final msgTextColorOther = isDark ? Colors.white : const Color(0xFF1E293B);
@@ -2102,6 +2114,7 @@ class _TextMessageBubble extends StatelessWidget {
 
 class _InputBar extends StatefulWidget {
   final TextEditingController controller;
+  final FocusNode focusNode;
   final VoidCallback onSend;
   final ValueChanged<String> onChanged;
   final VoidCallback onAttachment;
@@ -2115,6 +2128,7 @@ class _InputBar extends StatefulWidget {
 
   const _InputBar({
     required this.controller,
+    required this.focusNode,
     required this.onSend,
     required this.onChanged,
     required this.onAttachment,
@@ -2139,7 +2153,6 @@ class _InputBarState extends State<_InputBar> with TickerProviderStateMixin {
   Timer? _recordTimer;
   String? _recordPath;
   bool _showEmojiPicker = false;
-  final FocusNode _focusNode = FocusNode();
 
   late AnimationController _voiceAnimController;
   late Animation<double> _voiceScaleAnim;
@@ -2149,8 +2162,8 @@ class _InputBarState extends State<_InputBar> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _focusNode.addListener(() {
-      if (_focusNode.hasFocus) {
+    widget.focusNode.addListener(() {
+      if (widget.focusNode.hasFocus) {
         setState(() => _showEmojiPicker = false);
       }
     });
@@ -2176,7 +2189,6 @@ class _InputBarState extends State<_InputBar> with TickerProviderStateMixin {
   @override
   void dispose() {
     _tabController.dispose();
-    _focusNode.dispose();
     _recordTimer?.cancel();
     _recorder.dispose();
     _voiceAnimController.dispose();
@@ -2185,9 +2197,9 @@ class _InputBarState extends State<_InputBar> with TickerProviderStateMixin {
 
   void _toggleEmojiPicker() {
     if (_showEmojiPicker) {
-      _focusNode.requestFocus();
+      widget.focusNode.requestFocus();
     } else {
-      _focusNode.unfocus();
+      widget.focusNode.unfocus();
     }
     setState(() => _showEmojiPicker = !_showEmojiPicker);
   }
@@ -2243,7 +2255,7 @@ class _InputBarState extends State<_InputBar> with TickerProviderStateMixin {
     final iconColor = isDark ? Colors.grey[400] : const Color(0xFF54656F);
     final textColor = isDark ? Colors.white : const Color(0xFF111B21);
     final hintColor = isDark ? Colors.grey[500] : const Color(0xFF667781);
-    final themeBlue = const Color(0xFFFF6D00);
+    final themeBlue = const Color(0xFFFF6B6B);
     final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
 
     return ClipRect(
@@ -2384,7 +2396,7 @@ class _InputBarState extends State<_InputBar> with TickerProviderStateMixin {
                               ),
                               Expanded(
                                 child: TextField(
-                                  focusNode: _focusNode,
+                                  focusNode: widget.focusNode,
                                   controller: widget.controller,
                                   onChanged: (value) {
                                     setState(() {});
@@ -2471,6 +2483,8 @@ class _InputBarState extends State<_InputBar> with TickerProviderStateMixin {
                           }
                           setState(() => _dragOffset = 0.0);
                         } else if (widget.controller.text.trim().isNotEmpty) {
+                          // Keep keyboard open immediately on tap
+                          widget.focusNode.requestFocus();
                           widget.onSend();
                         } else {
                           HapticFeedback.lightImpact();

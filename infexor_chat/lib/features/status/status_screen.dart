@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/url_utils.dart';
 import '../auth/providers/auth_provider.dart';
 import 'status_provider.dart';
+import 'status_service.dart';
 import 'create_status_screen.dart';
 import 'view_status_screen.dart';
 
@@ -26,6 +29,57 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
     });
   }
 
+  Future<void> _deleteMyStatus(String statusId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete status?'),
+        content: const Text(
+          'This will remove this status update for everyone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await ref.read(statusServiceProvider).deleteStatus(statusId);
+      await ref.read(statusProvider.notifier).loadStatuses();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Status deleted')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
+      }
+    }
+  }
+
+  Future<void> _shareMyStatus(Map<String, dynamic> status) async {
+    final type = status['type']?.toString() ?? 'text';
+    final content = status['content']?.toString() ?? '';
+    final mediaUrl = status['media']?['url']?.toString() ?? '';
+
+    if (type == 'text') {
+      await SharePlus.instance.share(ShareParams(text: content));
+    } else if (mediaUrl.isNotEmpty) {
+      final fullUrl = UrlUtils.getFullUrl(mediaUrl);
+      await SharePlus.instance.share(ShareParams(text: fullUrl));
+    }
+  }
+
   String _formatTime(String? dateStr) {
     if (dateStr == null) return '';
     try {
@@ -44,8 +98,18 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
   void _openCreateText() async {
     final result = await Navigator.push(
       context,
+      MaterialPageRoute(builder: (_) => const CreateStatusScreen()),
+    );
+    if (result == true) {
+      ref.read(statusProvider.notifier).loadStatuses();
+    }
+  }
+
+  void _openCreateImage(ImageSource source) async {
+    final result = await Navigator.push(
+      context,
       MaterialPageRoute(
-        builder: (_) => const CreateStatusScreen(imageMode: false),
+        builder: (_) => CreateStatusScreen(initialSource: source),
       ),
     );
     if (result == true) {
@@ -53,16 +117,51 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
     }
   }
 
-  void _openCreateImage() async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const CreateStatusScreen(imageMode: true),
-      ),
+  void _showMediaSelector() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.darkBgSecondary : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(
+                    Icons.camera_alt,
+                    color: AppColors.primaryPurple,
+                  ),
+                  title: const Text('Camera'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _openCreateImage(ImageSource.camera);
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(
+                    Icons.photo_library,
+                    color: AppColors.primaryPurple,
+                  ),
+                  title: const Text('Gallery'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _openCreateImage(ImageSource.gallery);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
-    if (result == true) {
-      ref.read(statusProvider.notifier).loadStatuses();
-    }
   }
 
   void _viewMyStatuses(List<Map<String, dynamic>> statuses) {
@@ -223,9 +322,103 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                       ),
                     ),
                     if (hasMyStatus)
-                      Text(
-                        '${statusState.myStatuses.length}',
-                        style: TextStyle(color: subtitleColor, fontSize: 13),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${statusState.myStatuses.length}',
+                            style: TextStyle(
+                              color: subtitleColor,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          PopupMenuButton<String>(
+                            icon: Icon(
+                              Icons.more_vert,
+                              color: subtitleColor,
+                              size: 20,
+                            ),
+                            onSelected: (value) {
+                              // Pick the latest status or iterate
+                              final statuses = statusState.myStatuses;
+                              if (statuses.isEmpty) return;
+                              final latest = statuses.last;
+                              final statusId = latest['_id']?.toString() ?? '';
+                              if (value == 'delete') {
+                                // Delete the latest status
+                                if (statusId.isNotEmpty) {
+                                  _deleteMyStatus(statusId);
+                                }
+                              } else if (value == 'delete_all') {
+                                for (final s in statuses) {
+                                  final sid = s['_id']?.toString() ?? '';
+                                  if (sid.isNotEmpty) _deleteMyStatus(sid);
+                                }
+                              } else if (value == 'share') {
+                                _shareMyStatus(latest);
+                              } else if (value == 'view') {
+                                _viewMyStatuses(statuses);
+                              }
+                            },
+                            itemBuilder: (ctx) => [
+                              const PopupMenuItem(
+                                value: 'view',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.visibility_outlined, size: 18),
+                                    SizedBox(width: 10),
+                                    Text('View my status'),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'share',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.share_outlined, size: 18),
+                                    SizedBox(width: 10),
+                                    Text('Share'),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'delete',
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.delete_outline,
+                                      size: 18,
+                                      color: Colors.red,
+                                    ),
+                                    SizedBox(width: 10),
+                                    Text(
+                                      'Delete latest',
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'delete_all',
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.delete_forever,
+                                      size: 18,
+                                      color: Colors.red,
+                                    ),
+                                    SizedBox(width: 10),
+                                    Text(
+                                      'Delete all',
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                   ],
                 ),
@@ -253,50 +446,62 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                   spacing: 16,
                   runSpacing: 20,
                   alignment: WrapAlignment.start,
-                  children: statusState.contactStatuses.map((group) {
-                    final user = group['user'];
-                    final name = user is Map
-                        ? (user['name'] ?? 'Unknown')
-                              .toString()
-                              .split(' ')
-                              .first
-                        : 'Unknown';
-                    final userAvatar = user is Map
-                        ? UrlUtils.getFullUrl(user['avatar'] ?? '')
-                        : '';
-                    final hasUnviewed = group['hasUnviewed'] == true;
+                  children: statusState.contactStatuses
+                      .where((group) {
+                        // Filter out own status from contact list
+                        final user = group['user'];
+                        if (user is Map) {
+                          final uid = user['_id']?.toString() ?? '';
+                          final myId = currentUser?['_id']?.toString() ?? '';
+                          return uid != myId;
+                        }
+                        return true;
+                      })
+                      .map((group) {
+                        final user = group['user'];
+                        final name = user is Map
+                            ? (user['name'] ?? 'Unknown')
+                                  .toString()
+                                  .split(' ')
+                                  .first
+                            : 'Unknown';
+                        final userAvatar = user is Map
+                            ? UrlUtils.getFullUrl(user['avatar'] ?? '')
+                            : '';
+                        final hasUnviewed = group['hasUnviewed'] == true;
 
-                    return InkWell(
-                      onTap: () => _viewContactStatuses(group),
-                      borderRadius: BorderRadius.circular(8),
-                      child: SizedBox(
-                        width: 76, // Fixed width to align grid perfectly
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _StatusRing(
-                              avatarUrl: userAvatar,
-                              hasStatus: true,
-                              isSeen: !hasUnviewed,
-                              radius: 34, // Slightly larger radius for grid
+                        return InkWell(
+                          onTap: () => _viewContactStatuses(group),
+                          borderRadius: BorderRadius.circular(8),
+                          child: SizedBox(
+                            width: 76, // Fixed width to align grid perfectly
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _StatusRing(
+                                  avatarUrl: userAvatar,
+                                  hasStatus: true,
+                                  isSeen: !hasUnviewed,
+                                  radius: 34, // Slightly larger radius for grid
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w500,
+                                    color: textColor,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: textColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }).toList(),
+                          ),
+                        );
+                      })
+                      .toList(),
                 ),
               ),
               const SizedBox(height: 32),
@@ -372,7 +577,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
           const SizedBox(height: 12),
           FloatingActionButton(
             heroTag: 'camera_status',
-            onPressed: _openCreateImage,
+            onPressed: _showMediaSelector,
             backgroundColor: AppColors.fabBg,
             foregroundColor: Colors.white,
             child: const Icon(Icons.camera_alt),

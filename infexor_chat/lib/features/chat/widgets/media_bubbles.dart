@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/api_endpoints.dart';
@@ -16,6 +17,16 @@ String _resolveUrl(String url) {
   final serverRoot = ApiEndpoints.baseUrl.replaceAll('/api', '');
   return '$serverRoot$url';
 }
+
+/// Custom CacheManager configured specifically for GIFs
+/// Keeps GIFs cached longer with a higher capacity to avoid redownloading
+final CacheManager gifCacheManager = CacheManager(
+  Config(
+    'gif_cache_keys',
+    stalePeriod: const Duration(days: 30),
+    maxNrOfCacheObjects: 200,
+  ),
+);
 
 /// Image message bubble
 class ImageBubble extends StatefulWidget {
@@ -157,7 +168,7 @@ class _ImageBubbleState extends State<ImageBubble> {
                         : CachedNetworkImage(
                             imageUrl: url.isNotEmpty ? url : thumbnail,
                             width: double.infinity,
-                            memCacheWidth: 600,
+                            cacheManager: gifCacheManager,
                             fit: BoxFit.cover,
                             progressIndicatorBuilder: (context, url, progress) {
                               return Container(
@@ -367,6 +378,7 @@ class _VideoBubbleState extends State<VideoBubble> {
                         imageUrl: thumbnail,
                         width: double.infinity,
                         height: 200,
+                        cacheManager: gifCacheManager,
                         fit: BoxFit.cover,
                         progressIndicatorBuilder: (context, url, progress) {
                           return Container(
@@ -1157,6 +1169,7 @@ class ReplyPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final subtitleColor = theme.textTheme.bodyMedium?.color ?? Colors.grey;
+    final isDark = theme.brightness == Brightness.dark;
 
     if (replyTo == null) return const SizedBox.shrink();
 
@@ -1185,7 +1198,9 @@ class ReplyPreview extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.05),
+        color: isDark
+            ? Colors.black.withOpacity(0.2)
+            : Colors.black.withOpacity(0.05),
         borderRadius: BorderRadius.circular(8),
         border: Border(left: BorderSide(color: AppColors.accentBlue, width: 4)),
       ),
@@ -1194,9 +1209,9 @@ class ReplyPreview extends StatelessWidget {
         children: [
           Text(
             senderName,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: AppColors.accentBlue,
+              color: isDark ? Colors.blue[300] : AppColors.accentBlue,
               fontSize: 12,
             ),
           ),
@@ -1213,7 +1228,10 @@ class ReplyPreview extends StatelessWidget {
                   content.toString().isEmpty ? type : content.toString(),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: subtitleColor, fontSize: 12),
+                  style: TextStyle(
+                    color: isDark ? Colors.white70 : subtitleColor,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ],

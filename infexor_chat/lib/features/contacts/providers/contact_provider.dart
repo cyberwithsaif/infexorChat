@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -38,6 +39,8 @@ final contactProvider = NotifierProvider<ContactNotifier, ContactState>(
 );
 
 class ContactNotifier extends Notifier<ContactState> {
+  static const _cacheBoxName = 'registered_contacts_cache';
+
   @override
   ContactState build() => const ContactState();
 
@@ -54,7 +57,54 @@ class ContactNotifier extends Notifier<ContactState> {
     return result;
   }
 
-  /// Load contacts from server first (instant display), then sync in background
+  // ──────────────────────────────────────────────────────────
+  //  CACHE HELPERS
+  // ──────────────────────────────────────────────────────────
+
+  /// Save registered contacts to Hive so they show instantly next time
+  Future<void> _saveContactsToCache(List<Map<String, dynamic>> contacts) async {
+    try {
+      final box = await Hive.openBox(_cacheBoxName);
+      // Store as a JSON-encoded list of maps
+      final encoded = contacts.map((c) => jsonEncode(c)).toList();
+      await box.put('contacts', encoded);
+      debugPrint('💾 Saved ${contacts.length} contacts to cache');
+    } catch (e) {
+      debugPrint('⚠️ Failed to save contacts to cache: $e');
+    }
+  }
+
+  /// Load registered contacts from Hive cache (instant)
+  Future<List<Map<String, dynamic>>> _loadContactsFromCache() async {
+    try {
+      final box = await Hive.openBox(_cacheBoxName);
+      final raw = box.get('contacts');
+      if (raw is List) {
+        final result = <Map<String, dynamic>>[];
+        for (final item in raw) {
+          try {
+            final decoded = jsonDecode(item.toString());
+            if (decoded is Map) {
+              result.add(Map<String, dynamic>.from(decoded));
+            }
+          } catch (_) {}
+        }
+        debugPrint('💾 Loaded ${result.length} contacts from cache');
+        return result;
+      }
+    } catch (e) {
+      debugPrint('⚠️ Failed to load contacts from cache: $e');
+    }
+    return [];
+  }
+
+  // ──────────────────────────────────────────────────────────
+  //  SMART SYNC: Show cached contacts instantly, sync in background
+  // ──────────────────────────────────────────────────────────
+
+  /// Called when ContactsScreen opens.
+  /// 1. Instantly loads cached contacts (no spinner if cache exists).
+  /// 2. Triggers a background sync to fetch updates.
   Future<void> syncContacts() async {
     final service = ref.read(contactServiceProvider);
 
@@ -68,28 +118,39 @@ class ContactNotifier extends Notifier<ContactState> {
       }
     }
 
-    // Clear stale contacts and show syncing state
-    // (don't pre-load server cache — it may contain deleted/unsaved contacts)
-    state = state.copyWith(
-      status: ContactSyncStatus.syncing,
-      registeredContacts: [],
-      error: null,
-    );
+    // ── Step 1: Load cached contacts instantly ──
+    final cached = await _loadContactsFromCache();
+    if (cached.isNotEmpty) {
+      // Show cached contacts immediately — no loading spinner
+      state = state.copyWith(
+        status:
+            ContactSyncStatus.syncing, // subtle indicator (e.g. refresh icon)
+        registeredContacts: cached,
+        error: null,
+      );
+    } else {
+      // No cache — show a loading spinner (first time only)
+      state = state.copyWith(
+        status: ContactSyncStatus.syncing,
+        registeredContacts: [],
+        error: null,
+      );
+    }
 
-    // 2. Background sync: read device contacts → hash → send to server
+    // ── Step 2: Background sync — read device contacts → hash → send to server ──
     try {
       final deviceContacts = await service.readDeviceContacts();
 
       if (deviceContacts.isEmpty) {
         state = state.copyWith(
           status: ContactSyncStatus.synced,
-          registeredContacts: [],
+          // Keep cached contacts if device read returned nothing (e.g. permission hiccup)
+          registeredContacts: cached.isNotEmpty ? cached : [],
         );
         return;
       }
 
       // --- Batch Processing Implementation ---
-      // Backend restricts payload size to 1000. Chunk into 500 limits for safety.
       final int chunkSize = 500;
       final List<Map<String, dynamic>> allMatched = [];
 
@@ -126,14 +187,11 @@ class ContactNotifier extends Notifier<ContactState> {
       }
 
       // Enrich matched contacts with local names
-      // Enrich matched contacts with local names
       for (final m in allMatched) {
-        // Check phone in 'phone' or inside 'user' object
         final serverPhone =
             m['phone']?.toString() ?? m['user']?['phone']?.toString();
 
         if (serverPhone != null) {
-          // Normalize server phone (remove + and non-digits) to match device format
           final normalized = serverPhone.replaceAll(
             RegExp(r'[\s\-\(\)\.\+]'),
             '',
@@ -145,6 +203,7 @@ class ContactNotifier extends Notifier<ContactState> {
         }
       }
 
+      // ── Step 3: Update state with fresh contacts ──
       state = state.copyWith(
         status: ContactSyncStatus.synced,
         registeredContacts: allMatched,
@@ -152,11 +211,20 @@ class ContactNotifier extends Notifier<ContactState> {
             .map((c) => <String, dynamic>{...c})
             .toList(),
       );
+
+      // ── Step 4: Persist to cache for next time ──
+      await _saveContactsToCache(allMatched);
       _cacheContactNames(allMatched);
     } catch (e) {
       debugPrint('❌ Contact sync error: $e');
+      // On error, keep cached contacts visible instead of showing empty
       state = state.copyWith(
-        status: ContactSyncStatus.error,
+        status: cached.isNotEmpty
+            ? ContactSyncStatus.synced
+            : ContactSyncStatus.error,
+        registeredContacts: cached.isNotEmpty
+            ? cached
+            : state.registeredContacts,
         error: e.toString(),
       );
     }
@@ -165,7 +233,18 @@ class ContactNotifier extends Notifier<ContactState> {
   /// Load contacts from server (without re-reading device)
   Future<void> loadFromServer() async {
     final service = ref.read(contactServiceProvider);
-    state = state.copyWith(status: ContactSyncStatus.syncing, error: null);
+
+    // Load cache first
+    final cached = await _loadContactsFromCache();
+    if (cached.isNotEmpty) {
+      state = state.copyWith(
+        status: ContactSyncStatus.syncing,
+        registeredContacts: cached,
+        error: null,
+      );
+    } else {
+      state = state.copyWith(status: ContactSyncStatus.syncing, error: null);
+    }
 
     try {
       final response = await service.getContacts();
@@ -175,11 +254,14 @@ class ContactNotifier extends Notifier<ContactState> {
         status: ContactSyncStatus.synced,
         registeredContacts: contacts,
       );
+      await _saveContactsToCache(contacts);
       _cacheContactNames(contacts);
     } catch (e) {
       debugPrint('❌ loadFromServer error: $e');
       state = state.copyWith(
-        status: ContactSyncStatus.error,
+        status: cached.isNotEmpty
+            ? ContactSyncStatus.synced
+            : ContactSyncStatus.error,
         error: e.toString(),
       );
     }
@@ -191,8 +273,6 @@ class ContactNotifier extends Notifier<ContactState> {
       final box = await Hive.openBox('contacts_cache');
       final nameMap = <String, String>{};
       for (final c in contacts) {
-        // The contact object from server has '_id' (user ID) and 'name' (saved name from phone)
-        // We map ID to Name so background service can look it up
         final id = c['user']?['_id']?.toString() ?? c['_id']?.toString();
         final name = c['name']?.toString() ?? c['user']?['name']?.toString();
 

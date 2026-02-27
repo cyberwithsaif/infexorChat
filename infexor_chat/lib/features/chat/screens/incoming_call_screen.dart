@@ -38,6 +38,7 @@ class IncomingCallScreen extends ConsumerStatefulWidget {
 class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen> {
   bool _handled = false;
   Timer? _vibrationTimer;
+  Timer? _listenerDelayTimer;
 
   @override
   void initState() {
@@ -45,10 +46,14 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen> {
     _playRingtone();
     _startVibration();
 
-    // Listen for caller cancellation (caller hangs up before we answer)
-    final socketService = ref.read(socketServiceProvider);
-    socketService.on('call:ended', _onCallCancelled);
-    socketService.on('call:end', _onCallCancelled);
+    // Delay socket listener registration to avoid stale events
+    // when app launches from terminated state via notification tap
+    _listenerDelayTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted || _handled) return;
+      final socketService = ref.read(socketServiceProvider);
+      socketService.on('call:ended', _onCallCancelled);
+      socketService.on('call:end', _onCallCancelled);
+    });
   }
 
   void _startVibration() {
@@ -76,7 +81,6 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen> {
       debugPrint('🔔 Ringtone started via FlutterRingtonePlayer.play');
     } catch (e) {
       debugPrint('🔔 Ringtone play error: $e');
-      // Fallback: try notification sound
       try {
         FlutterRingtonePlayer().play(
           android: AndroidSounds.notification,
@@ -97,7 +101,14 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen> {
     } catch (_) {}
   }
 
-  void _onCallCancelled(dynamic _) {
+  void _onCallCancelled(dynamic data) {
+    // Only dismiss if the event is for THIS call
+    if (data is Map) {
+      final eventChatId = data['chatId']?.toString() ?? '';
+      if (eventChatId.isNotEmpty && eventChatId != widget.chatId) {
+        return; // Not our call
+      }
+    }
     debugPrint('📞 Caller cancelled/ended the call');
     if (mounted && !_handled) {
       _handled = true;
@@ -109,6 +120,7 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen> {
   @override
   void dispose() {
     _handled = true;
+    _listenerDelayTimer?.cancel();
     _vibrationTimer?.cancel();
     _stopRingtone();
     final socketService = ref.read(socketServiceProvider);
@@ -296,86 +308,19 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen> {
 
                   const Spacer(flex: 3),
 
-                  // Action buttons
+                  // Action buttons with swipe-up accept
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: 48.w),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        // Decline
-                        Column(
-                          children: [
-                            GestureDetector(
-                              onTap: _declineCall,
-                              child: Container(
-                                width: 64.r,
-                                height: 64.r,
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.red.withValues(alpha: 0.4),
-                                      blurRadius: 16,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: Icon(
-                                  Icons.call_end,
-                                  color: Colors.white,
-                                  size: 28.sp,
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: 12.h),
-                            Text(
-                              'Decline',
-                              style: TextStyle(
-                                color: Colors.white60,
-                                fontSize: 13.sp,
-                              ),
-                            ),
-                          ],
-                        ),
+                        // Decline with animated swipe-up
+                        _SwipeUpDeclineButton(onDecline: _declineCall),
 
-                        // Accept
-                        Column(
-                          children: [
-                            GestureDetector(
-                              onTap: _acceptCall,
-                              child: Container(
-                                width: 64.r,
-                                height: 64.r,
-                                decoration: BoxDecoration(
-                                  color: Colors.green,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.green.withValues(
-                                        alpha: 0.4,
-                                      ),
-                                      blurRadius: 16,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: Icon(
-                                  widget.isVideo ? Icons.videocam : Icons.call,
-                                  color: Colors.white,
-                                  size: 28.sp,
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: 12.h),
-                            Text(
-                              'Accept',
-                              style: TextStyle(
-                                color: Colors.white60,
-                                fontSize: 13.sp,
-                              ),
-                            ),
-                          ],
+                        // Swipe-up to Accept
+                        _SwipeUpAcceptButton(
+                          isVideo: widget.isVideo,
+                          onAccept: _acceptCall,
                         ),
                       ],
                     ),
@@ -388,6 +333,213 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Animated swipe-up button for accepting calls
+class _SwipeUpAcceptButton extends StatefulWidget {
+  final bool isVideo;
+  final VoidCallback onAccept;
+
+  const _SwipeUpAcceptButton({required this.isVideo, required this.onAccept});
+
+  @override
+  State<_SwipeUpAcceptButton> createState() => _SwipeUpAcceptButtonState();
+}
+
+class _SwipeUpAcceptButtonState extends State<_SwipeUpAcceptButton>
+    with SingleTickerProviderStateMixin {
+  double _dragOffset = 0;
+  final double _threshold = -100; // Negative because swipe up
+  late AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Swipe hint arrows
+        AnimatedBuilder(
+          animation: _pulseController,
+          builder: (context, _) {
+            return Opacity(
+              opacity: 0.3 + 0.5 * _pulseController.value,
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.keyboard_arrow_up,
+                    color: Colors.green,
+                    size: 20.sp,
+                  ),
+                  Icon(
+                    Icons.keyboard_arrow_up,
+                    color: Colors.green,
+                    size: 20.sp,
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+        SizedBox(height: 4.h),
+        // Draggable accept button
+        GestureDetector(
+          onTap: widget.onAccept,
+          onVerticalDragUpdate: (details) {
+            setState(() {
+              _dragOffset += details.delta.dy;
+              _dragOffset = _dragOffset.clamp(-120.0, 0.0);
+            });
+          },
+          onVerticalDragEnd: (details) {
+            if (_dragOffset <= _threshold) {
+              widget.onAccept();
+            } else {
+              setState(() => _dragOffset = 0);
+            }
+          },
+          child: Transform.translate(
+            offset: Offset(0, _dragOffset),
+            child: Container(
+              width: 64.r,
+              height: 64.r,
+              decoration: BoxDecoration(
+                color: Colors.green,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.green.withValues(alpha: 0.4),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Icon(
+                widget.isVideo ? Icons.videocam : Icons.call,
+                color: Colors.white,
+                size: 28.sp,
+              ),
+            ),
+          ),
+        ),
+        SizedBox(height: 12.h),
+        Text(
+          'Swipe up to accept',
+          style: TextStyle(color: Colors.white60, fontSize: 12.sp),
+        ),
+      ],
+    );
+  }
+}
+
+/// Animated swipe-up button for declining calls
+class _SwipeUpDeclineButton extends StatefulWidget {
+  final VoidCallback onDecline;
+
+  const _SwipeUpDeclineButton({required this.onDecline});
+
+  @override
+  State<_SwipeUpDeclineButton> createState() => _SwipeUpDeclineButtonState();
+}
+
+class _SwipeUpDeclineButtonState extends State<_SwipeUpDeclineButton>
+    with SingleTickerProviderStateMixin {
+  double _dragOffset = 0;
+  final double _threshold = -100; // Negative because swipe up
+  late AnimationController _pulseController;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Swipe hint arrows
+        AnimatedBuilder(
+          animation: _pulseController,
+          builder: (context, _) {
+            return Opacity(
+              opacity: 0.3 + 0.5 * _pulseController.value,
+              child: Column(
+                children: [
+                  Icon(Icons.keyboard_arrow_up, color: Colors.red, size: 20.sp),
+                  Icon(Icons.keyboard_arrow_up, color: Colors.red, size: 20.sp),
+                ],
+              ),
+            );
+          },
+        ),
+        SizedBox(height: 4.h),
+        // Draggable decline button
+        GestureDetector(
+          onTap: widget.onDecline,
+          onVerticalDragUpdate: (details) {
+            setState(() {
+              _dragOffset += details.delta.dy;
+              _dragOffset = _dragOffset.clamp(-120.0, 0.0);
+            });
+          },
+          onVerticalDragEnd: (details) {
+            if (_dragOffset <= _threshold) {
+              widget.onDecline();
+            } else {
+              setState(() => _dragOffset = 0);
+            }
+          },
+          child: Transform.translate(
+            offset: Offset(0, _dragOffset),
+            child: Container(
+              width: 64.r,
+              height: 64.r,
+              decoration: BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.red.withValues(alpha: 0.4),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Icon(Icons.call_end, color: Colors.white, size: 28.sp),
+            ),
+          ),
+        ),
+        SizedBox(height: 12.h),
+        Text(
+          'Swipe up to decline',
+          style: TextStyle(color: Colors.white60, fontSize: 12.sp),
+        ),
+      ],
     );
   }
 }

@@ -2,13 +2,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:video_player/video_player.dart';
 import '../../core/constants/app_colors.dart';
 import '../chat/services/media_service.dart';
 import 'status_provider.dart';
 
 class CreateStatusScreen extends ConsumerStatefulWidget {
-  final bool imageMode;
-  const CreateStatusScreen({super.key, this.imageMode = false});
+  final ImageSource? initialSource;
+  const CreateStatusScreen({super.key, this.initialSource});
 
   @override
   ConsumerState<CreateStatusScreen> createState() => _CreateStatusScreenState();
@@ -22,6 +23,17 @@ class _CreateStatusScreenState extends ConsumerState<CreateStatusScreen> {
   double _uploadProgress = 0;
   bool _pickingImage = false; // prevents text mode flash
   bool _showEmoji = false;
+  VideoPlayerController? _videoController;
+
+  bool _isVideoFile(String path) {
+    final lower = path.toLowerCase();
+    return lower.endsWith('.mp4') ||
+        lower.endsWith('.mov') ||
+        lower.endsWith('.avi') ||
+        lower.endsWith('.3gp') ||
+        lower.endsWith('.webm') ||
+        lower.endsWith('.mkv');
+  }
 
   int _colorIndex = 0;
   static const _bgColors = [
@@ -169,35 +181,61 @@ class _CreateStatusScreenState extends ConsumerState<CreateStatusScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.imageMode) {
+    if (widget.initialSource != null) {
       _pickingImage = true;
       // Defer to let the screen render first
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _pickImage();
+        _pickImage(widget.initialSource!);
       });
     }
   }
 
   @override
   void dispose() {
+    _videoController?.dispose();
     _textController.dispose();
     _captionController.dispose();
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
+  Future<void> _pickImage(ImageSource source) async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
-      maxWidth: 1280,
-    );
+    XFile? picked;
+
+    if (source == ImageSource.gallery) {
+      // Pick either image or video from gallery
+      picked = await picker.pickMedia(
+        imageQuality: 80,
+        requestFullMetadata: false,
+      );
+    } else {
+      picked = await picker.pickImage(
+        source: source,
+        imageQuality: 80,
+        maxWidth: 1280,
+      );
+    }
+
     if (picked != null) {
       if (mounted) {
         setState(() {
-          _imagePath = picked.path;
+          _imagePath = picked!.path;
           _pickingImage = false;
         });
+
+        // Check if video and initialize player
+        final isVideo = _isVideoFile(_imagePath!);
+
+        if (isVideo) {
+          _videoController = VideoPlayerController.file(File(_imagePath!))
+            ..initialize().then((_) {
+              if (mounted) {
+                setState(() {});
+                _videoController!.play();
+                _videoController!.setLooping(true);
+              }
+            });
+        }
       }
     } else {
       // User cancelled
@@ -242,18 +280,39 @@ class _CreateStatusScreenState extends ConsumerState<CreateStatusScreen> {
 
     try {
       final mediaService = ref.read(mediaServiceProvider);
-      final uploadResult = await mediaService.uploadImage(
-        _imagePath!,
-        onSendProgress: (sent, total) {
-          if (total > 0 && mounted) {
-            setState(() => _uploadProgress = sent / total);
-          }
-        },
-      );
+      final isVideo = _isVideoFile(_imagePath!);
+
+      Map<String, dynamic> uploadResult;
+
+      if (isVideo) {
+        uploadResult = await mediaService.uploadVideo(
+          _imagePath!,
+          onSendProgress: (sent, total) {
+            if (total > 0 && mounted) {
+              setState(() => _uploadProgress = sent / total);
+            }
+          },
+        );
+      } else {
+        uploadResult = await mediaService.uploadImage(
+          _imagePath!,
+          onSendProgress: (sent, total) {
+            if (total > 0 && mounted) {
+              setState(() => _uploadProgress = sent / total);
+            }
+          },
+        );
+      }
+
+      final type = isVideo ? 'video' : 'image';
 
       final success = await ref
           .read(statusProvider.notifier)
-          .createImageStatus(uploadResult, _captionController.text.trim());
+          .createMediaStatus(
+            uploadResult,
+            _captionController.text.trim(),
+            type,
+          );
 
       if (mounted) {
         if (success) {
@@ -471,8 +530,8 @@ class _CreateStatusScreenState extends ConsumerState<CreateStatusScreen> {
         actions: [
           if (!_isPosting)
             IconButton(
-              icon: const Icon(Icons.crop_rotate, color: Colors.white),
-              onPressed: _pickImage,
+              icon: const Icon(Icons.photo_library, color: Colors.white),
+              onPressed: () => _pickImage(ImageSource.gallery),
             ),
         ],
       ),
@@ -480,7 +539,14 @@ class _CreateStatusScreenState extends ConsumerState<CreateStatusScreen> {
         children: [
           Expanded(
             child: Center(
-              child: Image.file(File(_imagePath!), fit: BoxFit.contain),
+              child: _videoController != null
+                  ? (_videoController!.value.isInitialized
+                        ? AspectRatio(
+                            aspectRatio: _videoController!.value.aspectRatio,
+                            child: VideoPlayer(_videoController!),
+                          )
+                        : const CircularProgressIndicator(color: Colors.white))
+                  : Image.file(File(_imagePath!), fit: BoxFit.contain),
             ),
           ),
           if (_isPosting)

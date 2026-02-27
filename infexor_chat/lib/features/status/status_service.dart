@@ -27,14 +27,15 @@ class StatusService {
     return _parse(response.data);
   }
 
-  /// Create an image status
-  Future<Map<String, dynamic>> createImageStatus({
+  /// Create a media status (image or video)
+  Future<Map<String, dynamic>> createMediaStatus({
     required Map<String, dynamic> media,
+    required String type,
     String caption = '',
   }) async {
     final response = await _api.post(
       ApiEndpoints.status,
-      data: {'type': 'image', 'content': caption, 'media': media},
+      data: {'type': type, 'content': caption, 'media': media},
     );
     return _parse(response.data);
   }

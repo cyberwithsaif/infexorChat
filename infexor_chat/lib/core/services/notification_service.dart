@@ -133,7 +133,7 @@ class NotificationService {
   /// Clear counts for a chat (call when chat is opened)
   void clearCounts(String chatId) {
     _unreadCounts.remove(chatId);
-    _localNotifications.cancel(id: chatId.hashCode);
+    _localNotifications.cancelAll();
   }
 
   /// Handle notification tap
