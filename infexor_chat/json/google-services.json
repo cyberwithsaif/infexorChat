@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "787986637051",
+    "project_id": "infexorchat",
+    "storage_bucket": "infexorchat.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:787986637051:android:be00bb6a5ddfc11605d05e",
+        "android_client_info": {
+          "package_name": "com.infexor.infexor_chat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC2nFxYRFUT6agO7st_mDxh8FdezRj6JC4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

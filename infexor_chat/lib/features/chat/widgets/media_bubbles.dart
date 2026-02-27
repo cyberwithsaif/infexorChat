@@ -506,7 +506,11 @@ class VoiceBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final subtitleColor = theme.textTheme.bodyMedium?.color ?? Colors.grey;
+    final isDark = theme.brightness == Brightness.dark;
+    final subtitleColor = isMe
+        ? Colors.white70
+        : (theme.textTheme.bodyMedium?.color ?? Colors.grey);
+    final bubbleBgOther = isDark ? const Color(0xFF1E2B33) : Colors.white;
 
     final media = message['media'] ?? {};
     final duration = media['duration'] ?? 0;
@@ -534,13 +538,24 @@ class VoiceBubble extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 2),
         padding: const EdgeInsets.fromLTRB(8, 8, 10, 6),
         decoration: BoxDecoration(
-          color: isMe ? AppColors.msgSentBg : AppColors.msgReceivedBg,
+          color: isMe ? const Color(0xFFFF6B6B) : bubbleBgOther,
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomLeft: Radius.circular(isMe ? 16 : 4),
-            bottomRight: Radius.circular(isMe ? 4 : 16),
+            topLeft: isMe
+                ? const Radius.circular(12)
+                : const Radius.circular(0),
+            topRight: isMe
+                ? const Radius.circular(0)
+                : const Radius.circular(12),
+            bottomLeft: const Radius.circular(12),
+            bottomRight: const Radius.circular(12),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 1,
+              offset: const Offset(0, 1),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.end,
@@ -559,15 +574,16 @@ class VoiceBubble extends StatelessWidget {
                   child: Container(
                     width: 40,
                     height: 40,
-                    decoration: const BoxDecoration(
-                      gradient: AppColors.primaryGradient,
+                    decoration: BoxDecoration(
+                      color: isMe ? Colors.white : null,
+                      gradient: isMe ? null : AppColors.primaryGradient,
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       isPlaying
                           ? Icons.pause_rounded
                           : Icons.play_arrow_rounded,
-                      color: Colors.white,
+                      color: isMe ? const Color(0xFFFF6B6B) : Colors.white,
                       size: 22,
                     ),
                   ),
@@ -583,9 +599,11 @@ class VoiceBubble extends StatelessWidget {
                         borderRadius: BorderRadius.circular(2),
                         child: LinearProgressIndicator(
                           value: progress.clamp(0.0, 1.0),
-                          backgroundColor: AppColors.border,
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            AppColors.accentBlue,
+                          backgroundColor: isMe
+                              ? Colors.white30
+                              : AppColors.border,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            isMe ? Colors.white : AppColors.accentBlue,
                           ),
                           minHeight: 3,
                         ),
@@ -611,7 +629,15 @@ class VoiceBubble extends StatelessWidget {
                 ),
                 if (isMe) ...[
                   const SizedBox(width: 3),
-                  _StatusIcon(status: status),
+                  Icon(
+                    status == 'read'
+                        ? Icons.done_all
+                        : (status == 'delivered' ? Icons.done_all : Icons.done),
+                    size: 14,
+                    color: status == 'read' && !isMe
+                        ? AppColors.checkRead
+                        : (isMe ? Colors.white70 : subtitleColor),
+                  ),
                 ],
               ],
             ),
@@ -1198,11 +1224,18 @@ class ReplyPreview extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: isDark
-            ? Colors.black.withOpacity(0.2)
-            : Colors.black.withOpacity(0.05),
+        color: isMe
+            ? Colors.black.withValues(alpha: 0.15)
+            : (isDark
+                  ? Colors.black.withOpacity(0.2)
+                  : Colors.black.withOpacity(0.05)),
         borderRadius: BorderRadius.circular(8),
-        border: Border(left: BorderSide(color: AppColors.accentBlue, width: 4)),
+        border: Border(
+          left: BorderSide(
+            color: isMe ? Colors.white : AppColors.accentBlue,
+            width: 4,
+          ),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1211,7 +1244,9 @@ class ReplyPreview extends StatelessWidget {
             senderName,
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.blue[300] : AppColors.accentBlue,
+              color: isMe
+                  ? Colors.white
+                  : (isDark ? Colors.blue[300] : AppColors.accentBlue),
               fontSize: 12,
             ),
           ),
@@ -1220,7 +1255,11 @@ class ReplyPreview extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 14, color: subtitleColor),
+                Icon(
+                  icon,
+                  size: 14,
+                  color: isMe ? Colors.white70 : subtitleColor,
+                ),
                 const SizedBox(width: 4),
               ],
               Flexible(
@@ -1229,7 +1268,9 @@ class ReplyPreview extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: isDark ? Colors.white70 : subtitleColor,
+                    color: isMe
+                        ? Colors.white70
+                        : (isDark ? Colors.white70 : subtitleColor),
                     fontSize: 12,
                   ),
                 ),

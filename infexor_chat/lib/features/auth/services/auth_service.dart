@@ -91,8 +91,23 @@ class AuthService {
         data: {'fcmToken': token, 'deviceId': deviceId ?? 'default'},
       );
     } catch (e) {
-      // Background retry logic can be added here if needed
       print("Failed to sync FCM token: $e");
+    }
+  }
+
+  Future<void> registerVoipToken(String token) async {
+    try {
+      await _api.post(ApiEndpoints.voipToken, data: {'token': token});
+    } catch (e) {
+      print("Failed to register VoIP token: $e");
+    }
+  }
+
+  Future<void> removeVoipToken() async {
+    try {
+      await _api.delete(ApiEndpoints.voipToken);
+    } catch (e) {
+      print("Failed to remove VoIP token: $e");
     }
   }
 }

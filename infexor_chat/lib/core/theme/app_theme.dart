@@ -232,13 +232,15 @@ class AppTheme {
       // Switch
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected))
+          if (states.contains(WidgetState.selected)) {
             return AppColors.accentBlue;
+          }
           return AppColors.darkTextSecondary;
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected))
+          if (states.contains(WidgetState.selected)) {
             return AppColors.accentBlue.withValues(alpha: 0.5);
+          }
           return Colors.white.withValues(alpha: 0.1);
         }),
       ),

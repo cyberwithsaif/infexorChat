@@ -45,5 +45,24 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+	<!-- Background Modes — required for VoIP PushKit + WebRTC -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>voip</string>
+		<string>remote-notification</string>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
+
+	<!-- Privacy strings — required by App Store -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Infexor Chat needs microphone access for voice and video calls.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Infexor Chat needs camera access for video calls.</string>
+	<key>NSContactsUsageDescription</key>
+	<string>Infexor Chat uses your contacts to find friends on the app.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Infexor Chat needs photo library access to send photos.</string>
 </dict>
 </plist>

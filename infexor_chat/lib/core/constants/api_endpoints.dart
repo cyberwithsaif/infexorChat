@@ -18,7 +18,8 @@ class ApiEndpoints {
   static const String privacySettings = '/users/privacy';
   static const String blockUser = '/users/block';
   static const String blockedUsers = '/users/blocked';
-  static const String fcmToken = '/auth/fcm-token';
+  static const String fcmToken  = '/auth/fcm-token';
+  static const String voipToken = '/users/voip-token';
   static const String allMedia = '/users/media';
   static const String deleteMedia = '/users/media';
 

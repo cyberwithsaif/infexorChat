@@ -1,104 +1,40 @@
 /**
- * Infexor Chat Admin - API Utility
- * Fetch wrapper with JWT authentication
+ * API Client — handles auth, GET, POST, PUT, DELETE
  */
 const API = (() => {
-  const BASE_URL = '/api';
+    const BASE_URL = window.location.origin;
 
-  function getToken() {
-    return localStorage.getItem('admin_token');
-  }
+    function getToken() { return localStorage.getItem('adminToken'); }
+    function setToken(token) { localStorage.setItem('adminToken', token); }
+    function clearToken() { localStorage.removeItem('adminToken'); localStorage.removeItem('adminUser'); }
+    function isAuthenticated() { return !!getToken(); }
 
-  function setToken(token) {
-    localStorage.setItem('admin_token', token);
-  }
+    async function request(method, path, body = null) {
+        const opts = {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+        };
+        const token = getToken();
+        if (token) opts.headers['Authorization'] = `Bearer ${token}`;
+        if (body) opts.body = JSON.stringify(body);
 
-  function clearToken() {
-    localStorage.removeItem('admin_token');
-  }
+        const res = await fetch(`${BASE_URL}/api${path}`, opts);
+        const data = await res.json();
 
-  function isAuthenticated() {
-    return !!getToken();
-  }
+        if (res.status === 401) {
+            clearToken();
+            window.location.href = 'index.html';
+            throw new Error('Session expired');
+        }
+        if (!res.ok) throw new Error(data.message || `HTTP ${res.status}`);
+        return data;
+    }
 
-  async function request(endpoint, options = {}) {
-    const url = `${BASE_URL}${endpoint}`;
-    const token = getToken();
-
-    const headers = {
-      'Content-Type': 'application/json',
-      ...options.headers,
+    return {
+        get: (path) => request('GET', path),
+        post: (path, body) => request('POST', path, body),
+        put: (path, body) => request('PUT', path, body),
+        del: (path, body) => request('DELETE', path, body),
+        getToken, setToken, clearToken, isAuthenticated,
     };
-
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers,
-      });
-
-      const data = await response.json();
-
-      if (response.status === 401) {
-        clearToken();
-        window.location.href = 'index.html';
-        return null;
-      }
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Request failed');
-      }
-
-      return data;
-    } catch (error) {
-      console.error(`API Error [${endpoint}]:`, error.message);
-      throw error;
-    }
-  }
-
-  return {
-    BASE_URL,
-    getToken,
-    setToken,
-    clearToken,
-    isAuthenticated,
-
-    get(endpoint) {
-      return request(endpoint, { method: 'GET' });
-    },
-
-    post(endpoint, body) {
-      return request(endpoint, {
-        method: 'POST',
-        body: JSON.stringify(body),
-      });
-    },
-
-    put(endpoint, body) {
-      return request(endpoint, {
-        method: 'PUT',
-        body: JSON.stringify(body),
-      });
-    },
-
-    delete(endpoint) {
-      return request(endpoint, { method: 'DELETE' });
-    },
-  };
 })();
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
@@ -9,7 +11,14 @@ import '../utils/animated_page_route.dart';
 import '../../features/chat/screens/incoming_call_screen.dart';
 import '../../features/chat/screens/call_screen.dart';
 import '../../features/chat/services/socket_service.dart';
+import '../../features/auth/services/auth_service.dart';
 import 'webrtc_service.dart';
+
+// ─── iOS VoIP native ↔ Flutter channel ──────────────────────────────────────
+// Mirrors AppDelegate.voipChannelName in Swift.
+// Receives: onVoipToken, onCallBusy events FROM native.
+// Sends:    endCall, getVoipToken calls TO native.
+const MethodChannel _voipChannel = MethodChannel('com.infexor.infexor_chat/voip');
 
 final callManagerProvider = Provider<CallManager>((ref) {
   return CallManager(ref);
@@ -37,13 +46,58 @@ class CallManager {
     );
 
     // 2. Check for a call that was accepted while the app was killed.
-    //    flutter_callkit_incoming.activeCalls() returns the last shown call.
-    //    If the app was launched by a callkit-accept intent, that call will
-    //    be here and the onEvent stream may fire before or after init().
     _checkKilledStateCall();
 
     // 3. Socket handler for foreground incoming calls.
     _registerSocketCallHandlers();
+
+    // 4. iOS only — listen for events coming FROM AppDelegate via method channel.
+    if (Platform.isIOS) _setupIOSVoipChannel();
+  }
+
+  // ─── iOS: native → Flutter channel ───────────────────────────────────────
+
+  void _setupIOSVoipChannel() {
+    _voipChannel.setMethodCallHandler((call) async {
+      switch (call.method) {
+
+        case 'onVoipToken':
+          // AppDelegate got a fresh PushKit token → send to backend
+          final token = (call.arguments as Map?)?['token']?.toString() ?? '';
+          if (token.isNotEmpty) {
+            debugPrint('📱 iOS VoIP token received: ${token.substring(0, 8)}...');
+            try {
+              await _ref.read(authServiceProvider).registerVoipToken(token);
+            } catch (e) {
+              debugPrint('📱 Failed to register VoIP token: $e');
+            }
+          }
+          break;
+
+        case 'onCallBusy':
+          // AppDelegate received a call_busy VoIP push (native path for killed app)
+          final data = call.arguments as Map<dynamic, dynamic>? ?? {};
+          final chatId = data['chatId']?.toString() ?? '';
+          debugPrint('📞 iOS call:busy received (native) — chatId: $chatId');
+          // Show snackbar BEFORE the async endCall gap
+          final ctx = navigatorKey.currentContext;
+          if (ctx != null) {
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              const SnackBar(
+                content: Text('User is busy on another call'),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+          if (chatId.isNotEmpty) {
+            await FlutterCallkitIncoming.endCall(chatId);
+          }
+          break;
+
+        default:
+          break;
+      }
+    });
   }
 
   // ─── Callkit event dispatcher ────────────────────────────────────────────

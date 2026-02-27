@@ -119,6 +119,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   String? _otherUserId;
   String _groupId = '';
 
+  // Blur state
+  bool _isBlurred = false;
+
   Offset? _tapPosition;
   OverlayEntry? _emojiOverlayEntry;
 
@@ -666,6 +669,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               isOnline,
             ),
       body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
         onTap: () {
           if (_selectedMessageIds.isNotEmpty) {
             _clearSelection();
@@ -717,6 +721,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                         physics: const BouncingScrollPhysics(
                           parent: AlwaysScrollableScrollPhysics(),
                         ),
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
                         reverse: true,
                         // Huge cache extent for fast 60fps scrolling
                         cacheExtent: 3000,
@@ -740,7 +746,18 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                               children: [
                                 if (showDate)
                                   _DateSeparator(date: msg['createdAt'] ?? ''),
-                                _buildMessageBubble(msg, isMe),
+                                _isBlurred && index >= 2
+                                    ? ImageFiltered(
+                                        imageFilter: ImageFilter.blur(
+                                          sigmaX: 5.0,
+                                          sigmaY: 5.0,
+                                        ),
+                                        child: IgnorePointer(
+                                          ignoring: true,
+                                          child: _buildMessageBubble(msg, isMe),
+                                        ),
+                                      )
+                                    : _buildMessageBubble(msg, isMe),
                               ],
                             ),
                           );
@@ -1059,9 +1076,22 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         ),
       ),
       actions: [
-        IconButton(
-          icon: const Icon(Icons.videocam_rounded),
-          onPressed: () {
+        InkWell(
+          onTap: () {
+            setState(() {
+              _isBlurred = !_isBlurred;
+            });
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Icon(
+              _isBlurred ? Icons.visibility_off : Icons.visibility,
+              size: 20,
+            ),
+          ),
+        ),
+        InkWell(
+          onTap: () {
             final chatListState = ref.read(chatListProvider);
             final currentChat = chatListState.chats.firstWhere(
               (c) => c['_id'] == widget.chatId,
@@ -1097,10 +1127,13 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               );
             }
           },
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Icon(Icons.videocam_rounded, size: 22),
+          ),
         ),
-        IconButton(
-          icon: const Icon(Icons.call_rounded),
-          onPressed: () {
+        InkWell(
+          onTap: () {
             final chatListState = ref.read(chatListProvider);
             final currentChat = chatListState.chats.firstWhere(
               (c) => c['_id'] == widget.chatId,
@@ -1136,10 +1169,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               );
             }
           },
-        ),
-        IconButton(
-          icon: const Icon(Icons.more_vert),
-          onPressed: _showChatOptions,
+          child: const Padding(
+            padding: EdgeInsets.fromLTRB(8, 8, 12, 8),
+            child: Icon(Icons.call_rounded, size: 20),
+          ),
         ),
       ],
     );
@@ -2251,7 +2284,7 @@ class _InputBarState extends State<_InputBar> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final inputBg = isDark ? AppColors.darkInputBg : Colors.white;
+    final inputBg = Colors.transparent;
     final iconColor = isDark ? Colors.grey[400] : const Color(0xFF54656F);
     final textColor = isDark ? Colors.white : const Color(0xFF111B21);
     final hintColor = isDark ? Colors.grey[500] : const Color(0xFF667781);
@@ -2262,9 +2295,7 @@ class _InputBarState extends State<_InputBar> with TickerProviderStateMixin {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10.0, sigmaY: 10.0),
         child: Container(
-          color: isDark
-              ? AppColors.darkBgSecondary.withOpacity(0.85)
-              : Colors.white.withOpacity(0.85),
+          color: Colors.transparent,
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -2411,7 +2442,11 @@ class _InputBarState extends State<_InputBar> with TickerProviderStateMixin {
                                   decoration: InputDecoration(
                                     hintText: 'Message',
                                     hintStyle: TextStyle(color: hintColor),
+                                    filled: false,
+                                    fillColor: Colors.transparent,
                                     border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
                                     contentPadding: const EdgeInsets.symmetric(
                                       vertical: 12,
                                     ),
