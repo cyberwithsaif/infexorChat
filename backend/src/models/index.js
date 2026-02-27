@@ -9,6 +9,7 @@ const GroupMember = require('./GroupMember');
 const Report = require('./Report');
 const Broadcast = require('./Broadcast');
 const Status = require('./Status');
+const Call = require('./Call');
 
 module.exports = {
   User,
@@ -22,4 +23,5 @@ module.exports = {
   Report,
   Broadcast,
   Status,
+  Call,
 };
