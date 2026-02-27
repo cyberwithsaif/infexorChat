@@ -80,8 +80,8 @@ const BroadcastsModule = (() => {
                    <span>${Utils.formatNumber(done)} / ${Utils.formatNumber(total)}</span>
                    <span>${percent}%</span>
                  </div>
-                 <div style="width:100%; height:6px; background:var(--border-color); border-radius:3px; overflow:hidden;">
-                   <div style="width:${percent}%; height:100%; background:var(--primary-color); transition:width 0.3s ease;"></div>
+                 <div style="width:100%; height:6px; background:var(--border); border-radius:3px; overflow:hidden;">
+                   <div style="width:${percent}%; height:100%; background:var(--success); transition:width 0.3s ease;"></div>
                  </div>
                </div>
              `;
