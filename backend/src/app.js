@@ -14,6 +14,9 @@ const { uploadsDir } = require('./config/upload');
 
 const app = express();
 
+// Trust proxy required for express-rate-limit when behind reverse proxy (VPS Nginx)
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
