@@ -49,8 +49,8 @@ app.use((req, res, next) => {
 });
 app.use(hpp());
 
-// Removed: app.use('/uploads', express.static(path.resolve(uploadsDir)));
-// Media is now served securely via /api/upload/:category/:filename endpoint
+// Serve uploaded media (avatars, images, etc.) as static files
+app.use('/uploads', express.static(path.resolve(uploadsDir)));
 
 // Serve admin panel frontend
 const adminPath = path.resolve(__dirname, '../admin');
