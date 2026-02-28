@@ -176,12 +176,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           ],
                         ),
                       ),
-                      // QR Code Icon
-                      Icon(
-                        Icons.qr_code_2,
-                        color: AppColors.primaryPurple,
-                        size: 32,
-                      ),
                     ],
                   ),
                 ),
@@ -207,16 +201,62 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
               _Divider(context),
               _SettingsTile(
-                icon: Icons.shield_outlined,
-                title: 'Privacy',
-                subtitle: 'Block contacts, disappearing messages',
+                icon: Icons.delete_forever_outlined,
+                title: 'Delete Account',
+                subtitle: 'Permanently delete your account and data',
+                iconColor: Colors.redAccent,
+                titleColor: Colors.redAccent,
                 hasChevron: true,
-                onTap: () => Navigator.push(
-                  context,
-                  AnimatedPageRoute(
-                    builder: (_) => const PrivacySettingsScreen(),
-                  ),
-                ),
+                onTap: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      backgroundColor: bgColor,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      title: Text(
+                        'Delete Account',
+                        style: TextStyle(
+                          color: textColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      content: const Text(
+                        'Are you sure you want to delete your account? This action is permanent and cannot be undone.',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text(
+                            'Delete',
+                            style: TextStyle(color: Colors.redAccent),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+
+                  if (confirm == true) {
+                    final success = await ref
+                        .read(authProvider.notifier)
+                        .deleteAccount();
+                    if (!success && mounted) {
+                      final error = ref.read(authProvider).error;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(error ?? 'Failed to delete account'),
+                          backgroundColor: Colors.redAccent,
+                        ),
+                      );
+                    }
+                  }
+                },
               ),
             ],
           ),

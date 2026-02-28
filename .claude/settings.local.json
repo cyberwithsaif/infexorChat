@@ -11,7 +11,10 @@
       "Bash(python:*)",
       "Bash(dart analyze:*)",
       "Read(//d/DEVELOPMENTS/Portfolio/**)",
-      "Read(//c/Users/saif7/AppData/Local/Pub/Cache/**)"
+      "Read(//c/Users/saif7/AppData/Local/Pub/Cache/**)",
+      "Bash(adb kill-server)",
+      "Bash(adb start-server)",
+      "Bash(adb reconnect offline)"
     ],
     "additionalDirectories": [
       "e:\\Whatapplikeapp"

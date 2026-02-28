@@ -206,9 +206,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                               chat: chatState.chats[index],
                               currentUserId: currentUserId,
                               contactsBox: _contactsBox,
-                              onReturn: () => ref
-                                  .read(chatListProvider.notifier)
-                                  .loadChats(),
+                              onReturn: null,
                             ),
                           );
                         },
@@ -482,7 +480,10 @@ class _ChatTile extends ConsumerWidget {
                 groupId: groupId,
               ),
             ),
-          ).then((_) => onReturn?.call());
+          ).then((_) {
+            // Clear unread count for this chat (user just read it)
+            ref.read(chatListProvider.notifier).markChatRead(chatIdStr);
+          });
         },
         onLongPress: () => _showChatOptions(context, name),
         splashFactory: InkRipple.splashFactory,

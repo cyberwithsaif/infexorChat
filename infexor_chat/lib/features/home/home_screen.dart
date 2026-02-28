@@ -9,6 +9,9 @@ import '../chat/services/socket_service.dart';
 import '../settings/screens/settings_screen.dart';
 import '../status/status_screen.dart';
 import '../chat/screens/calls_screen.dart';
+import '../chat/providers/message_provider.dart';
+import '../status/status_provider.dart';
+import '../chat/providers/chat_provider.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -69,9 +72,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 
     if (state == AppLifecycleState.resumed) {
       ref.read(notificationServiceProvider).isAppInForeground = true;
-      // FlutterBackgroundService().invoke('setAppStatus', {
-      //   'status': 'foreground',
-      // });
 
       final socket = ref.read(socketServiceProvider);
       if (!socket.isConnected) {
@@ -79,6 +79,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         if (token != null) {
           socket.connect(token);
         }
+      } else {
+        // Force the underlying socket.io-client to check its connection status
+        socket.socket?.connect();
+      }
+
+      // ─── FETCH MISSED DATA ───
+      // Sockets do not queue messages while disconnected.
+      // We must fetch from HTTP to catch up on any missed activity.
+      ref.read(chatListProvider.notifier).loadChats();
+      ref.read(statusProvider.notifier).loadStatuses();
+
+      final activeChatId = ref.read(notificationServiceProvider).activeChatId;
+      if (activeChatId != null && activeChatId.isNotEmpty) {
+        ref.read(messageProvider.notifier).openChat(activeChatId);
       }
     } else {
       // paused, inactive, hidden, detached — all mean "not in foreground"

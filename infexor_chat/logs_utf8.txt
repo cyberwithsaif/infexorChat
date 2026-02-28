@@ -1,0 +1,140 @@
+﻿--------- beginning of main
+02-28 17:26:45.217 I/flutter (15046): [IMPORTANT:flutter/shell/platform/android/android_context_vk_impeller.cc(62)] Using the Impeller rendering backend (Vulkan).
+02-28 17:26:45.447 I/flutter (15046): ≡ƒÆ╛ Loaded 2 contacts from cache
+02-28 17:26:45.449 I/flutter (15046): ======== STARTING FCM TOKEN FETCH ========
+02-28 17:26:45.449 I/flutter (15046): ======== REQUESTING PERMISSION ========
+02-28 17:26:45.637 I/flutter (15046): ======== GETTING TOKEN ========
+02-28 17:26:45.665 I/flutter (15046): Found 37 device contacts
+02-28 17:26:45.668 I/flutter (15046): Normalized 37 phone numbers for sync
+02-28 17:26:45.668 I/flutter (15046): Syncing 37 contacts...
+02-28 17:26:45.670 I/flutter (15046): ======== TOKEN RECEIVED: c1OBA8vXTamj5KBdFa8UAu:APA91bHIYX0ZmJrxMyKvf_R49WtfyoCW9ZNL6VdVj9JliJIPh_t2K_IdOyaBAPuTWa75v9Bo3RImspuyTYm31cSPGA3mQnk-h-eBiQYtd06NpvBL5wbXm40 ========
+02-28 17:26:45.670 I/flutter (15046): ======== TOKEN SENT TO BACKEND ========
+02-28 17:26:45.848 I/flutter (15046): ≡ƒÆ╛ Saved 2 contacts to cache
+02-28 17:26:46.137 I/flutter (15046): [SocketService] Γ£à Connected! socket.id=oe_YxHa0GHf69LOtAAAR
+02-28 17:26:46.194 I/flutter (15046): Permission Permission.videos: PermissionStatus.granted
+02-28 17:26:46.194 I/flutter (15046): Permission Permission.camera: PermissionStatus.granted
+02-28 17:26:46.194 I/flutter (15046): Permission Permission.audio: PermissionStatus.granted
+02-28 17:26:46.194 I/flutter (15046): Permission Permission.notification: PermissionStatus.granted
+02-28 17:26:46.194 I/flutter (15046): Permission Permission.contacts: PermissionStatus.granted
+02-28 17:26:46.194 I/flutter (15046): Permission Permission.microphone: PermissionStatus.granted
+02-28 17:26:46.194 I/flutter (15046): Permission Permission.photos: PermissionStatus.granted
+02-28 17:26:46.194 I/flutter (15046): Permission Permission.storage: PermissionStatus.denied
+02-28 17:26:49.921 I/flutter (15046): Bad state: Using "ref" when a widget is about to or has been unmounted is unsafe.
+02-28 17:26:49.921 I/flutter (15046): Ref relies on BuildContext, and BuildContext is unsafe to use when the widget is deactivated.
+02-28 17:26:49.921 I/flutter (15046): To safely refer to the state of providers inside State.dispose(), save the provider state in a field of your State class.
+02-28 17:26:49.925 I/flutter (15046): #0      ConsumerStatefulElement._assertNotDisposed (package:flutter_riverpod/src/core/consumer.dart:456)
+02-28 17:26:49.925 I/flutter (15046): #1      ConsumerStatefulElement.read (package:flutter_riverpod/src/core/consumer.dart:542)
+02-28 17:26:49.925 I/flutter (15046): #2      _ConversationScreenState.dispose (package:infexor_chat/features/chat/screens/conversation_screen.dart:253)
+02-28 17:26:49.925 I/flutter (15046): #3      StatefulElement.unmount (package:flutter/src/widgets/framework.dart:6033)
+02-28 17:26:49.925 I/flutter (15046): #4      ConsumerStatefulElement.unmount (package:flutter_riverpod/src/core/consumer.dart:491)
+02-28 17:26:49.926 I/flutter (15046): #5      _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2117)
+02-28 17:26:49.926 I/flutter (15046): #6      _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.926 I/flutter (15046): #7      RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.926 I/flutter (15046): #8      _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.926 I/flutter (15046): #9      _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.926 I/flutter (15046): #10     _RawViewElement.visitChildren (package:flutter/src/widgets/view.dart:574)
+02-28 17:26:49.926 I/flutter (15046): #11     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.926 I/flutter (15046): #12     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.926 I/flutter (15046): #13     _RawViewElement.visitChildren (package:flutter/src/widgets/view.dart:574)
+02-28 17:26:49.926 I/flutter (15046): #14     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.926 I/flutter (15046): #15     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.926 I/flutter (15046): #16     RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.926 I/flutter (15046): #17     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.926 I/flutter (15046): #18     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.926 I/flutter (15046): #19     MultiChildRenderObjectElement.visitChildren (package:flutter/src/widgets/framework.dart:7228)
+02-28 17:26:49.926 I/flutter (15046): #20     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.926 I/flutter (15046): #21     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.926 I/flutter (15046): #22     _RawViewElement.visitChildren (package:flutter/src/widgets/view.dart:574)
+02-28 17:26:49.926 I/flutter (15046): #23     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.926 I/flutter (15046): #24     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.926 I/flutter (15046): #25     RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.926 I/flutter (15046): #26     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.926 I/flutter (15046): #27     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.926 I/flutter (15046): #28     _RawViewElement.visitChildren (package:flutter/src/widgets/view.dart:574)
+02-28 17:26:49.926 I/flutter (15046): #29     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.926 I/flutter (15046): #30     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.926 I/flutter (15046): #31     RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.926 I/flutter (15046): #32     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.926 I/flutter (15046): #33     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.926 I/flutter (15046): #34     RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.926 I/flutter (15046): #35     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.926 I/flutter (15046): #36     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.926 I/flutter (15046): #37     _RawViewElement.visitChildren (package:flutter/src/widgets/view.dart:574)
+02-28 17:26:49.926 I/flutter (15046): #38     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.926 I/flutter (15046): #39     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.926 I/flutter (15046): #40     RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.926 I/flutter (15046): #41     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.926 I/flutter (15046): #42     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.926 I/flutter (15046): #43     _RawViewElement.visitChildren (package:flutter/src/widgets/view.dart:574)
+02-28 17:26:49.927 I/flutter (15046): #44     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.927 I/flutter (15046): #45     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.927 I/flutter (15046): #46     RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.927 I/flutter (15046): #47     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.927 I/flutter (15046): #48     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.927 I/flutter (15046): #49     RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.927 I/flutter (15046): #50     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.927 I/flutter (15046): #51     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.927 I/flutter (15046): #52     RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.927 I/flutter (15046): #53     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.927 I/flutter (15046): #54     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.927 I/flutter (15046): #55     RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.927 I/flutter (15046): #56     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.927 I/flutter (15046): #57     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.927 I/flutter (15046): #58     RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.927 I/flutter (15046): #59     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.927 I/flutter (15046): #60     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.927 I/flutter (15046): #61     RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.927 I/flutter (15046): #62     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.927 I/flutter (15046): #63     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.927 I/flutter (15046): #64     _RawViewElement.visitChildren (package:flutter/src/widgets/view.dart:574)
+02-28 17:26:49.927 I/flutter (15046): #65     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.927 I/flutter (15046): #66     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.927 I/flutter (15046): #67     RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.927 I/flutter (15046): #68     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.927 I/flutter (15046): #69     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.927 I/flutter (15046): #70     RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.927 I/flutter (15046): #71     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.927 I/flutter (15046): #72     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.927 I/flutter (15046): #73     RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.927 I/flutter (15046): #74     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.927 I/flutter (15046): #75     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.927 I/flutter (15046): #76     RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.927 I/flutter (15046): #77     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.927 I/flutter (15046): #78     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.927 I/flutter (15046): #79     RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.927 I/flutter (15046): #80     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.927 I/flutter (15046): #81     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.927 I/flutter (15046): #82     _RawViewElement.visitChildren (package:flutter/src/widgets/view.dart:574)
+02-28 17:26:49.928 I/flutter (15046): #83     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.928 I/flutter (15046): #84     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.928 I/flutter (15046): #85     RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.928 I/flutter (15046): #86     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.928 I/flutter (15046): #87     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.928 I/flutter (15046): #88     RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.928 I/flutter (15046): #89     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.928 I/flutter (15046): #90     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.928 I/flutter (15046): #91     RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.928 I/flutter (15046): #92     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.928 I/flutter (15046): #93     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.928 I/flutter (15046): #94     RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.928 I/flutter (15046): #95     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.928 I/flutter (15046): #96     _InactiveElements._unmount.<anonymous closure> (package:flutter/src/widgets/framework.dart:2115)
+02-28 17:26:49.928 I/flutter (15046): #97     RootElement.visitChildren (package:flutter/src/widgets/binding.dart:1736)
+02-28 17:26:49.928 I/flutter (15046): #98     _InactiveElements._unmount (package:flutter/src/widgets/framework.dart:2113)
+02-28 17:26:49.928 I/flutter (15046): #99     ListIterable.forEach (dart:_internal/iterable.dart:49)
+02-28 17:26:51.637 I/flutter (15046): Another exception was thrown: Instance of 'DiagnosticsProperty<void>'
+02-28 17:27:01.223 I/flutter (15046): [SocketService] sendMessage called. isConnected=true, socket=true, data={chatId: 6996b24b8154556f5fda8844, type: text, content: djgi, replyTo: null}
+02-28 17:27:01.317 I/flutter (15046): [SocketService] ≡ƒô¿ Ack received: {success: true, message: {_id: 69a2d80e7520e96b81914edb, chatId: 6996b24b8154556f5fda8844, senderId: {_id: 699600aa8154556f5fda7347, name: saif ali, avatar: http://72.61.171.190:5655/uploads/images/3018defc-7d5d-47f2-841b-af63463697a6.jpg}, type: text, content: djgi, media: {url: , thumbnail: , mimeType: , size: 0, duration: 0, width: 0, height: 0, fileName: }, location: {address: }, contactShare: {name: , phone: }, replyTo: null, forwardedFrom: null, status: sent, starredBy: [], deletedFor: [], deletedForEveryone: false, isEdited: false, isAI: false, reactions: [], deliveredTo: [], readBy: [], createdAt: 2026-02-28T11:57:02.858Z, updatedAt: 2026-02-28T11:57:02.858Z, __v: 0}}
+02-28 17:27:02.539 I/flutter (15046): [SocketService] sendMessage called. isConnected=true, socket=true, data={chatId: 6996b24b8154556f5fda8844, type: text, content: hfhf, replyTo: null}
+02-28 17:27:02.626 I/flutter (15046): [SocketService] ≡ƒô¿ Ack received: {success: true, message: {_id: 69a2d8107520e96b81914ee7, chatId: 6996b24b8154556f5fda8844, senderId: {_id: 699600aa8154556f5fda7347, name: saif ali, avatar: http://72.61.171.190:5655/uploads/images/3018defc-7d5d-47f2-841b-af63463697a6.jpg}, type: text, content: hfhf, media: {url: , thumbnail: , mimeType: , size: 0, duration: 0, width: 0, height: 0, fileName: }, location: {address: }, contactShare: {name: , phone: }, replyTo: null, forwardedFrom: null, status: sent, starredBy: [], deletedFor: [], deletedForEveryone: false, isEdited: false, isAI: false, reactions: [], deliveredTo: [], readBy: [], createdAt: 2026-02-28T11:57:04.162Z, updatedAt: 2026-02-28T11:57:04.162Z, __v: 0}}
+02-28 17:27:03.523 I/flutter (15046): [SocketService] sendMessage called. isConnected=true, socket=true, data={chatId: 6996b24b8154556f5fda8844, type: text, content: fit, replyTo: null}
+02-28 17:27:03.618 I/flutter (15046): [SocketService] ≡ƒô¿ Ack received: {success: true, message: {_id: 69a2d8117520e96b81914ef4, chatId: 6996b24b8154556f5fda8844, senderId: {_id: 699600aa8154556f5fda7347, name: saif ali, avatar: http://72.61.171.190:5655/uploads/images/3018defc-7d5d-47f2-841b-af63463697a6.jpg}, type: text, content: fit, media: {url: , thumbnail: , mimeType: , size: 0, duration: 0, width: 0, height: 0, fileName: }, location: {address: }, contactShare: {name: , phone: }, replyTo: null, forwardedFrom: null, status: sent, starredBy: [], deletedFor: [], deletedForEveryone: false, isEdited: false, isAI: false, reactions: [], deliveredTo: [], readBy: [], createdAt: 2026-02-28T11:57:05.156Z, updatedAt: 2026-02-28T11:57:05.156Z, __v: 0}}
+02-28 17:27:09.473 I/flutter (15046): [SocketService] sendMessage called. isConnected=true, socket=true, data={chatId: 6996b24b8154556f5fda8844, type: text, content: bbgdhf, replyTo: null}
+02-28 17:27:09.564 I/flutter (15046): [SocketService] ≡ƒô¿ Ack received: {success: true, message: {_id: 69a2d8177520e96b81914eff, chatId: 6996b24b8154556f5fda8844, senderId: {_id: 699600aa8154556f5fda7347, name: saif ali, avatar: http://72.61.171.190:5655/uploads/images/3018defc-7d5d-47f2-841b-af63463697a6.jpg}, type: text, content: bbgdhf, media: {url: , thumbnail: , mimeType: , size: 0, duration: 0, width: 0, height: 0, fileName: }, location: {address: }, contactShare: {name: , phone: }, replyTo: null, forwardedFrom: null, status: sent, starredBy: [], deletedFor: [], deletedForEveryone: false, isEdited: false, isAI: false, reactions: [], deliveredTo: [], readBy: [], createdAt: 2026-02-28T11:57:11.105Z, updatedAt: 2026-02-28T11:57:11.105Z, __v: 0}}
+02-28 17:27:10.750 I/flutter (15046): [SocketService] sendMessage called. isConnected=true, socket=true, data={chatId: 6996b24b8154556f5fda8844, type: text, content: jfjf, replyTo: null}
+02-28 17:27:10.853 I/flutter (15046): [SocketService] ≡ƒô¿ Ack received: {success: true, message: {_id: 69a2d8187520e96b81914f0c, chatId: 6996b24b8154556f5fda8844, senderId: {_id: 699600aa8154556f5fda7347, name: saif ali, avatar: http://72.61.171.190:5655/uploads/images/3018defc-7d5d-47f2-841b-af63463697a6.jpg}, type: text, content: jfjf, media: {url: , thumbnail: , mimeType: , size: 0, duration: 0, width: 0, height: 0, fileName: }, location: {address: }, contactShare: {name: , phone: }, replyTo: null, forwardedFrom: null, status: sent, starredBy: [], deletedFor: [], deletedForEveryone: false, isEdited: false, isAI: false, reactions: [], deliveredTo: [], readBy: [], createdAt: 2026-02-28T11:57:12.397Z, updatedAt: 2026-02-28T11:57:12.397Z, __v: 0}}
+02-28 17:27:11.724 I/flutter (15046): [SocketService] sendMessage called. isConnected=true, socket=true, data={chatId: 6996b24b8154556f5fda8844, type: text, content: jdfk, replyTo: null}
+02-28 17:27:11.818 I/flutter (15046): [SocketService] ≡ƒô¿ Ack received: {success: true, message: {_id: 69a2d8197520e96b81914f18, chatId: 6996b24b8154556f5fda8844, senderId: {_id: 699600aa8154556f5fda7347, name: saif ali, avatar: http://72.61.171.190:5655/uploads/images/3018defc-7d5d-47f2-841b-af63463697a6.jpg}, type: text, content: jdfk, media: {url: , thumbnail: , mimeType: , size: 0, duration: 0, width: 0, height: 0, fileName: }, location: {address: }, contactShare: {name: , phone: }, replyTo: null, forwardedFrom: null, status: sent, starredBy: [], deletedFor: [], deletedForEveryone: false, isEdited: false, isAI: false, reactions: [], deliveredTo: [], readBy: [], createdAt: 2026-02-28T11:57:13.359Z, updatedAt: 2026-02-28T11:57:13.359Z, __v: 0}}
+02-28 17:27:17.607 I/flutter (15046): [SocketService] sendMessage called. isConnected=true, socket=true, data={chatId: 6996b24b8154556f5fda8844, type: text, content: xbxb, replyTo: null}
+02-28 17:27:17.705 I/flutter (15046): [SocketService] ≡ƒô¿ Ack received: {success: true, message: {_id: 69a2d81f7520e96b81914f24, chatId: 6996b24b8154556f5fda8844, senderId: {_id: 699600aa8154556f5fda7347, name: saif ali, avatar: http://72.61.171.190:5655/uploads/images/3018defc-7d5d-47f2-841b-af63463697a6.jpg}, type: text, content: xbxb, media: {url: , thumbnail: , mimeType: , size: 0, duration: 0, width: 0, height: 0, fileName: }, location: {address: }, contactShare: {name: , phone: }, replyTo: null, forwardedFrom: null, status: sent, starredBy: [], deletedFor: [], deletedForEveryone: false, isEdited: false, isAI: false, reactions: [], deliveredTo: [], readBy: [], createdAt: 2026-02-28T11:57:19.246Z, updatedAt: 2026-02-28T11:57:19.246Z, __v: 0}}
+02-28 17:27:19.169 I/flutter (15046): Another exception was thrown: Instance of 'DiagnosticsProperty<void>'

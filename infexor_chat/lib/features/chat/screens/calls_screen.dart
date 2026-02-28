@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/url_utils.dart';
 import '../../../core/utils/animated_page_route.dart';
+import '../../../core/utils/phone_utils.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/call_history_provider.dart';
 import '../providers/chat_provider.dart';
@@ -120,10 +122,22 @@ class _CallTile extends ConsumerWidget {
     final isOutgoing = callLog.callerId == currentUserId;
     final otherUser = isOutgoing ? callLog.receiver : callLog.caller;
 
-    // Fallbacks if user details not populated
-    final displayName =
-        otherUser?['name']?.toString() ??
-        'Unknown Caller'; // Changed to map access
+    // Resolve display name: saved contact name > phone number > registered name
+    final otherId = otherUser?['_id']?.toString();
+    String displayName = 'Unknown Caller';
+    if (otherId != null && Hive.isBoxOpen('contacts_cache')) {
+      final saved = Hive.box('contacts_cache').get(otherId)?.toString();
+      if (saved != null && saved.isNotEmpty) {
+        displayName = saved;
+      }
+    }
+    if (displayName == 'Unknown Caller') {
+      final phone = otherUser?['phone']?.toString();
+      final formatted = phone != null ? PhoneUtils.formatPhoneDisplay(phone) : '';
+      displayName = formatted.isNotEmpty
+          ? formatted
+          : (otherUser?['name']?.toString() ?? 'Unknown Caller');
+    }
     final avatarPath =
         otherUser?['avatar']?.toString() ?? ''; // Changed to map access
     final avatarUrl = UrlUtils.getFullUrl(avatarPath);

@@ -28,3 +28,12 @@
 # Keep background entry points
 -keep class io.flutter.app.** { *; }
 -keep class io.flutter.plugins.** { *; }
+
+# Keep native call handling classes (FCM service, foreground service, call UI)
+-keep class com.infexor.infexor_chat.service.MyFirebaseService { *; }
+-keep class com.infexor.infexor_chat.service.CallForegroundService { *; }
+-keep class com.infexor.infexor_chat.ui.IncomingCallActivity { *; }
+-keep class com.infexor.infexor_chat.MainActivity { *; }
+
+# Firebase Messaging
+-keep class com.google.firebase.messaging.** { *; }

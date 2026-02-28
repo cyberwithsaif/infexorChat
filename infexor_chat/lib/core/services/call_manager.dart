@@ -3,8 +3,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
-import 'package:flutter_callkit_incoming/entities/entities.dart';
+
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../config/routes.dart';
 import '../utils/animated_page_route.dart';
@@ -18,6 +17,9 @@ import 'webrtc_service.dart';
 // Mirrors AppDelegate.voipChannelName in Swift.
 // Receives: onVoipToken, onCallBusy events FROM native.
 // Sends:    endCall, getVoipToken calls TO native.
+const MethodChannel _callsChannel = MethodChannel(
+  'com.infexor.infexor_chat/calls',
+);
 const MethodChannel _voipChannel = MethodChannel(
   'com.infexor.infexor_chat/voip',
 );
@@ -33,8 +35,8 @@ class IncomingCallNotifier extends Notifier<Map<String, dynamic>?> {
 
 final incomingCallProvider =
     NotifierProvider<IncomingCallNotifier, Map<String, dynamic>?>(
-  IncomingCallNotifier.new,
-);
+      IncomingCallNotifier.new,
+    );
 
 final callManagerProvider = Provider<CallManager>((ref) {
   return CallManager(ref);
@@ -44,7 +46,6 @@ class CallManager {
   final Ref _ref;
   bool _initialized = false;
   bool _isShowingIncomingCall = false;
-  StreamSubscription<CallEvent?>? _callkitSub;
 
   CallManager(this._ref);
 
@@ -54,20 +55,9 @@ class CallManager {
     if (_initialized) return;
     _initialized = true;
 
-    // 1. Register callkit event listener first so we don't miss events that
-    //    arrive while the rest of init is running.
-    _callkitSub = FlutterCallkitIncoming.onEvent.listen(
-      _handleCallkitEvent,
-      onError: (e) => debugPrint('📞 CallManager callkit error: $e'),
-    );
-
-    // 2. Check for a call that was accepted while the app was killed.
+    _callsChannel.setMethodCallHandler(_handleNativeCallEvent);
     _checkKilledStateCall();
-
-    // 3. Socket handler for foreground incoming calls.
     _registerSocketCallHandlers();
-
-    // 4. iOS only — listen for events coming FROM AppDelegate via method channel.
     if (Platform.isIOS) _setupIOSVoipChannel();
   }
 
@@ -107,7 +97,7 @@ class CallManager {
             );
           }
           if (chatId.isNotEmpty) {
-            await FlutterCallkitIncoming.endCall(chatId);
+            await _callsChannel.invokeMethod('endCall', {'chatId': chatId});
           }
           break;
 
@@ -119,45 +109,33 @@ class CallManager {
 
   // ─── Callkit event dispatcher ────────────────────────────────────────────
 
-  void _handleCallkitEvent(CallEvent? event) {
-    if (event == null) return;
-    debugPrint('📞 Callkit event: ${event.event}');
+  Future<void> _handleNativeCallEvent(MethodCall call) async {
+    if (call.method == 'onCallEvent') {
+      final args = call.arguments as Map<dynamic, dynamic>? ?? {};
+      final action = args['action']?.toString();
+      debugPrint('📞 Native call event: $action');
 
-    switch (event.event) {
-      case Event.actionCallAccept:
-        _onCallkitAccept(event.body as Map<String, dynamic>? ?? {});
-        break;
-
-      case Event.actionCallDecline:
-        _onCallkitDecline(event.body as Map<String, dynamic>? ?? {});
-        break;
-
-      case Event.actionCallEnded:
-        _onCallkitEndedOrTimeout(event.body as Map<String, dynamic>? ?? {});
-        break;
-
-      case Event.actionCallTimeout:
-        // Callkit timed out — treat as a decline so the server knows
-        _onCallkitTimeout(event.body as Map<String, dynamic>? ?? {});
-        break;
-
-      default:
-        break;
+      switch (action) {
+        case 'accept':
+          _onCallkitAccept(args);
+          break;
+        case 'reject':
+          _onCallkitDecline(args);
+          break;
+        case 'ring':
+          break;
+      }
     }
   }
 
   // ─── Accept ──────────────────────────────────────────────────────────────
 
-  void _onCallkitAccept(Map<String, dynamic> body) {
-    final extra = _extra(body);
-    final chatId = extra['chatId']?.toString() ?? body['id']?.toString() ?? '';
-    final callerId = extra['callerId']?.toString() ?? '';
-    final callerName =
-        extra['callerName']?.toString() ??
-        body['nameCaller']?.toString() ??
-        'Unknown';
-    final callerAvatar = extra['callerAvatar']?.toString();
-    final isVideo = extra['isVideo'] == 'true';
+  void _onCallkitAccept(Map<dynamic, dynamic> body) {
+    final chatId = body['callId']?.toString() ?? '';
+    final callerId = body['callerId']?.toString() ?? '';
+    final callerName = body['callerName']?.toString() ?? 'Unknown';
+    final callerAvatar = body['callerAvatar']?.toString();
+    final isVideo = body['isVideo']?.toString() == 'true';
 
     if (chatId.isEmpty) return;
 
@@ -196,8 +174,10 @@ class CallManager {
     const pollMs = 150;
     int waited = 0;
 
-    // Wait until GoRouter's navigator is mounted. On cold start, the router
-    // goes through /splash → auth check → /home, so it can take a few seconds.
+    // Wait until GoRouter's navigator is mounted.
+    // On cold start from killed state, the router walks through /splash → auth check → /home
+    // before the navigator is ready. isAppInForeground is NOT checked here because
+    // it is only set by HomeScreen which may not be mounted yet.
     while (navigatorKey.currentState == null && waited < maxWaitMs) {
       await Future.delayed(const Duration(milliseconds: pollMs));
       waited += pollMs;
@@ -232,41 +212,13 @@ class CallManager {
 
   // ─── Decline ─────────────────────────────────────────────────────────────
 
-  void _onCallkitDecline(Map<String, dynamic> body) {
-    final extra = _extra(body);
-    final chatId = extra['chatId']?.toString() ?? body['id']?.toString() ?? '';
-    final callerId = extra['callerId']?.toString() ?? '';
+  void _onCallkitDecline(Map<dynamic, dynamic> body) {
+    final chatId = body['callId']?.toString() ?? '';
+    final callerId = body['callerId']?.toString() ?? '';
 
     debugPrint('📞 Callkit declined — chatId: $chatId');
     _isShowingIncomingCall = false;
 
-    final socket = _ref.read(socketServiceProvider);
-    socket.socket?.emit('call:reject', {
-      'chatId': chatId,
-      'callerId': callerId,
-    });
-  }
-
-  // ─── Ended ───────────────────────────────────────────────────────────────
-
-  void _onCallkitEndedOrTimeout(Map<String, dynamic> body) {
-    final extra = _extra(body);
-    final chatId = extra['chatId']?.toString() ?? body['id']?.toString() ?? '';
-    debugPrint('📞 Callkit ended — chatId: $chatId');
-    _isShowingIncomingCall = false;
-  }
-
-  // ─── Timeout (callkit auto-dismissed after duration) ─────────────────────
-
-  void _onCallkitTimeout(Map<String, dynamic> body) {
-    final extra = _extra(body);
-    final chatId = extra['chatId']?.toString() ?? body['id']?.toString() ?? '';
-    final callerId = extra['callerId']?.toString() ?? '';
-
-    debugPrint('📞 Callkit timeout — chatId: $chatId, emitting call:reject');
-    _isShowingIncomingCall = false;
-
-    // Notify the server so the caller sees "no answer"
     final socket = _ref.read(socketServiceProvider);
     socket.socket?.emit('call:reject', {
       'chatId': chatId,
@@ -287,33 +239,18 @@ class CallManager {
 
   Future<void> _checkKilledStateCall() async {
     try {
-      // Small delay so the main event loop is fully running and the onEvent
-      // stream has a chance to deliver actionCallAccept first.
-      await Future.delayed(const Duration(milliseconds: 800));
-
-      if (_isShowingIncomingCall) return; // already handled by onEvent
-
-      final dynamic result = await FlutterCallkitIncoming.activeCalls();
-      if (result == null) return;
-
-      // activeCalls() returns a List on Android
-      final List<dynamic> calls = result is List ? result : [result];
-      if (calls.isEmpty) return;
-
-      // Give the onEvent stream one more second to deliver actionCallAccept.
-      // If the user truly tapped Accept on callkit, that event fires within
-      // a few hundred ms — well before this second delay.
-      await Future.delayed(const Duration(seconds: 1));
-      if (_isShowingIncomingCall) return;
-
-      // Active calls found but no actionCallAccept event arrived.
-      // These are stale callkit entries left over from a previous app session
-      // (e.g. the app was force-closed while a call was active).
-      // Clear them so they don't re-open on every subsequent app launch.
-      debugPrint(
-        '📞 Clearing ${calls.length} stale callkit call(s) from previous session',
-      );
-      await FlutterCallkitIncoming.endAllCalls();
+      final pendingRaw = await _callsChannel.invokeMethod('getPendingCall');
+      if (pendingRaw is Map) {
+        final pending = Map<dynamic, dynamic>.from(pendingRaw);
+        final action = pending['action']?.toString();
+        if (action == 'accept') {
+          _onCallkitAccept(pending);
+        } else if (action == 'reject') {
+          _onCallkitDecline(pending);
+        } else if (action == 'ring') {
+          // Do nothing, just bringing app to foreground
+        }
+      }
     } catch (e) {
       debugPrint('📞 _checkKilledStateCall error: $e');
     }
@@ -331,7 +268,9 @@ class CallManager {
       debugPrint('📞 call:cancelled received — chatId: $chatId');
 
       // Dismiss any native callkit UI
-      if (chatId.isNotEmpty) FlutterCallkitIncoming.endCall(chatId);
+      if (chatId.isNotEmpty) {
+        _callsChannel.invokeMethod('endCall', {'chatId': chatId});
+      }
       _isShowingIncomingCall = false;
       _ref.read(incomingCallProvider.notifier).setCall(null);
 
@@ -348,7 +287,9 @@ class CallManager {
 
       // Dismiss callkit if showing (shouldn't normally be visible for the
       // caller, but end it just in case)
-      if (chatId.isNotEmpty) FlutterCallkitIncoming.endCall(chatId);
+      if (chatId.isNotEmpty) {
+        _callsChannel.invokeMethod('endCall', {'chatId': chatId});
+      }
 
       // Show a brief "User is busy" snackbar
       final ctx = navigatorKey.currentContext;
@@ -415,19 +356,12 @@ class CallManager {
             _isShowingIncomingCall = false;
             _ref.read(incomingCallProvider.notifier).setCall(null);
             // Hide any stale callkit banner for this call
-            FlutterCallkitIncoming.endCall(chatId);
+            _callsChannel.invokeMethod('endCall', {'chatId': chatId});
           });
     });
   }
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
-
-  /// Safely extract the 'extra' map from a callkit body.
-  Map<String, dynamic> _extra(Map<String, dynamic> body) {
-    final raw = body['extra'];
-    if (raw is Map) return Map<String, dynamic>.from(raw);
-    return {};
-  }
 
   String _resolveCallerName(Map<String, dynamic> data, String callerId) {
     String name = 'Unknown';
@@ -473,6 +407,6 @@ class CallManager {
   }
 
   void dispose() {
-    _callkitSub?.cancel();
+    // Clean up if needed
   }
 }

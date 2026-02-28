@@ -314,6 +314,35 @@ class AuthNotifier extends Notifier<AuthState> {
     }
   }
 
+  /// Delete account
+  Future<bool> deleteAccount() async {
+    state = state.copyWith(status: AuthStatus.loading, error: null);
+    try {
+      await ref.read(authServiceProvider).deleteAccount();
+
+      // Clear local state and tokens (similar to logout)
+      ref.read(apiClientProvider).clearToken();
+
+      final box = await Hive.openBox(_boxName);
+      await box.clear();
+
+      state = const AuthState(status: AuthStatus.unauthenticated);
+
+      // Navigate to login screen
+      final ctx = navigatorKey.currentContext;
+      if (ctx != null) {
+        GoRouter.of(ctx).go('/login');
+      }
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        status: AuthStatus.authenticated,
+        error: _extractError(e),
+      );
+      return false;
+    }
+  }
+
   String _extractError(dynamic e) {
     if (e is DioException) {
       if (e.response != null && e.response?.data != null) {

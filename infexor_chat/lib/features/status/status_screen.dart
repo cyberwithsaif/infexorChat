@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/utils/url_utils.dart';
+import '../../core/utils/phone_utils.dart';
 import '../auth/providers/auth_provider.dart';
 import 'status_provider.dart';
 import 'status_service.dart';
@@ -459,12 +461,24 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                       })
                       .map((group) {
                         final user = group['user'];
-                        final name = user is Map
-                            ? (user['name'] ?? 'Unknown')
-                                  .toString()
-                                  .split(' ')
-                                  .first
-                            : 'Unknown';
+                        // Resolve name: saved contact > phone number > registered name
+                        String name = 'Unknown';
+                        if (user is Map) {
+                          final uid = user['_id']?.toString();
+                          if (uid != null && Hive.isBoxOpen('contacts_cache')) {
+                            final saved = Hive.box('contacts_cache').get(uid)?.toString();
+                            if (saved != null && saved.isNotEmpty) {
+                              name = saved.split(' ').first;
+                            }
+                          }
+                          if (name == 'Unknown') {
+                            final phone = user['phone']?.toString();
+                            final formatted = phone != null ? PhoneUtils.formatPhoneDisplay(phone) : '';
+                            name = formatted.isNotEmpty
+                                ? formatted.split(' ').first
+                                : (user['name']?.toString().split(' ').first ?? 'Unknown');
+                          }
+                        }
                         final userAvatar = user is Map
                             ? UrlUtils.getFullUrl(user['avatar'] ?? '')
                             : '';

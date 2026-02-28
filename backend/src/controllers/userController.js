@@ -262,3 +262,27 @@ exports.deleteBulkMedia = async (req, res, next) => {
     next(error);
   }
 };
+/**
+ * DELETE /users/profile
+ * Delete user account and associated data
+ */
+exports.deleteAccount = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const { User, Device } = require('../models');
+
+    // 1. Clear device sessions
+    await Device.deleteMany({ userId });
+
+    // 2. Delete user
+    const user = await User.findByIdAndDelete(userId);
+
+    if (!user) {
+      return ApiResponse.notFound(res, 'User not found');
+    }
+
+    return ApiResponse.success(res, null, 'Account deleted successfully');
+  } catch (error) {
+    next(error);
+  }
+};

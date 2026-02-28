@@ -11,6 +11,7 @@ class ApiEndpoints {
   static const String refreshToken = '/auth/refresh-token';
   static const String logout = '/auth/logout';
   static const String logoutAll = '/auth/logout-all';
+  static const String deleteAccount = '/users/profile';
 
   // Users
   static const String profile = '/users/profile';
@@ -18,7 +19,7 @@ class ApiEndpoints {
   static const String privacySettings = '/users/privacy';
   static const String blockUser = '/users/block';
   static const String blockedUsers = '/users/blocked';
-  static const String fcmToken  = '/auth/fcm-token';
+  static const String fcmToken = '/auth/fcm-token';
   static const String voipToken = '/users/voip-token';
   static const String allMedia = '/users/media';
   static const String deleteMedia = '/users/media';

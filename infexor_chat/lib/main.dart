@@ -10,9 +10,8 @@ import 'core/constants/app_strings.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
-import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
 import 'config/routes.dart';
 
 import 'core/services/call_manager.dart';
@@ -24,7 +23,6 @@ import 'features/auth/services/auth_service.dart';
 import 'features/contacts/providers/contact_provider.dart';
 import 'features/chat/providers/chat_provider.dart';
 import 'features/chat/services/socket_service.dart';
-import 'features/chat/screens/conversation_screen.dart';
 
 // ─── Global ProviderContainer for notification action callbacks ──────────────
 late final ProviderContainer globalContainer;
@@ -45,45 +43,6 @@ bool isCallControlPayload(Map<String, dynamic> data) {
   return t == 'call_cancel' || t == 'call_busy';
 }
 
-/// Show a native OS incoming-call UI via flutter_callkit_incoming.
-/// Works in background isolate — no Flutter widget tree needed.
-Future<void> showCallkitIncoming(Map<String, dynamic> data) async {
-  final chatId    = data['chatId']?.toString() ?? '';
-  final callerName  = data['callerName']?.toString() ?? 'Unknown';
-  final callerAvatar = data['callerAvatar']?.toString() ?? '';
-  final isVideo   = data['type'] == 'video_call';
-
-  final params = CallKitParams(
-    id: chatId,
-    nameCaller: callerName,
-    appName: 'Infexor Chat',
-    avatar: callerAvatar.isNotEmpty ? callerAvatar : null,
-    type: isVideo ? 1 : 0,   // 0 = voice, 1 = video
-    duration: 30000,          // 30-second auto-timeout
-    textAccept: 'Accept',
-    textDecline: 'Decline',
-    // Store all fields needed when the user taps Accept
-    extra: {
-      'chatId':       chatId,
-      'callerId':     data['callerId']?.toString() ?? '',
-      'callerName':   callerName,
-      'callerAvatar': callerAvatar,
-      'isVideo':      isVideo.toString(),
-    },
-    android: const AndroidParams(
-      isCustomNotification: true,
-      isShowLogo: false,
-      ringtonePath: 'system_ringtone_default',
-      backgroundColor: '#0A0A0F',
-      actionColor: '#4CAF50',
-      incomingCallNotificationChannelName: 'Incoming Calls',
-      missedCallNotificationChannelName: 'Missed Calls',
-    ),
-  );
-
-  await FlutterCallkitIncoming.showCallkitIncoming(params);
-}
-
 // ─── Background FCM handler ──────────────────────────────────────────────────
 
 /// Runs in a separate Dart isolate when a FCM message arrives while the app
@@ -92,14 +51,14 @@ Future<void> showCallkitIncoming(Map<String, dynamic> data) async {
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
   final data = message.data;
-  if (isCallPayload(data)) {
-    // Show the native OS incoming-call screen — no Flutter UI needed.
-    await showCallkitIncoming(data);
-  } else if (isCallControlPayload(data)) {
-    // Cancel or busy signal — dismiss any showing callkit UI.
+
+  if (isCallControlPayload(data)) {
+    // Cancel or busy signal — Kotlin service should stop ringing.
     final chatId = data['chatId']?.toString() ?? '';
     if (chatId.isNotEmpty) {
-      await FlutterCallkitIncoming.endCall(chatId);
+      const MethodChannel(
+        'com.infexor.infexor_chat/calls',
+      ).invokeMethod('endCall', {'chatId': chatId});
     }
   }
 }
@@ -121,18 +80,18 @@ void _navigateToChatScreen(String chatId) {
   if (_isNavigatingToChat) return;
   _isNavigatingToChat = true;
   flutterLocalNotificationsPlugin.cancel(id: chatId.hashCode);
-  navigatorKey.currentState
-      ?.push(
-        MaterialPageRoute(
-          builder: (_) => ConversationScreen(
-            chatId: chatId,
-            chatName: 'Chat',
-            chatAvatar: '',
-            isOnline: false,
-          ),
-        ),
-      )
-      .then((_) => _isNavigatingToChat = false);
+
+  final context = navigatorKey.currentContext;
+  if (context != null && context.mounted) {
+    GoRouter.of(context)
+        .push(
+          '/chat/$chatId',
+          extra: {'chatName': 'Chat', 'chatAvatar': '', 'isOnline': false},
+        )
+        .then((_) => _isNavigatingToChat = false);
+  } else {
+    _isNavigatingToChat = false;
+  }
 }
 
 /// Handles taps on local-notifications (payload = chatId or https:// link)
@@ -197,8 +156,9 @@ void main() async {
   // Incoming call UI is entirely handled by flutter_callkit_incoming.
   const AndroidInitializationSettings androidSettings =
       AndroidInitializationSettings('@mipmap/ic_launcher');
-  const InitializationSettings initSettings =
-      InitializationSettings(android: androidSettings);
+  const InitializationSettings initSettings = InitializationSettings(
+    android: androidSettings,
+  );
   await flutterLocalNotificationsPlugin.initialize(
     settings: initSettings,
     onDidReceiveNotificationResponse: _onNotificationResponse,
@@ -206,7 +166,8 @@ void main() async {
 
   final androidPlugin = flutterLocalNotificationsPlugin
       .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
+        AndroidFlutterLocalNotificationsPlugin
+      >();
   await androidPlugin?.createNotificationChannel(messageChannel);
 
   await Hive.initFlutter();
@@ -228,8 +189,8 @@ void main() async {
   );
 
   // Check if a notification launched the app from terminated state
-  final launchDetails =
-      await flutterLocalNotificationsPlugin.getNotificationAppLaunchDetails();
+  final launchDetails = await flutterLocalNotificationsPlugin
+      .getNotificationAppLaunchDetails();
   if (launchDetails?.didNotificationLaunchApp == true) {
     final payload = launchDetails?.notificationResponse?.payload;
     if (payload != null && payload.isNotEmpty && !payload.startsWith('{')) {
@@ -305,7 +266,9 @@ class _InfexorChatAppState extends ConsumerState<InfexorChatApp>
       if (isCallPayload(data)) return;
 
       final type = data['type']?.toString() ?? '';
-      if (type != 'broadcast') return; // socket delivers chat messages in foreground
+      if (type != 'broadcast') {
+        return; // socket delivers chat messages in foreground
+      }
 
       final notification = message.notification;
       if (notification != null) {
@@ -314,8 +277,9 @@ class _InfexorChatAppState extends ConsumerState<InfexorChatApp>
         final link = data['link']?.toString() ?? '';
         final isBroadcast = type == 'broadcast';
         final payload = (isBroadcast && link.isNotEmpty) ? link : chatId;
-        final notificationId =
-            chatId.isNotEmpty ? chatId.hashCode : notification.hashCode;
+        final notificationId = chatId.isNotEmpty
+            ? chatId.hashCode
+            : notification.hashCode;
 
         flutterLocalNotificationsPlugin.show(
           id: notificationId,
@@ -332,7 +296,8 @@ class _InfexorChatAppState extends ConsumerState<InfexorChatApp>
               priority: Priority.high,
               playSound: true,
               sound: const RawResourceAndroidNotificationSound(
-                  'notification_sound'),
+                'notification_sound',
+              ),
               enableVibration: true,
               vibrationPattern: Int64List.fromList([0, 250, 250, 250]),
             ),

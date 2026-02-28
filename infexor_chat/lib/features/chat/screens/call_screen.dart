@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -23,6 +22,7 @@ class CallPage extends ConsumerStatefulWidget {
   final bool isIncoming;
   final bool isResuming;
   final int initialDuration;
+
   /// True when this CallPage was opened from a callkit Accept action
   /// (killed/background state). Tells CallPage to:
   ///   1. Emit call:accept after the socket is confirmed connected.
@@ -237,7 +237,7 @@ class _CallPageState extends ConsumerState<CallPage>
         // but caller never connects).
         if (!_disposed) {
           socket.emit('call:accept', {
-            'chatId':   widget.chatId,
+            'chatId': widget.chatId,
             'callerId': widget.userId,
           });
           debugPrint('📞 Emitted call:accept - signaling ready for offer');
@@ -308,12 +308,7 @@ class _CallPageState extends ConsumerState<CallPage>
     });
     _pulseController.stop();
     _startTimer();
-    // For callkit-accepted calls, notify callkit that the call is now live
-    // (transitions the OS notification from "incoming" to "in-call" state).
-    if (widget.callkitAccepted) {
-      FlutterCallkitIncoming.setCallConnected(widget.chatId);
-    }
-
+    // Set speakerphone for video
     // Explicitly configure audio routing once connected
     if (widget.isVideoCall) {
       Helper.setSpeakerphoneOn(true);
@@ -330,10 +325,6 @@ class _CallPageState extends ConsumerState<CallPage>
     if (_disposed) return;
     _disposed = true;
     _webRTCService.endCall();
-    // Clear the callkit entry so it doesn't appear in activeCalls() on next launch
-    if (widget.callkitAccepted) {
-      await FlutterCallkitIncoming.endCall(widget.chatId);
-    }
 
     // Log call unconditionally to ensure history is updated for both parties
     final currentUserId = ref.read(authProvider).user?['_id'] ?? '';
@@ -356,11 +347,6 @@ class _CallPageState extends ConsumerState<CallPage>
   Future<void> _endCallLocally() async {
     if (_disposed) return;
     _disposed = true;
-    // Clear the callkit entry so it doesn't appear in activeCalls() on next launch
-    if (widget.callkitAccepted) {
-      await FlutterCallkitIncoming.endCall(widget.chatId);
-    }
-
     // Log call unconditionally to ensure history is updated for both parties
     final currentUserId = ref.read(authProvider).user?['_id'] ?? '';
     await ref

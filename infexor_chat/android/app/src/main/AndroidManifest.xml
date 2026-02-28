@@ -28,6 +28,7 @@
     <!-- Required by flutter_callkit_incoming foreground service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL"/>
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS"/>
     
     <!-- Location (optional but good to have if needed later) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
@@ -78,17 +79,27 @@
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@mipmap/ic_launcher" />
 
-        <!-- flutter_callkit_incoming: foreground service for incoming call UI -->
+        <!-- FCM Custom Native Call Handling -->
         <service
-            android:name="com.hiennv.flutter_callkit_incoming.CallkitIncomingService"
-            android:exported="false"
-            android:foregroundServiceType="phoneCall"
-            android:stopWithTask="false" />
+            android:name=".service.MyFirebaseService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT"/>
+            </intent-filter>
+        </service>
 
-        <!-- flutter_callkit_incoming: broadcast receiver for call actions -->
-        <receiver
-            android:name="com.hiennv.flutter_callkit_incoming.CallkitIncomingBroadcastReceiver"
-            android:exported="true" />
+        <service
+            android:name=".service.CallForegroundService"
+            android:foregroundServiceType="phoneCall"
+            android:exported="false" />
+
+        <activity
+            android:name=".ui.IncomingCallActivity"
+            android:showOnLockScreen="true"
+            android:turnScreenOn="true"
+            android:launchMode="singleTop"
+            android:exported="true"
+            android:theme="@style/Theme.AppCompat.NoActionBar"/>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

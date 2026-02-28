@@ -110,4 +110,12 @@ class AuthService {
       print("Failed to remove VoIP token: $e");
     }
   }
+
+  Future<void> deleteAccount() async {
+    try {
+      await _api.delete(ApiEndpoints.deleteAccount);
+    } catch (e) {
+      rethrow;
+    }
+  }
 }
