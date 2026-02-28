@@ -66,6 +66,7 @@ dependencies:
   sms_autofill: ^2.4.1
   flutter_cache_manager: ^3.4.1
   flutter_callkit_incoming: ^3.0.0
+  url_launcher: ^6.3.1
 
 dependency_overrides:
   mediasoup_client_flutter:
@@ -81,6 +82,15 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "E:/Whatapplikeapp/Logo/zoomed_applogo.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "E:/Whatapplikeapp/Logo/zoomed_applogo.png"
+  min_sdk_android: 21
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
