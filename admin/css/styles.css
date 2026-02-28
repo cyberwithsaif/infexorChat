@@ -1528,3 +1528,48 @@ span.required {
   align-items: center;
   flex-shrink: 0
 }
+
+/* Profile Tabs */
+.profile-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 16px;
+  overflow-x: auto
+}
+
+.profile-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.2s;
+  white-space: nowrap
+}
+
+.profile-tab:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+  border-radius: 6px 6px 0 0
+}
+
+.profile-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary)
+}
+
+.profile-tab svg {
+  opacity: 0.6
+}
+
+.profile-tab.active svg {
+  opacity: 1
+}
