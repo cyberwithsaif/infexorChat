@@ -1,6 +1,5 @@
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
-import 'dart:io' show Platform;
 
 class PermissionService {
   /// Request all essential permissions at once
@@ -20,9 +19,6 @@ class PermissionService {
     statuses.forEach((permission, status) {
       debugPrint('Permission $permission: $status');
     });
-
-    // Request display over other apps for the floating PiP video
-    await requestOverlayPermission();
   }
 
   /// Request a specific permission
@@ -34,23 +30,5 @@ class PermissionService {
   /// Check if a specific permission is granted
   static Future<bool> isGranted(Permission permission) async {
     return await permission.isGranted;
-  }
-
-  /// Request "Display over other apps" permission (Android only)
-  /// Required for picture-in-picture floating video calls
-  static Future<void> requestOverlayPermission() async {
-    if (!Platform.isAndroid) return;
-
-    try {
-      final status = await Permission.systemAlertWindow.status;
-      if (!status.isGranted) {
-        final result = await Permission.systemAlertWindow.request();
-        debugPrint('Overlay permission: $result');
-      } else {
-        debugPrint('Overlay permission already granted');
-      }
-    } catch (e) {
-      debugPrint('Error requesting overlay permission: $e');
-    }
   }
 }
