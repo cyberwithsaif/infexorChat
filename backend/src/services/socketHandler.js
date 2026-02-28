@@ -116,6 +116,59 @@ function initSocketHandlers(io) {
       })
       .catch(() => { });
 
+    // ─── DELIVERY RECEIPTS ON RECONNECT ───
+    // When a user comes online, mark all pending 'sent' messages FOR them
+    // as 'delivered' and notify the senders (double tick like WhatsApp).
+    (async () => {
+      try {
+        // Find all chats this user participates in
+        const userChats = await Chat.find({ participants: userId }).select('_id').lean();
+        const chatIds = userChats.map(c => c._id);
+        if (chatIds.length === 0) return;
+
+        // Find undelivered messages in those chats (not sent by this user, still 'sent')
+        const pendingMsgs = await Message.find({
+          chatId: { $in: chatIds },
+          senderId: { $ne: userId },
+          status: 'sent',
+        }).select('_id senderId chatId').lean();
+
+        if (pendingMsgs.length === 0) return;
+
+        const msgIds = pendingMsgs.map(m => m._id);
+
+        // Bulk update to 'delivered'
+        await Message.updateMany(
+          { _id: { $in: msgIds } },
+          {
+            $set: { status: 'delivered' },
+            $addToSet: { deliveredTo: { userId, at: new Date() } },
+          }
+        );
+
+        // Notify each sender about their messages being delivered
+        const senderMsgMap = {};
+        pendingMsgs.forEach(m => {
+          const sid = m.senderId.toString();
+          if (!senderMsgMap[sid]) senderMsgMap[sid] = [];
+          senderMsgMap[sid].push(m._id.toString());
+        });
+
+        Object.entries(senderMsgMap).forEach(([senderId, messageIds]) => {
+          messageIds.forEach(messageId => {
+            io.to(`user:${senderId}`).emit('message:status', {
+              messageId,
+              status: 'delivered',
+            });
+          });
+        });
+
+        logger.info(`[DeliveryReceipt] Marked ${pendingMsgs.length} messages as delivered for user ${userId}`);
+      } catch (err) {
+        logger.error('[DeliveryReceipt] Error:', err);
+      }
+    })();
+
     // ─── HEARTBEAT ───
     socket.on('heartbeat', () => {
       presenceService.heartbeat(userId).catch(() => { });

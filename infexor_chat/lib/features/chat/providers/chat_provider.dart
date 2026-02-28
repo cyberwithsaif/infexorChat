@@ -157,11 +157,10 @@ class ChatListNotifier extends Notifier<ChatListState> {
     final isOutgoing = currentUserId != null && senderId == currentUserId;
 
     // Check if user is currently viewing this chat
-    final activeChatIdStr = ref
-        .read(notificationServiceProvider)
-        .activeChatId
-        ?.toString();
-    final isViewingChat = activeChatIdStr != null && activeChatIdStr == chatId;
+    // activeChatId is set when ConversationScreen is open, cleared on dispose
+    final activeChatId = ref.read(notificationServiceProvider).activeChatId;
+    final isViewingChat =
+        activeChatId != null && activeChatId.toString() == chatId;
 
     if (index != -1) {
       final chat = Map<String, dynamic>.from(chats[index]);
