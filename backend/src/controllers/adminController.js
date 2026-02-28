@@ -237,15 +237,35 @@ exports.changeUserStatus = async (req, res, next) => {
 
 exports.forceLogout = async (req, res, next) => {
     try {
-        await User.findByIdAndUpdate(req.params.id, {
+        const userId = req.params.id;
+
+        // 1. Clear user tokens and mark offline
+        await User.findByIdAndUpdate(userId, {
             $set: { fcmToken: '', voipToken: '', isOnline: false },
         });
 
-        // Disconnect all sockets for this user
+        // 2. Invalidate all device refresh tokens so re-auth is impossible
+        const Device = require('../models/Device');
+        await Device.updateMany(
+            { userId },
+            { $set: { refreshToken: '' } }
+        );
+
+        // 3. Emit force-logout event to all connected sockets BEFORE disconnecting
+        //    This tells the Flutter app to clear local auth state and navigate to login
         try {
             const io = getIO();
-            const sockets = await io.in(`user:${req.params.id}`).fetchSockets();
-            sockets.forEach(s => s.disconnect(true));
+            io.to(`user:${userId}`).emit('force-logout', {
+                reason: 'Admin forced logout',
+            });
+
+            // Give the event a moment to be delivered, then disconnect
+            setTimeout(async () => {
+                try {
+                    const sockets = await io.in(`user:${userId}`).fetchSockets();
+                    sockets.forEach(s => s.disconnect(true));
+                } catch { }
+            }, 500);
         } catch { }
 
         return ApiResponse.success(res, null, 'User force logged out');
@@ -719,7 +739,7 @@ exports.resolveReport = async (req, res, next) => {
 
 exports.sendBroadcast = async (req, res, next) => {
     try {
-        const { title, message, segment = 'all', platform = 'both' } = req.body;
+        const { title, message, segment = 'all', platform = 'both', link = '' } = req.body;
         if (!title || !message) return ApiResponse.badRequest(res, 'Title and message required');
 
         // Redis distributed lock to prevent duplicate concurrent broadcasts
@@ -737,6 +757,7 @@ exports.sendBroadcast = async (req, res, next) => {
             message,
             segment,
             platform,
+            link: link.trim(),
             createdBy: req.admin.adminId || req.admin._id,
             totalRecipients,
             status: 'queued',
@@ -757,7 +778,7 @@ exports.getBroadcasts = async (req, res, next) => {
             Broadcast.find().populate('createdBy', 'username name').sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
             Broadcast.countDocuments(),
         ]);
-        return ApiResponse.success(res, { broadcasts, pagination: { page, limit, total, pages: Math.ceil(total / limit) } });
+        return ApiResponse.success(res, { broadcasts, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
     } catch (error) { next(error); }
 };
 

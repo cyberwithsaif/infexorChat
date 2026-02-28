@@ -191,6 +191,16 @@ class ChatListNotifier extends Notifier<ChatListState> {
     final socket = ref.read(socketServiceProvider);
     final notifService = ref.read(notificationServiceProvider);
 
+    // ─── Force logout listener ───
+    // When admin force-logs-out a user, clear local auth and go to login
+    socket.on('force-logout', (data) {
+      debugPrint('⚠️ Force logout received from server');
+      // Disconnect socket immediately to prevent reconnection
+      socket.disconnect();
+      // Trigger full app logout (clears Hive, tokens, navigates to /login)
+      ref.read(authProvider.notifier).logout();
+    });
+
     socket.on('message:new', (data) {
       if (data is Map<String, dynamic>) {
         onNewMessage(data);
