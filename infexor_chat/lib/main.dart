@@ -12,29 +12,22 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'config/routes.dart';
 
 import 'core/services/call_manager.dart';
+import 'core/services/notification_plugin.dart';
+import 'core/services/notification_service.dart';
 import 'core/widgets/active_call_banner.dart';
 import 'core/widgets/active_call_pip.dart';
 import 'features/auth/services/auth_service.dart';
 import 'features/contacts/providers/contact_provider.dart';
+import 'features/chat/providers/chat_provider.dart';
+import 'features/chat/services/socket_service.dart';
 import 'features/chat/screens/conversation_screen.dart';
 
-// ─── Global notification plugin (message notifications only) ────────────────
-final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-    FlutterLocalNotificationsPlugin();
-
-// Android notification channel for chat messages
-const AndroidNotificationChannel channel = AndroidNotificationChannel(
-  'infexor_messages',
-  'Messages',
-  description: 'Infexor Chat message notifications',
-  importance: Importance.high,
-  playSound: true,
-  sound: RawResourceAndroidNotificationSound('notification_sound'),
-  enableVibration: true,
-);
+// ─── Global ProviderContainer for notification action callbacks ──────────────
+late final ProviderContainer globalContainer;
 
 // ─── Call payload helpers ────────────────────────────────────────────────────
 
@@ -113,7 +106,16 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 // ─── Pending message navigation (terminated state) ──────────────────────────
 String? _pendingMessageChatId;
+String? _pendingBroadcastLink;
 bool _isNavigatingToChat = false;
+
+Future<void> _openUrl(String url) async {
+  final uri = Uri.tryParse(url);
+  if (uri == null || !uri.hasScheme) return;
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+}
 
 void _navigateToChatScreen(String chatId) {
   if (_isNavigatingToChat) return;
@@ -133,14 +135,53 @@ void _navigateToChatScreen(String chatId) {
       .then((_) => _isNavigatingToChat = false);
 }
 
-/// Handles taps on message local-notifications (payload = chatId string).
+/// Handles taps on local-notifications (payload = chatId or https:// link)
+/// and notification action buttons (Reply, Mark as read).
 void _onNotificationResponse(NotificationResponse response) {
   final payload = response.payload;
   if (payload == null || payload.isEmpty || payload.startsWith('{')) return;
-  if (navigatorKey.currentState != null) {
-    _navigateToChatScreen(payload);
+
+  // ─── Handle notification action buttons ───
+  if (response.notificationResponseType ==
+      NotificationResponseType.selectedNotificationAction) {
+    final actionId = response.actionId;
+
+    if (actionId == 'reply_action') {
+      final input = response.input;
+      if (input != null && input.trim().isNotEmpty) {
+        // Send reply via socket
+        globalContainer.read(socketServiceProvider).sendMessage({
+          'chatId': payload,
+          'content': input.trim(),
+          'type': 'text',
+        });
+        // Clear grouped notification messages for this chat
+        globalContainer.read(notificationServiceProvider).clearCounts(payload);
+      }
+    } else if (actionId == 'mark_read_action') {
+      // Mark as read via socket + update chat list
+      globalContainer.read(socketServiceProvider).markRead(payload);
+      globalContainer.read(chatListProvider.notifier).markChatRead(payload);
+      globalContainer.read(notificationServiceProvider).clearCounts(payload);
+    }
+    return;
+  }
+
+  // ─── Handle notification tap (open chat / URL) ───
+  if (payload.startsWith('http')) {
+    if (navigatorKey.currentState != null) {
+      _openUrl(payload);
+    } else {
+      _pendingBroadcastLink = payload;
+    }
   } else {
-    _pendingMessageChatId = payload;
+    // Clear grouped messages on tap
+    globalContainer.read(notificationServiceProvider).clearCounts(payload);
+    if (navigatorKey.currentState != null) {
+      _navigateToChatScreen(payload);
+    } else {
+      _pendingMessageChatId = payload;
+    }
   }
 }
 
@@ -166,7 +207,7 @@ void main() async {
   final androidPlugin = flutterLocalNotificationsPlugin
       .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
-  await androidPlugin?.createNotificationChannel(channel);
+  await androidPlugin?.createNotificationChannel(messageChannel);
 
   await Hive.initFlutter();
   await Hive.openBox('settings');
@@ -186,17 +227,27 @@ void main() async {
     ),
   );
 
-  // Check if a *message* notification launched the app from terminated state
+  // Check if a notification launched the app from terminated state
   final launchDetails =
       await flutterLocalNotificationsPlugin.getNotificationAppLaunchDetails();
   if (launchDetails?.didNotificationLaunchApp == true) {
     final payload = launchDetails?.notificationResponse?.payload;
     if (payload != null && payload.isNotEmpty && !payload.startsWith('{')) {
-      _pendingMessageChatId = payload;
+      if (payload.startsWith('http')) {
+        _pendingBroadcastLink = payload;
+      } else {
+        _pendingMessageChatId = payload;
+      }
     }
   }
 
-  runApp(const ProviderScope(child: InfexorChatApp()));
+  globalContainer = ProviderContainer();
+  runApp(
+    UncontrolledProviderScope(
+      container: globalContainer,
+      child: const InfexorChatApp(),
+    ),
+  );
 }
 
 // ─── Root widget ─────────────────────────────────────────────────────────────
@@ -228,6 +279,13 @@ class _InfexorChatAppState extends ConsumerState<InfexorChatApp>
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       final data = message.data;
       if (isCallPayload(data)) return; // CallManager handles via callkit event
+      // Broadcast with action URL
+      final type = data['type']?.toString() ?? '';
+      final link = data['link']?.toString() ?? '';
+      if (type == 'broadcast' && link.isNotEmpty) {
+        _openUrl(link);
+        return;
+      }
       final chatId = data['chatId']?.toString() ?? '';
       if (chatId.isNotEmpty) {
         flutterLocalNotificationsPlugin.cancel(id: chatId.hashCode);
@@ -239,14 +297,23 @@ class _InfexorChatAppState extends ConsumerState<InfexorChatApp>
       }
     });
 
-    // Foreground FCM messages — calls handled by socket in CallManager
+    // Foreground FCM messages — calls handled by socket in CallManager.
+    // Regular chat messages are handled in real-time by the socket, so we
+    // only show local notifications for broadcast messages here.
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       final data = message.data;
       if (isCallPayload(data)) return;
 
+      final type = data['type']?.toString() ?? '';
+      if (type != 'broadcast') return; // socket delivers chat messages in foreground
+
       final notification = message.notification;
       if (notification != null) {
         final chatId = data['chatId']?.toString() ?? '';
+        final type = data['type']?.toString() ?? '';
+        final link = data['link']?.toString() ?? '';
+        final isBroadcast = type == 'broadcast';
+        final payload = (isBroadcast && link.isNotEmpty) ? link : chatId;
         final notificationId =
             chatId.isNotEmpty ? chatId.hashCode : notification.hashCode;
 
@@ -254,12 +321,12 @@ class _InfexorChatAppState extends ConsumerState<InfexorChatApp>
           id: notificationId,
           title: notification.title,
           body: notification.body,
-          payload: chatId,
+          payload: payload,
           notificationDetails: NotificationDetails(
             android: AndroidNotificationDetails(
-              channel.id,
-              channel.name,
-              channelDescription: channel.description,
+              messageChannel.id,
+              messageChannel.name,
+              channelDescription: messageChannel.description,
               icon: '@mipmap/ic_launcher',
               importance: Importance.high,
               priority: Priority.high,
@@ -274,13 +341,20 @@ class _InfexorChatAppState extends ConsumerState<InfexorChatApp>
       }
     });
 
-    // Process any pending message navigation from terminated state
+    // Process any pending navigation/link from terminated state
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final chatId = _pendingMessageChatId;
       _pendingMessageChatId = null;
       if (chatId != null && chatId.isNotEmpty) {
         Future.delayed(const Duration(milliseconds: 500), () {
           _navigateToChatScreen(chatId);
+        });
+      }
+      final link = _pendingBroadcastLink;
+      _pendingBroadcastLink = null;
+      if (link != null && link.isNotEmpty) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          _openUrl(link);
         });
       }
     });

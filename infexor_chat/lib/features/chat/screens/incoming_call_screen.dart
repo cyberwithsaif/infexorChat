@@ -133,10 +133,9 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen> {
     if (_handled) return;
     _handled = true;
     _stopRingtone();
-    ref.read(socketServiceProvider).socket?.emit('call:accept', {
-      'chatId': widget.chatId,
-      'callerId': widget.callerId,
-    });
+    // NOTE: call:accept is NOT emitted here — CallPage emits it after
+    // joinCall() registers the webrtc:offer handler, preventing a race
+    // where the caller's offer arrives before the callee is ready.
     Navigator.pushReplacement(
       context,
       ScaleFadePageRoute(

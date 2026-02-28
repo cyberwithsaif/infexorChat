@@ -12,6 +12,9 @@ const {
 
 const router = express.Router();
 
+// Media serve is public — filenames are unguessable UUIDs; directory traversal is blocked in controller
+router.get('/serve/:category/:filename', uploadController.serveMedia);
+
 // All upload routes require authentication
 router.use(auth);
 // Apply media rate limiter to prevent bandwidth exhaustion
@@ -34,8 +37,5 @@ router.post('/document', documentUpload.single('document'), uploadController.upl
 
 // Mark media as downloaded for auto-cleanup
 router.post('/mark-downloaded', uploadController.markDownloaded);
-
-// Secure media serve endpoint
-router.get('/serve/:category/:filename', uploadController.serveMedia);
 
 module.exports = router;

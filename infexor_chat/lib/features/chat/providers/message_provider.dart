@@ -45,6 +45,9 @@ final messageProvider = NotifierProvider<MessageNotifier, MessageState>(
 class MessageNotifier extends Notifier<MessageState> {
   static const _cacheBoxName = 'messages_cache';
 
+  /// Buffers status updates that arrive before the message itself (race condition).
+  final Map<String, String> _pendingStatusUpdates = {};
+
   @override
   MessageState build() => const MessageState();
 
@@ -211,7 +214,12 @@ class MessageNotifier extends Notifier<MessageState> {
 
   /// Add incoming message
   void addIncomingMessage(Map<String, dynamic> message) {
-    if (message['chatId'] == state.chatId && state.chatId.isNotEmpty) {
+    // chatId may arrive as a populated Map object — extract the string id.
+    final rawChatId = message['chatId'];
+    final chatId = rawChatId is Map
+        ? rawChatId['_id']?.toString()
+        : rawChatId?.toString();
+    if (chatId == state.chatId && state.chatId.isNotEmpty) {
       _addMessage(message);
       // Mark delivered first
       final msgId = message['_id']?.toString();
@@ -224,6 +232,11 @@ class MessageNotifier extends Notifier<MessageState> {
   void _addMessage(Map<String, dynamic> message) {
     final exists = state.messages.any((m) => m['_id'] == message['_id']);
     if (!exists) {
+      final msgId = message['_id']?.toString();
+      // Apply any status update that arrived before the message (race condition).
+      if (msgId != null && _pendingStatusUpdates.containsKey(msgId)) {
+        message = {...message, 'status': _pendingStatusUpdates.remove(msgId)!};
+      }
       final newMessages = [message, ...state.messages];
       state = state.copyWith(messages: newMessages);
       _saveToCache(state.chatId, newMessages);
@@ -244,8 +257,15 @@ class MessageNotifier extends Notifier<MessageState> {
     final socket = ref.read(socketServiceProvider);
 
     socket.on('message:new', (data) {
-      if (data is Map<String, dynamic> && data['chatId'] == state.chatId) {
-        addIncomingMessage(data);
+      if (data is Map<String, dynamic>) {
+        // chatId may be a populated Map object — extract the string id.
+        final rawChatId = data['chatId'];
+        final chatId = rawChatId is Map
+            ? rawChatId['_id']?.toString()
+            : rawChatId?.toString();
+        if (chatId == state.chatId && state.chatId.isNotEmpty) {
+          addIncomingMessage(data);
+        }
       }
     });
 
@@ -350,6 +370,10 @@ class MessageNotifier extends Notifier<MessageState> {
       messages[index] = {...messages[index], 'status': newStatus};
       state = state.copyWith(messages: messages);
       _saveToCache(state.chatId, messages);
+    } else {
+      // Message not yet in state (race condition: status arrived before ACK).
+      // Buffer it so _addMessage can apply it when the message arrives.
+      _pendingStatusUpdates[messageId] = newStatus;
     }
   }
 

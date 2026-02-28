@@ -371,6 +371,7 @@ class ChatListNotifier extends Notifier<ChatListState> {
     if (index != -1) {
       chats[index] = {...chats[index], 'unreadCount': 0};
       state = state.copyWith(chats: chats);
+      _saveToCache(chats); // persist so reload from cache shows 0 count
     }
   }
 

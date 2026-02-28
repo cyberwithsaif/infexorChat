@@ -14,6 +14,9 @@ import '../providers/chat_provider.dart';
 import 'create_group_screen.dart';
 import 'conversation_screen.dart';
 import '../../settings/screens/settings_screen.dart';
+import '../../../core/services/call_manager.dart';
+import '../../../core/utils/animated_page_route.dart';
+import 'incoming_call_screen.dart';
 
 import '../../../core/utils/phone_utils.dart';
 
@@ -268,7 +271,7 @@ class _EmptyChats extends StatelessWidget {
   }
 }
 
-class _ChatTile extends StatelessWidget {
+class _ChatTile extends ConsumerWidget {
   final Map<String, dynamic> chat;
   final String currentUserId;
   final Box? contactsBox;
@@ -282,9 +285,9 @@ class _ChatTile extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     try {
-      return _buildTile(context);
+      return _buildTile(context, ref);
     } catch (e) {
       final textColor =
           Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black;
@@ -301,7 +304,7 @@ class _ChatTile extends StatelessWidget {
     }
   }
 
-  Widget _buildTile(BuildContext buildContext) {
+  Widget _buildTile(BuildContext buildContext, WidgetRef ref) {
     final context = buildContext;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -440,15 +443,38 @@ class _ChatTile extends StatelessWidget {
       }
     }
 
+    // Check if this chat has an incoming call ringing
+    final incomingCall = ref.watch(incomingCallProvider);
+    final chatIdStr = chat['_id']?.toString() ?? '';
+    final isRinging = incomingCall != null &&
+        incomingCall['chatId']?.toString() == chatIdStr;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: () {
+          // If ringing, tap opens the incoming call screen
+          if (isRinging) {
+            Navigator.push(
+              context,
+              ScaleFadePageRoute(
+                builder: (_) => IncomingCallScreen(
+                  callId: 'call_$chatIdStr',
+                  chatId: chatIdStr,
+                  callerId: incomingCall['callerId']?.toString() ?? '',
+                  callerName: incomingCall['callerName']?.toString() ?? name,
+                  callerAvatar: incomingCall['callerAvatar']?.toString(),
+                  isVideo: incomingCall['isVideo'] == true,
+                ),
+              ),
+            );
+            return;
+          }
           Navigator.push(
             context,
             InfexorPageRoute(
               page: ConversationScreen(
-                chatId: chat['_id']?.toString() ?? '',
+                chatId: chatIdStr,
                 chatName: name,
                 chatAvatar: avatar,
                 isOnline: isOnline,
@@ -569,60 +595,87 @@ class _ChatTile extends StatelessWidget {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        // Message status ticks
-                        if (isMyLastMessage)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 4),
-                            child: _StatusIcon(
-                              status: (lastMessage?['status'] ?? 'sent')
-                                  .toString(),
+                        if (isRinging) ...[
+                          // Ringing indicator — replaces last message preview
+                          Icon(
+                            incomingCall['isVideo'] == true
+                                ? Icons.videocam
+                                : Icons.phone,
+                            size: 16,
+                            color: const Color(0xFF4CAF50),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              incomingCall['isVideo'] == true
+                                  ? 'Incoming video call — tap to answer'
+                                  : 'Incoming voice call — tap to answer',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF4CAF50),
+                              ),
                             ),
                           ),
-                        Expanded(
-                          child: Row(
-                            children: [
-                              // Tiny media thumbnail (image/video/gif)
-                              if (lastMessage != null &&
-                                  (lastMessage['type'] == 'image' ||
-                                      lastMessage['type'] == 'video' ||
-                                      lastMessage['type'] == 'gif'))
-                                Padding(
-                                  padding: const EdgeInsets.only(right: 6),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(4),
-                                    child: CachedNetworkImage(
-                                      imageUrl: UrlUtils.getFullUrl(
-                                        lastMessage['media']?['thumbnail'] ??
-                                            lastMessage['media']?['url'] ??
-                                            '',
+                        ] else ...[
+                          // Normal last message preview
+                          // Message status ticks
+                          if (isMyLastMessage)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: _StatusIcon(
+                                status: (lastMessage?['status'] ?? 'sent')
+                                    .toString(),
+                              ),
+                            ),
+                          Expanded(
+                            child: Row(
+                              children: [
+                                // Tiny media thumbnail (image/video/gif)
+                                if (lastMessage != null &&
+                                    (lastMessage['type'] == 'image' ||
+                                        lastMessage['type'] == 'video' ||
+                                        lastMessage['type'] == 'gif'))
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 6),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(4),
+                                      child: CachedNetworkImage(
+                                        imageUrl: UrlUtils.getFullUrl(
+                                          lastMessage['media']?['thumbnail'] ??
+                                              lastMessage['media']?['url'] ??
+                                              '',
+                                        ),
+                                        width: 20,
+                                        height: 20,
+                                        fit: BoxFit.cover,
+                                        errorWidget: (context, url, error) =>
+                                            Icon(
+                                              lastMessage!['type'] == 'video'
+                                                  ? Icons.videocam
+                                                  : Icons.image,
+                                              size: 14,
+                                            ),
                                       ),
-                                      width: 20,
-                                      height: 20,
-                                      fit: BoxFit.cover,
-                                      errorWidget: (context, url, error) =>
-                                          Icon(
-                                            lastMessage!['type'] == 'video'
-                                                ? Icons.videocam
-                                                : Icons.image,
-                                            size: 14,
-                                          ),
+                                    ),
+                                  ),
+                                Expanded(
+                                  child: Text(
+                                    lastMsgText,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: subtitleColor,
                                     ),
                                   ),
                                 ),
-                              Expanded(
-                                child: Text(
-                                  lastMsgText,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: subtitleColor,
-                                  ),
-                                ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                        ),
+                        ],
                         if (unreadCount > 0)
                           Container(
                             padding: const EdgeInsets.symmetric(

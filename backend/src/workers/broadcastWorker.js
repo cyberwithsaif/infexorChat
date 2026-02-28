@@ -53,7 +53,7 @@ const broadcastWorker = new Worker(
 
                 // Process FCM batch of exactly 500 (Firebase Admin SDK limit is 500 per sendMulticast)
                 if (batchFCM.length >= 500) {
-                    const result = await processFCMBatch(batchFCM, broadcast.title, broadcast.message);
+                    const result = await processFCMBatch(batchFCM, broadcast.title, broadcast.message, broadcast.link);
                     successCount += result.success;
                     failureCount += result.failure;
                     invalidTokens.push(...result.invalidTokens);
@@ -63,9 +63,9 @@ const broadcastWorker = new Worker(
                     await delay(100); // 100ms yield to not block event loop
                 }
 
-                // Process APNs batch 
+                // Process APNs batch
                 if (batchAPNS.length >= 500) {
-                    const result = await processAPNSBatch(batchAPNS, broadcast.title, broadcast.message);
+                    const result = await processAPNSBatch(batchAPNS, broadcast.title, broadcast.message, broadcast.link);
                     successCount += result.success;
                     failureCount += result.failure;
                     invalidTokens.push(...result.invalidTokens);
@@ -78,14 +78,14 @@ const broadcastWorker = new Worker(
 
             // 3. Process remaining tokens
             if (batchFCM.length > 0) {
-                const result = await processFCMBatch(batchFCM, broadcast.title, broadcast.message);
+                const result = await processFCMBatch(batchFCM, broadcast.title, broadcast.message, broadcast.link);
                 successCount += result.success;
                 failureCount += result.failure;
                 invalidTokens.push(...result.invalidTokens);
             }
 
             if (batchAPNS.length > 0) {
-                const result = await processAPNSBatch(batchAPNS, broadcast.title, broadcast.message);
+                const result = await processAPNSBatch(batchAPNS, broadcast.title, broadcast.message, broadcast.link);
                 successCount += result.success;
                 failureCount += result.failure;
                 invalidTokens.push(...result.invalidTokens);
@@ -123,7 +123,7 @@ const broadcastWorker = new Worker(
 
 // ─── Helpers ───────────────────────────────────────────────────────────
 
-async function processFCMBatch(tokens, title, body) {
+async function processFCMBatch(tokens, title, body, link = '') {
     let success = 0;
     let failure = 0;
     let invalidTokens = [];
@@ -131,17 +131,33 @@ async function processFCMBatch(tokens, title, body) {
     try {
         const message = {
             tokens,
+            notification: {
+                title: title || '',
+                body: body || '',
+            },
             data: {
                 title: title || '',
                 body: body || '',
                 type: 'broadcast',
+                link: link || '',
                 click_action: 'FLUTTER_NOTIFICATION_CLICK',
             },
-            android: { priority: 'high' }
+            android: {
+                priority: 'high',
+                notification: {
+                    channelId: 'infexor_messages',
+                    sound: 'notification_sound',
+                    defaultSound: false,
+                },
+            },
+            apns: {
+                payload: {
+                    aps: { sound: 'default' },
+                },
+            },
         };
 
-        // We send data-only for precise control handling on frontend
-        const response = await admin.messaging().sendMulticast(message);
+        const response = await admin.messaging().sendEachForMulticast(message);
 
         success = response.successCount;
         failure = response.failureCount;
@@ -165,7 +181,7 @@ async function processFCMBatch(tokens, title, body) {
     return { success, failure, invalidTokens };
 }
 
-async function processAPNSBatch(tokens, title, body) {
+async function processAPNSBatch(tokens, title, body, link = '') {
     // APNs node module doesn't natively batch 500 cleanly like Firebase.
     // We loop and dispatch.
     let success = 0;
@@ -175,7 +191,7 @@ async function processAPNSBatch(tokens, title, body) {
     // Parallel map but wrapped in limit if needed
     await Promise.allSettled(tokens.map(async (token) => {
         try {
-            await apnsService.sendMessagePush(token, title, body, { type: 'broadcast' });
+            await apnsService.sendMessagePush(token, title, body, { type: 'broadcast', link: link || '' });
             success++;
         } catch (err) {
             failure++;

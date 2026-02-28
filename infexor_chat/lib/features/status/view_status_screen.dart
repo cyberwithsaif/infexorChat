@@ -61,6 +61,11 @@ class _ViewStatusScreenState extends ConsumerState<ViewStatusScreen>
           ..initialize()
               .then((_) {
                 if (mounted) {
+                  // Use actual video duration; fallback to 30s
+                  final actualDuration = _videoController!.value.duration;
+                  _progressController.duration = actualDuration.inSeconds > 0
+                      ? actualDuration
+                      : _videoDuration;
                   setState(() {});
                   _videoController!.play();
                   _progressController.forward(from: 0);

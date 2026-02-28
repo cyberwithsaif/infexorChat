@@ -39,6 +39,15 @@ exports.removeToken = async (userId, token) => {
 /**
  * Send notification to a single user
  */
+// Convert all data values to strings (FCM requires string values only)
+function stringifyData(obj) {
+    const result = {};
+    for (const [k, v] of Object.entries(obj)) {
+        result[k] = v == null ? '' : String(v);
+    }
+    return result;
+}
+
 exports.sendToUser = async (userId, title, body, data = {}) => {
     if (!isInitialized) return;
     try {
@@ -51,34 +60,44 @@ exports.sendToUser = async (userId, title, body, data = {}) => {
         const isCall = data.type === 'call' || data.type === 'video_call' || data.type === 'audio_call';
 
         const message = {
-            data: {
+            data: stringifyData({
                 ...data,
                 title: title || '',
                 body: body || '',
                 click_action: 'FLUTTER_NOTIFICATION_CLICK',
-            },
+            }),
             token: user.fcmToken,
-            android: {
-                priority: 'high',
-            },
         };
 
-        // Only add notification block for non-call messages
-        if (!isCall) {
+        if (isCall) {
+            // Call: data-only, high priority, 30s TTL, wake device from doze
+            message.android = {
+                priority: 'high',
+                ttl: 30000,
+                directBootOk: true,
+            };
+        } else {
+            // Message: notification block + correct channel for Android 8+
             message.notification = { title, body };
+            message.android = {
+                priority: 'high',
+                notification: {
+                    channelId: 'infexor_messages',
+                    sound: 'notification_sound',
+                    defaultSound: false,
+                },
+            };
         }
 
         const response = await admin.messaging().send(message);
-        logger.debug(`FCM sent to user ${userId} successfully: ${response}`);
+        logger.info(`FCM sent to user ${userId} (${isCall ? 'call' : 'message'}): ${response}`);
 
     } catch (error) {
-        logger.error(`Error sending FCM to user ${userId}:`, error);
+        logger.error(`Error sending FCM to user ${userId}:`, { code: error.code, msg: error.message });
         // Cleanup expired/invalid tokens
         if (error.code === 'messaging/invalid-registration-token' ||
             error.code === 'messaging/registration-token-not-registered') {
-            await User.findByIdAndUpdate(userId, {
-                fcmToken: ''
-            });
+            await User.findByIdAndUpdate(userId, { fcmToken: '' });
         }
     }
 };

@@ -3,6 +3,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../network/api_client.dart';
 import '../constants/api_endpoints.dart';
+import 'notification_plugin.dart';
 
 final notificationServiceProvider = Provider<NotificationService>((ref) {
   return NotificationService(ref.read(apiClientProvider));
@@ -11,9 +12,6 @@ final notificationServiceProvider = Provider<NotificationService>((ref) {
 /// Handles both local notification display and device token management.
 class NotificationService {
   final ApiClient _api;
-  final FlutterLocalNotificationsPlugin _localNotifications =
-      FlutterLocalNotificationsPlugin();
-  bool _initialized = false;
 
   /// Currently active chat ID — suppress notifications for this chat
   String? activeChatId;
@@ -21,54 +19,26 @@ class NotificationService {
   /// Whether the app UI is in the foreground
   bool isAppInForeground = false;
 
-  /// Map of chatId -> unread message count (since last app open/focus)
-  final Map<String, int> _unreadCounts = {};
+  /// Accumulated messages per chat for MessagingStyleInformation (WhatsApp-style grouping)
+  final Map<String, List<Message>> _messageHistory = {};
+
+  bool _permissionRequested = false;
 
   NotificationService(this._api);
 
-  /// Initialize the local notifications plugin (call once at app start)
+  /// Request notification permission (Android 13+).
+  /// Plugin initialization is handled in main.dart.
   Future<void> initialize() async {
-    if (_initialized) return;
-
-    const androidSettings = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
-    );
-
-    const initSettings = InitializationSettings(android: androidSettings);
-
-    await _localNotifications.initialize(
-      settings: initSettings,
-      onDidReceiveNotificationResponse: _onNotificationTapped,
-    );
-
-    // Create the notification channel for Android 8+
-    const channel = AndroidNotificationChannel(
-      'chat_messages',
-      'Chat Messages',
-      description: 'Notifications for incoming chat messages',
-      importance: Importance.high,
-      playSound: true,
-      enableVibration: true,
-    );
-
-    await _localNotifications
+    if (_permissionRequested) return;
+    _permissionRequested = true;
+    await flutterLocalNotificationsPlugin
         .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.createNotificationChannel(channel);
-
-    // Request notification permission (Android 13+)
-    await _localNotifications
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
+            AndroidFlutterLocalNotificationsPlugin>()
         ?.requestNotificationsPermission();
-
-    _initialized = true;
-    debugPrint('✅ NotificationService initialized');
   }
 
-  /// Show a local notification for an incoming message
+  /// Show a local notification for an incoming message.
+  /// Groups multiple messages from the same chat using MessagingStyleInformation.
   Future<void> showMessageNotification({
     required String chatId,
     required String senderName,
@@ -88,61 +58,72 @@ class NotificationService {
       return;
     }
 
-    if (!_initialized) await initialize();
-
-    // Increment count
-    _unreadCounts[chatId] = (_unreadCounts[chatId] ?? 0) + 1;
-    final count = _unreadCounts[chatId]!;
+    // Accumulate messages per chat for grouped display
+    _messageHistory.putIfAbsent(chatId, () => []);
+    _messageHistory[chatId]!.add(
+      Message(
+        messageContent,
+        DateTime.now(),
+        Person(name: senderName),
+      ),
+    );
 
     final title = isGroup && groupName != null
         ? '$senderName • $groupName'
         : senderName;
 
-    final displayBody = count > 1
-        ? '$messageContent (+$count messages)'
-        : messageContent;
-
-    final String groupKey = 'chat_$chatId';
+    // Build WhatsApp-style grouped notification using MessagingStyleInformation
+    final messages = _messageHistory[chatId]!;
+    final messagingStyle = MessagingStyleInformation(
+      Person(name: 'Me'),
+      conversationTitle: isGroup ? groupName : null,
+      groupConversation: isGroup,
+      messages: messages,
+    );
 
     final androidDetails = AndroidNotificationDetails(
-      'chat_messages',
-      'Chat Messages',
-      channelDescription: 'Notifications for incoming chat messages',
+      messageChannel.id,
+      messageChannel.name,
+      channelDescription: messageChannel.description,
       importance: Importance.high,
       priority: Priority.high,
       playSound: true,
+      sound: messageChannel.sound,
       enableVibration: true,
       category: AndroidNotificationCategory.message,
-      groupKey: groupKey,
-      setAsGroupSummary: false,
-      styleInformation: const DefaultStyleInformation(true, true),
+      groupKey: 'chat_$chatId',
+      styleInformation: messagingStyle,
+      actions: const [
+        AndroidNotificationAction(
+          'reply_action',
+          'Reply',
+          inputs: [AndroidNotificationActionInput(label: 'Type a message...')],
+          showsUserInterface: false,
+          cancelNotification: false,
+        ),
+        AndroidNotificationAction(
+          'mark_read_action',
+          'Mark as read',
+          showsUserInterface: false,
+          cancelNotification: true,
+        ),
+      ],
     );
 
-    final details = NotificationDetails(android: androidDetails);
-
-    // Use chatId hashCode as notification ID
-    await _localNotifications.show(
+    // Use chatId hashCode as notification ID — same chat replaces its own grouped notification
+    await flutterLocalNotificationsPlugin.show(
       id: chatId.hashCode,
       title: title,
-      body: displayBody,
-      notificationDetails: details,
+      body: messageContent,
+      notificationDetails: NotificationDetails(android: androidDetails),
       payload: chatId,
     );
   }
 
-  /// Clear counts for a chat (call when chat is opened)
+  /// Clear message history for a chat (call when chat is opened)
   void clearCounts(String chatId) {
-    _unreadCounts.remove(chatId);
-    _localNotifications.cancelAll();
-  }
-
-  /// Handle notification tap
-  void _onNotificationTapped(NotificationResponse response) {
-    final chatId = response.payload;
-    if (chatId != null) {
-      debugPrint('Notification tapped for chat: $chatId');
-      _unreadCounts.remove(chatId); // Clear on tap
-    }
+    _messageHistory.remove(chatId);
+    flutterLocalNotificationsPlugin.cancel(id: chatId.hashCode);
   }
 
   /// Register device token with backend

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -22,6 +23,12 @@ class CallPage extends ConsumerStatefulWidget {
   final bool isIncoming;
   final bool isResuming;
   final int initialDuration;
+  /// True when this CallPage was opened from a callkit Accept action
+  /// (killed/background state). Tells CallPage to:
+  ///   1. Emit call:accept after the socket is confirmed connected.
+  ///   2. Call FlutterCallkitIncoming.setCallConnected when ICE connects.
+  ///   3. Call FlutterCallkitIncoming.endCall when the call ends.
+  final bool callkitAccepted;
 
   const CallPage({
     super.key,
@@ -33,6 +40,7 @@ class CallPage extends ConsumerStatefulWidget {
     this.isIncoming = false,
     this.isResuming = false,
     this.initialDuration = 0,
+    this.callkitAccepted = false,
   });
 
   @override
@@ -212,13 +220,28 @@ class _CallPageState extends ConsumerState<CallPage>
 
     if (widget.isIncoming) {
       setState(() => _callStatus = 'Connecting...');
+
       try {
         await _webRTCService.joinCall(
           widget.chatId,
           widget.userId,
           widget.isVideoCall,
         );
-        debugPrint('📞 joinCall completed - waiting for offer');
+        debugPrint('📞 joinCall completed - signaling ready');
+
+        // Emit call:accept AFTER joinCall() registers the webrtc:offer
+        // handler — for BOTH the callkit path (killed/background) and the
+        // foreground IncomingCallScreen path. This prevents the race where
+        // the caller's offer arrives before we're listening and is silently
+        // dropped, causing one-sided ringing (receiver shows "connecting…"
+        // but caller never connects).
+        if (!_disposed) {
+          socket.emit('call:accept', {
+            'chatId':   widget.chatId,
+            'callerId': widget.userId,
+          });
+          debugPrint('📞 Emitted call:accept - signaling ready for offer');
+        }
       } catch (e) {
         debugPrint('📞 joinCall error: $e');
         if (mounted && !_disposed) _endCallLocally();
@@ -285,6 +308,11 @@ class _CallPageState extends ConsumerState<CallPage>
     });
     _pulseController.stop();
     _startTimer();
+    // For callkit-accepted calls, notify callkit that the call is now live
+    // (transitions the OS notification from "incoming" to "in-call" state).
+    if (widget.callkitAccepted) {
+      FlutterCallkitIncoming.setCallConnected(widget.chatId);
+    }
 
     // Explicitly configure audio routing once connected
     if (widget.isVideoCall) {
@@ -302,6 +330,10 @@ class _CallPageState extends ConsumerState<CallPage>
     if (_disposed) return;
     _disposed = true;
     _webRTCService.endCall();
+    // Clear the callkit entry so it doesn't appear in activeCalls() on next launch
+    if (widget.callkitAccepted) {
+      await FlutterCallkitIncoming.endCall(widget.chatId);
+    }
 
     // Log call unconditionally to ensure history is updated for both parties
     final currentUserId = ref.read(authProvider).user?['_id'] ?? '';
@@ -324,6 +356,10 @@ class _CallPageState extends ConsumerState<CallPage>
   Future<void> _endCallLocally() async {
     if (_disposed) return;
     _disposed = true;
+    // Clear the callkit entry so it doesn't appear in activeCalls() on next launch
+    if (widget.callkitAccepted) {
+      await FlutterCallkitIncoming.endCall(widget.chatId);
+    }
 
     // Log call unconditionally to ensure history is updated for both parties
     final currentUserId = ref.read(authProvider).user?['_id'] ?? '';

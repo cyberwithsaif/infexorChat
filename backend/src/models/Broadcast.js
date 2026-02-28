@@ -25,6 +25,11 @@ const broadcastSchema = new mongoose.Schema(
       default: 'both',
       required: true,
     },
+    link: {
+      type: String,
+      default: '',
+      maxlength: 2000,
+    },
     status: {
       type: String,
       enum: ['draft', 'queued', 'sending', 'sent', 'failed'],
