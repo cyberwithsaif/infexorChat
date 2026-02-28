@@ -1,8 +1,13 @@
 /**
  * Dashboard Module — 17 live widgets + charts
+ * • loadLive() polls every 5 seconds  (CPU, RAM, online count, etc.)
+ * • loadStats() polls every 30 seconds (users, messages today, charts, recent users)
  */
 const DashboardModule = (() => {
-    let interval = null;
+    let liveInterval = null;
+    let statsInterval = null;
+    let msgsChart = null;
+    let usersChart = null;
 
     function init(container) {
         container.innerHTML = `
@@ -32,7 +37,8 @@ const DashboardModule = (() => {
 
         loadStats();
         loadLive();
-        interval = setInterval(loadLive, 5000);
+        liveInterval = setInterval(loadLive, 5000);
+        statsInterval = setInterval(loadStats, 30000);
     }
 
     async function loadStats() {
@@ -43,29 +49,40 @@ const DashboardModule = (() => {
             setText('mMsgsToday', fmt(d.messagesToday));
             setText('mCallsToday', fmt(d.callsToday));
 
-            // Charts
+            // Destroy old charts before creating new ones
+            if (msgsChart) { msgsChart.destroy(); msgsChart = null; }
+            if (usersChart) { usersChart.destroy(); usersChart = null; }
+
             if (d.messagesPerDay?.length) {
-                new Chart(document.getElementById('chartMsgs'), {
-                    type: 'line', data: {
-                        labels: d.messagesPerDay.map(x => x._id.slice(5)),
-                        datasets: [{ label: 'Messages', data: d.messagesPerDay.map(x => x.count), borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.1)', fill: true, tension: 0.4 }]
-                    }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-                });
+                const el = document.getElementById('chartMsgs');
+                if (el) {
+                    msgsChart = new Chart(el, {
+                        type: 'line', data: {
+                            labels: d.messagesPerDay.map(x => x._id.slice(5)),
+                            datasets: [{ label: 'Messages', data: d.messagesPerDay.map(x => x.count), borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,0.1)', fill: true, tension: 0.4 }]
+                        }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+                    });
+                }
             }
             if (d.newUsersPerDay?.length) {
-                new Chart(document.getElementById('chartUsers'), {
-                    type: 'line', data: {
-                        labels: d.newUsersPerDay.map(x => x._id.slice(5)),
-                        datasets: [{ label: 'Users', data: d.newUsersPerDay.map(x => x.count), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }]
-                    }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-                });
+                const el = document.getElementById('chartUsers');
+                if (el) {
+                    usersChart = new Chart(el, {
+                        type: 'line', data: {
+                            labels: d.newUsersPerDay.map(x => x._id.slice(5)),
+                            datasets: [{ label: 'Users', data: d.newUsersPerDay.map(x => x.count), borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 }]
+                        }, options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+                    });
+                }
             }
 
             // Recent users
             const ur = await API.get('/admin/users?limit=8');
             const users = ur.data?.users || [];
             const tbody = document.getElementById('recentUsersTable');
-            tbody.innerHTML = users.map(u => `<tr><td><span class="status-dot ${u.isOnline ? 'online' : ''}"></span> ${esc(u.name)}</td><td>${esc(u.phone)}</td><td><span class="badge badge-${u.status === 'active' ? 'success' : 'danger'}">${u.status}</span></td><td>${timeAgo(u.createdAt)}</td></tr>`).join('') || '<tr><td colspan="4">No users</td></tr>';
+            if (tbody) {
+                tbody.innerHTML = users.map(u => `<tr><td><span class="status-dot ${u.isOnline ? 'online' : ''}"></span> ${esc(u.name)}</td><td>${esc(u.phone)}</td><td><span class="badge badge-${u.status === 'active' ? 'success' : 'danger'}">${u.status}</span></td><td>${timeAgo(u.createdAt)}</td></tr>`).join('') || '<tr><td colspan="4">No users</td></tr>';
+            }
         } catch (e) { console.error('Dashboard stats error:', e); }
     }
 
@@ -106,6 +123,11 @@ const DashboardModule = (() => {
         await Promise.all([loadStats(), loadLive()]);
     }
 
-    function destroy() { if (interval) { clearInterval(interval); interval = null; } }
+    function destroy() {
+        if (liveInterval) { clearInterval(liveInterval); liveInterval = null; }
+        if (statsInterval) { clearInterval(statsInterval); statsInterval = null; }
+        if (msgsChart) { msgsChart.destroy(); msgsChart = null; }
+        if (usersChart) { usersChart.destroy(); usersChart = null; }
+    }
     return { init, destroy, loadStats, refresh };
 })();

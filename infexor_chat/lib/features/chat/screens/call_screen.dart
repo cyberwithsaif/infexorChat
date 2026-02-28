@@ -92,10 +92,14 @@ class _CallPageState extends ConsumerState<CallPage>
     // Start with controls visible
     _controlsAnimController.value = 1.0;
 
+    // Register socket listeners IMMEDIATELY — before any async operations
+    // so we never miss call:rejected / call:ended / call:cancelled that
+    // can arrive while permissions or WebRTC init are still pending.
+    _setupSocketListeners();
+
     if (widget.isResuming) {
       _isConnected = true;
       _callStatus = 'Connected';
-      _setupSocketListeners();
       _startTimer();
       if (widget.isVideoCall) {
         Helper.setSpeakerphoneOn(true);
@@ -113,8 +117,10 @@ class _CallPageState extends ConsumerState<CallPage>
   void _setupSocketListeners() {
     final socketService = ref.read(socketServiceProvider);
 
-    // Listen for ALL possible call-end events from server
-    for (final event in ['call:ended', 'call:end', 'call:hangup', 'call:cancelled']) {
+    // Listen for call-end events from server.
+    // NOTE: 'call:cancelled' is intentionally excluded — call_manager.dart
+    // owns that listener globally and handles dismiss + callkit cleanup.
+    for (final event in ['call:ended', 'call:end', 'call:hangup']) {
       socketService.on(event, (data) {
         if (_disposed) return;
         debugPrint('📞 Received $event from server');
@@ -135,11 +141,12 @@ class _CallPageState extends ConsumerState<CallPage>
       }
     });
 
-    // Listen for call rejected
+    // Listen for call rejected — use endCallFromRemote so we don't
+    // emit call:cancel back to the server (server already knows).
     socketService.on('call:rejected', (data) {
       if (_disposed) return;
       debugPrint('📞 Call rejected by remote');
-      _endCallLocally();
+      _endCallFromRemote();
     });
   }
 
@@ -147,6 +154,26 @@ class _CallPageState extends ConsumerState<CallPage>
     await [Permission.microphone, Permission.camera].request();
 
     final socketService = ref.read(socketServiceProvider);
+
+    // ── Wait for socket to be ready (critical for cold-start from notification) ──
+    if (!socketService.isConnected || socketService.socket == null) {
+      if (mounted) setState(() => _callStatus = 'Connecting to server...');
+      final connected = await _waitForSocket(socketService);
+      if (!connected) {
+        debugPrint('📞 Socket never connected — aborting call');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not connect to server. Please try again.'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+          Navigator.pop(context);
+        }
+        return;
+      }
+    }
+
     final socket = socketService.socket;
     if (socket == null) {
       if (mounted) Navigator.pop(context);
@@ -179,8 +206,7 @@ class _CallPageState extends ConsumerState<CallPage>
       }
     };
 
-    // ---- SOCKET LISTENERS FOR CALL STATE ----
-    _setupSocketListeners();
+    // Socket listeners already registered in initState() — no-op here
 
     // ---- START/JOIN CALL ----
 
@@ -234,6 +260,21 @@ class _CallPageState extends ConsumerState<CallPage>
         }
       });
     }
+  }
+
+  /// Wait for socket to connect, polling every 500ms for up to 15 seconds.
+  /// Returns true if socket connected, false if timed out.
+  Future<bool> _waitForSocket(dynamic socketService) async {
+    const maxAttempts = 30; // 30 × 500ms = 15 seconds
+    for (int i = 0; i < maxAttempts; i++) {
+      if (_disposed) return false;
+      if (socketService.isConnected && socketService.socket != null) {
+        debugPrint('📞 Socket ready after ${i * 500}ms');
+        return true;
+      }
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+    return false;
   }
 
   void _markConnected() {
@@ -388,14 +429,15 @@ class _CallPageState extends ConsumerState<CallPage>
     _pulseController.dispose();
     _controlsAnimController.dispose();
 
-    // Clean up call-specific socket listeners
+    // Clean up call-specific socket listeners.
+    // NOTE: do NOT off('call:cancelled') — call_manager.dart owns that
+    // global listener and needs it for future incoming calls.
     final socketService = ref.read(socketServiceProvider);
     socketService.off('call:ended');
     socketService.off('call:accepted');
     socketService.off('call:rejected');
     socketService.off('call:hangup');
     socketService.off('call:end');
-    socketService.off('call:cancelled');
 
     // Only end the actual WebRTC call if NOT being minimized
     if (!_minimized) {
