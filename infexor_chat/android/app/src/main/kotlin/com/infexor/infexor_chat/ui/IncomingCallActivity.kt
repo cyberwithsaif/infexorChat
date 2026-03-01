@@ -38,10 +38,10 @@ class IncomingCallActivity : Activity() {
         val isVideo = intent.getStringExtra("isVideo")
         val callerAvatar = intent.getStringExtra("callerAvatar")
 
-        // Shut down the ringing service since the user interacted
-        stopService(Intent(this, CallForegroundService::class.java))
-
         if (action == "accept") {
+            // Shut down the ringing service since the user interacted
+            stopService(Intent(this, CallForegroundService::class.java))
+
             // Launch the main Flutter activity and pass the call data
             val mainIntent = Intent(this, MainActivity::class.java).apply {
                 putExtra("callAction", "accept")
@@ -58,6 +58,9 @@ class IncomingCallActivity : Activity() {
         }
 
         if (action == "reject") {
+            // Shut down the ringing service since the user interacted
+            stopService(Intent(this, CallForegroundService::class.java))
+
             // Launch main Flutter activity to tell the server we rejected
             val mainIntent = Intent(this, MainActivity::class.java).apply {
                 putExtra("callAction", "reject")

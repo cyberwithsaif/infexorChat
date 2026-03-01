@@ -268,7 +268,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
               children: [
                 // Info Card
                 Container(
-                  color: Colors.white,
+                  color: appBarBg,
                   padding: const EdgeInsets.all(16),
                   margin: const EdgeInsets.only(bottom: 8),
                   child: Column(
@@ -285,9 +285,9 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                       const SizedBox(height: 8),
                       Text(
                         about,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
-                          color: AppColors.textPrimary,
+                          color: isDark2 ? Colors.white : AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -301,9 +301,9 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                       const Divider(height: 24),
                       Text(
                         phone,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 16,
-                          color: AppColors.textPrimary,
+                          color: isDark2 ? Colors.white : AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -383,7 +383,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
 
                 // Media & Common
                 Container(
-                  color: Colors.white,
+                  color: appBarBg,
                   margin: const EdgeInsets.only(bottom: 8),
                   child: Column(
                     children: [
@@ -392,13 +392,20 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                           Icons.image,
                           color: AppColors.textSecondary,
                         ),
-                        title: const Text('Media, links, and docs'),
+                        title: Text(
+                          'Media, links, and docs',
+                          style: TextStyle(
+                            color: isDark2 ? Colors.white : Colors.black,
+                          ),
+                        ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
                               '$_mediaCount',
-                              style: TextStyle(color: AppColors.textMuted),
+                              style: const TextStyle(
+                                color: AppColors.textMuted,
+                              ),
                             ),
                             const Icon(
                               Icons.chevron_right,
@@ -418,16 +425,25 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                           );
                         },
                       ),
-                      const Divider(height: 1, indent: 72),
+                      Divider(
+                        height: 1,
+                        indent: 72,
+                        color: isDark2 ? Colors.white10 : AppColors.border,
+                      ),
                       ListTile(
                         leading: const Icon(
                           Icons.star_border,
                           color: AppColors.textSecondary,
                         ),
-                        title: const Text('Starred messages'),
-                        trailing: const Icon(
+                        title: Text(
+                          'Starred messages',
+                          style: TextStyle(
+                            color: isDark2 ? Colors.white : Colors.black,
+                          ),
+                        ),
+                        trailing: Icon(
                           Icons.chevron_right,
-                          color: AppColors.textMuted,
+                          color: isDark2 ? Colors.white54 : AppColors.textMuted,
                         ),
                         onTap: () {
                           Navigator.push(
@@ -444,13 +460,22 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                           );
                         },
                       ),
-                      const Divider(height: 1, indent: 72),
+                      Divider(
+                        height: 1,
+                        indent: 72,
+                        color: isDark2 ? Colors.white10 : AppColors.border,
+                      ),
                       ListTile(
                         leading: const Icon(
                           Icons.notifications_none,
                           color: AppColors.textSecondary,
                         ),
-                        title: const Text('Mute notifications'),
+                        title: Text(
+                          'Mute notifications',
+                          style: TextStyle(
+                            color: isDark2 ? Colors.white : Colors.black,
+                          ),
+                        ),
                         trailing: Switch(
                           value: _isMuted,
                           onChanged: (v) {
@@ -465,6 +490,9 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                               ),
                             );
                           },
+                          inactiveTrackColor: isDark2
+                              ? Colors.white10
+                              : Colors.grey.withValues(alpha: 0.3),
                         ),
                       ),
                     ],
@@ -473,7 +501,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
 
                 // Actions
                 Container(
-                  color: Colors.white,
+                  color: appBarBg,
                   margin: const EdgeInsets.only(bottom: 30),
                   child: Column(
                     children: [
@@ -493,7 +521,11 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                               ),
                         onTap: _isLoadingBlock ? null : _toggleBlock,
                       ),
-                      const Divider(height: 1, indent: 72),
+                      Divider(
+                        height: 1,
+                        indent: 72,
+                        color: isDark2 ? Colors.white10 : AppColors.border,
+                      ),
                       ListTile(
                         leading: const Icon(
                           Icons.thumb_down_outlined,

@@ -16,8 +16,12 @@ class HelpScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black;
-    final subtitleColor = theme.textTheme.bodyMedium?.color ?? Colors.grey;
+    final textColor =
+        theme.textTheme.bodyLarge?.color ??
+        (isDark ? Colors.white : Colors.black);
+    final subtitleColor =
+        theme.textTheme.bodyMedium?.color ??
+        (isDark ? Colors.grey[400]! : Colors.grey);
     final bgColor = theme.scaffoldBackgroundColor;
     final cardColor = isDark ? AppColors.darkBgSecondary : AppColors.bgCard;
 
@@ -46,11 +50,11 @@ class HelpScreen extends StatelessWidget {
             ),
           ),
           _HelpTile(
-            icon: Icons.email_outlined,
+            icon: Icons.phone_outlined,
             title: 'Contact Us',
-            subtitle: 'support@infexor.com',
+            subtitle: '+91 7007800445',
             onTap: () =>
-                _copyAndNotify(context, 'support@infexor.com', 'Email'),
+                _copyAndNotify(context, '+91 7007800445', 'Phone number'),
           ),
           _HelpTile(
             icon: Icons.question_answer_outlined,
@@ -203,8 +207,12 @@ class _HelpTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black;
-    final subtitleColor = theme.textTheme.bodyMedium?.color ?? Colors.grey;
+    final textColor =
+        theme.textTheme.bodyLarge?.color ??
+        (theme.brightness == Brightness.dark ? Colors.white : Colors.black);
+    final subtitleColor =
+        theme.textTheme.bodyMedium?.color ??
+        (theme.brightness == Brightness.dark ? Colors.grey[400]! : Colors.grey);
 
     return ListTile(
       leading: Container(
@@ -243,8 +251,12 @@ class _FaqItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black;
-    final subtitleColor = theme.textTheme.bodyMedium?.color ?? Colors.grey;
+    final textColor =
+        theme.textTheme.bodyLarge?.color ??
+        (theme.brightness == Brightness.dark ? Colors.white : Colors.black);
+    final subtitleColor =
+        theme.textTheme.bodyMedium?.color ??
+        (theme.brightness == Brightness.dark ? Colors.grey[400]! : Colors.grey);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),

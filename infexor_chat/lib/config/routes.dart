@@ -5,6 +5,9 @@ import '../features/auth/screens/otp_screen.dart';
 import '../features/auth/screens/profile_setup_screen.dart';
 import '../features/contacts/screens/contacts_screen.dart';
 import '../features/chat/screens/conversation_screen.dart';
+import '../features/chat/screens/call_screen.dart';
+import '../features/chat/screens/incoming_call_screen.dart';
+import '../features/chat/screens/user_profile_screen.dart';
 import '../features/home/home_screen.dart';
 
 import 'package:flutter/material.dart';
@@ -31,8 +34,10 @@ CustomTransitionPage _slideFadePage({
         reverseCurve: Curves.easeInCubic,
       );
       return SlideTransition(
-        position: Tween<Offset>(begin: beginOffset, end: Offset.zero)
-            .animate(curved),
+        position: Tween<Offset>(
+          begin: beginOffset,
+          end: Offset.zero,
+        ).animate(curved),
         child: FadeTransition(opacity: curved, child: child),
       );
     },
@@ -40,10 +45,7 @@ CustomTransitionPage _slideFadePage({
 }
 
 /// Fade-only transition helper for GoRouter pages.
-CustomTransitionPage _fadePage({
-  required LocalKey key,
-  required Widget child,
-}) {
+CustomTransitionPage _fadePage({required LocalKey key, required Widget child}) {
   return CustomTransitionPage(
     key: key,
     child: child,
@@ -64,17 +66,13 @@ final router = GoRouter(
   routes: [
     GoRoute(
       path: '/splash',
-      pageBuilder: (context, state) => NoTransitionPage(
-        key: state.pageKey,
-        child: const SplashScreen(),
-      ),
+      pageBuilder: (context, state) =>
+          NoTransitionPage(key: state.pageKey, child: const SplashScreen()),
     ),
     GoRoute(
       path: '/login',
-      pageBuilder: (context, state) => _fadePage(
-        key: state.pageKey,
-        child: const LoginScreen(),
-      ),
+      pageBuilder: (context, state) =>
+          _fadePage(key: state.pageKey, child: const LoginScreen()),
     ),
     GoRoute(
       path: '/otp',
@@ -91,17 +89,13 @@ final router = GoRouter(
     ),
     GoRoute(
       path: '/profile-setup',
-      pageBuilder: (context, state) => _slideFadePage(
-        key: state.pageKey,
-        child: const ProfileSetupScreen(),
-      ),
+      pageBuilder: (context, state) =>
+          _slideFadePage(key: state.pageKey, child: const ProfileSetupScreen()),
     ),
     GoRoute(
       path: '/home',
-      pageBuilder: (context, state) => _fadePage(
-        key: state.pageKey,
-        child: const HomeScreen(),
-      ),
+      pageBuilder: (context, state) =>
+          _fadePage(key: state.pageKey, child: const HomeScreen()),
     ),
     GoRoute(
       path: '/contacts',
@@ -123,6 +117,57 @@ final router = GoRouter(
             chatName: extra['chatName'] as String? ?? 'Chat',
             chatAvatar: extra['chatAvatar'] as String? ?? '',
             isOnline: extra['isOnline'] as bool? ?? false,
+          ),
+        );
+      },
+    ),
+    GoRoute(
+      path: '/call',
+      pageBuilder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>;
+        return NoTransitionPage(
+          key: state.pageKey,
+          child: CallPage(
+            chatId: extra['chatId'] as String,
+            userId: extra['userId'] as String,
+            callerName: extra['callerName'] as String? ?? 'Unknown',
+            callerAvatar: extra['callerAvatar'] as String?,
+            isVideoCall: extra['isVideoCall'] as bool? ?? true,
+            isIncoming: extra['isIncoming'] as bool? ?? false,
+            callkitAccepted: extra['callkitAccepted'] as bool? ?? false,
+            isResuming: extra['isResuming'] as bool? ?? false,
+            initialDuration: extra['initialDuration'] as int? ?? 0,
+          ),
+        );
+      },
+    ),
+    GoRoute(
+      path: '/incoming-call',
+      pageBuilder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>;
+        return NoTransitionPage(
+          key: state.pageKey,
+          child: IncomingCallScreen(
+            callId: extra['callId'] as String,
+            chatId: extra['chatId'] as String,
+            callerId: extra['callerId'] as String,
+            callerName: extra['callerName'] as String,
+            callerAvatar: extra['callerAvatar'] as String?,
+            isVideo: extra['isVideo'] as bool? ?? true,
+          ),
+        );
+      },
+    ),
+    GoRoute(
+      path: '/profile',
+      pageBuilder: (context, state) {
+        final extra = state.extra as Map<String, dynamic>;
+        return NoTransitionPage(
+          key: state.pageKey,
+          child: UserProfileScreen(
+            user: extra['user'] as Map<String, dynamic>,
+            chatId: extra['chatId'] as String,
+            contactName: extra['contactName'] as String?,
           ),
         );
       },

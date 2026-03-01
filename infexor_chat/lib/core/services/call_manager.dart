@@ -6,11 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../config/routes.dart';
-import '../utils/animated_page_route.dart';
-import '../../features/chat/screens/incoming_call_screen.dart';
-import '../../features/chat/screens/call_screen.dart';
 import '../../features/chat/services/socket_service.dart';
+import '../../features/auth/providers/auth_provider.dart';
 import '../../features/auth/services/auth_service.dart';
+import '../providers/active_call_provider.dart';
 import 'webrtc_service.dart';
 
 // ─── iOS VoIP native ↔ Flutter channel ──────────────────────────────────────
@@ -37,6 +36,18 @@ final incomingCallProvider =
     NotifierProvider<IncomingCallNotifier, Map<String, dynamic>?>(
       IncomingCallNotifier.new,
     );
+
+/// Whether the app is currently in native Android PiP mode.
+class PipModeNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void set(bool value) => state = value;
+}
+
+final pipModeProvider = NotifierProvider<PipModeNotifier, bool>(
+  PipModeNotifier.new,
+);
 
 final callManagerProvider = Provider<CallManager>((ref) {
   return CallManager(ref);
@@ -123,8 +134,16 @@ class CallManager {
           _onCallkitDecline(args);
           break;
         case 'ring':
+          _onCallkitRing(args);
+          break;
+        case 'resume':
+          _onCallResume();
           break;
       }
+    } else if (call.method == 'onPiPChanged') {
+      final isInPiP = (call.arguments as Map?)?['isInPiP'] == true;
+      debugPrint('📞 PiP mode changed: $isInPiP');
+      _ref.read(pipModeProvider.notifier).set(isInPiP);
     }
   }
 
@@ -178,7 +197,15 @@ class CallManager {
     // On cold start from killed state, the router walks through /splash → auth check → /home
     // before the navigator is ready. isAppInForeground is NOT checked here because
     // it is only set by HomeScreen which may not be mounted yet.
-    while (navigatorKey.currentState == null && waited < maxWaitMs) {
+    // On cold start from killed state, the router walks through /splash → auth check → /home
+    // before the navigator is ready. We must wait until the splash redirect has finished.
+    while (waited < maxWaitMs) {
+      if (navigatorKey.currentState != null) {
+        final authStatus = _ref.read(authProvider).status;
+        if (authStatus == AuthStatus.authenticated) {
+          break; // Splash has reached /home or elsewhere
+        }
+      }
       await Future.delayed(const Duration(milliseconds: pollMs));
       waited += pollMs;
     }
@@ -189,25 +216,22 @@ class CallManager {
       return;
     }
 
-    debugPrint('📞 Navigator ready after ${waited}ms — pushing CallPage');
-    navigatorKey.currentState!
-        .push(
-          ScaleFadePageRoute(
-            builder: (_) => CallPage(
-              chatId: chatId,
-              userId: callerId,
-              callerName: callerName,
-              callerAvatar: callerAvatar,
-              isVideoCall: isVideo,
-              isIncoming: true,
-              callkitAccepted:
-                  true, // CallPage handles call:accept + callkit lifecycle
-            ),
-          ),
-        )
-        .then((_) {
-          _isShowingIncomingCall = false;
-        });
+    debugPrint(
+      '📞 System ready after ${waited}ms — pushing CallPage via GoRouter',
+    );
+    router.push(
+      '/call',
+      extra: {
+        'chatId': chatId,
+        'userId': callerId,
+        'callerName': callerName,
+        'callerAvatar': callerAvatar,
+        'isVideoCall': isVideo,
+        'isIncoming': true,
+        'callkitAccepted': true,
+      },
+    );
+    _isShowingIncomingCall = false;
   }
 
   // ─── Decline ─────────────────────────────────────────────────────────────
@@ -224,6 +248,117 @@ class CallManager {
       'chatId': chatId,
       'callerId': callerId,
     });
+  }
+
+  // ─── Resume (ongoing call notification tapped) ─────────────────────────
+
+  void _onCallResume() {
+    final activeCall = _ref.read(activeCallProvider);
+    if (!activeCall.isActive) {
+      debugPrint('📞 Resume requested but no active call');
+      return;
+    }
+
+    debugPrint('📞 Resuming call from notification tap');
+    _ref.read(activeCallProvider.notifier).clearActiveCall();
+    router.push('/call', extra: {
+      'chatId': activeCall.chatId,
+      'userId': activeCall.userId,
+      'callerName': activeCall.callerName,
+      'callerAvatar': activeCall.callerAvatar,
+      'isVideoCall': activeCall.isVideoCall,
+      'isIncoming': activeCall.isIncoming,
+      'isResuming': true,
+      'initialDuration': activeCall.duration,
+    });
+  }
+
+  // ─── Ring (notification body tapped) ───────────────────────────────────
+
+  void _onCallkitRing(Map<dynamic, dynamic> body) {
+    final chatId = body['callId']?.toString() ?? '';
+    final callerId = body['callerId']?.toString() ?? '';
+    final callerName = body['callerName']?.toString() ?? 'Unknown';
+    final callerAvatar = body['callerAvatar']?.toString();
+    final isVideo = body['isVideo']?.toString() == 'true';
+
+    if (chatId.isEmpty) return;
+    if (_isShowingIncomingCall) return;
+
+    // Don't show ringing UI if we're already on a call (stale notification tap)
+    if (WebRTCService().isCallActive) {
+      debugPrint('📞 Ignoring ring — already on an active call');
+      _callsChannel.invokeMethod('endCall', {'chatId': chatId});
+      return;
+    }
+
+    debugPrint('📞 Callkit ring — showing IncomingCallScreen for chatId: $chatId');
+    _isShowingIncomingCall = true;
+
+    _ref.read(incomingCallProvider.notifier).setCall({
+      'chatId': chatId,
+      'callerId': callerId,
+      'callerName': callerName,
+      'callerAvatar': callerAvatar,
+      'isVideo': isVideo,
+    });
+
+    _pushIncomingCallWhenReady(
+      chatId: chatId,
+      callerId: callerId,
+      callerName: callerName,
+      callerAvatar: callerAvatar,
+      isVideo: isVideo,
+    );
+  }
+
+  // ─── Wait for navigator then push IncomingCallScreen ───────────────────
+
+  Future<void> _pushIncomingCallWhenReady({
+    required String chatId,
+    required String callerId,
+    required String callerName,
+    String? callerAvatar,
+    required bool isVideo,
+  }) async {
+    const maxWaitMs = 12000;
+    const pollMs = 150;
+    int waited = 0;
+
+    while (waited < maxWaitMs) {
+      if (navigatorKey.currentState != null) {
+        final authStatus = _ref.read(authProvider).status;
+        if (authStatus == AuthStatus.authenticated) break;
+      }
+      await Future.delayed(const Duration(milliseconds: pollMs));
+      waited += pollMs;
+    }
+
+    if (navigatorKey.currentState == null) {
+      debugPrint('📞 Navigator never became ready — cannot open IncomingCallScreen');
+      _isShowingIncomingCall = false;
+      _ref.read(incomingCallProvider.notifier).setCall(null);
+      return;
+    }
+
+    debugPrint('📞 System ready after ${waited}ms — pushing IncomingCallScreen');
+    router
+        .push(
+          '/incoming-call',
+          extra: {
+            'callId': 'call_$chatId',
+            'chatId': chatId,
+            'callerId': callerId,
+            'callerName': callerName,
+            'callerAvatar': callerAvatar,
+            'isVideo': isVideo,
+          },
+        )
+        .then((_) {
+          _isShowingIncomingCall = false;
+          _ref.read(incomingCallProvider.notifier).setCall(null);
+          _callsChannel.invokeMethod('endCall', {'chatId': chatId});
+        });
   }
 
   // ─── Killed-state recovery ───────────────────────────────────────────────
@@ -248,7 +383,7 @@ class CallManager {
         } else if (action == 'reject') {
           _onCallkitDecline(pending);
         } else if (action == 'ring') {
-          // Do nothing, just bringing app to foreground
+          _onCallkitRing(pending);
         }
       }
     } catch (e) {
@@ -303,6 +438,25 @@ class CallManager {
       }
     });
 
+    // ─── Remote ended the call (global handler for minimized calls) ─────
+    // CallPage registers its own call:ended listener but removes it on
+    // dispose (when minimized). This global listener catches the event
+    // when the call is minimized (green banner showing) so the WebRTC
+    // connection and banner are properly torn down.
+    for (final event in ['call:ended', 'call:end', 'call:hangup']) {
+      socketService.on(event, (data) {
+        if (data is! Map<String, dynamic>) return;
+        final chatId = data['chatId']?.toString() ?? '';
+        final activeCall = _ref.read(activeCallProvider);
+        if (activeCall.isActive && activeCall.chatId == chatId) {
+          debugPrint('📞 $event received while minimized — ending call');
+          WebRTCService().endCall();
+          _ref.read(activeCallProvider.notifier).endCall();
+          _callsChannel.invokeMethod('hideOngoingCallNotification');
+        }
+      });
+    }
+
     // ─── Foreground incoming call via socket ──────────────────────────────
     socketService.on('call:incoming', (data) {
       if (data is! Map<String, dynamic>) return;
@@ -339,18 +493,17 @@ class CallManager {
         'isVideo': type == 'video',
       });
 
-      navigatorKey.currentState
-          ?.push(
-            ScaleFadePageRoute(
-              builder: (_) => IncomingCallScreen(
-                callId: 'call_$chatId',
-                chatId: chatId,
-                callerId: callerId,
-                callerName: callerName,
-                callerAvatar: callerAvatar,
-                isVideo: type == 'video',
-              ),
-            ),
+      router
+          .push(
+            '/incoming-call',
+            extra: {
+              'callId': 'call_$chatId',
+              'chatId': chatId,
+              'callerId': callerId,
+              'callerName': callerName,
+              'callerAvatar': callerAvatar,
+              'isVideo': type == 'video',
+            },
           )
           .then((_) {
             _isShowingIncomingCall = false;

@@ -13,6 +13,9 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:go_router/go_router.dart';
 import 'config/routes.dart';
+import 'core/localization/locale_provider.dart';
+import 'generated/l10n/app_localizations.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/services/call_manager.dart';
 import 'core/services/notification_plugin.dart';
@@ -353,15 +356,24 @@ class _InfexorChatAppState extends ConsumerState<InfexorChatApp>
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: themeMode,
+          locale: ref.watch(localeProvider),
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
           routerConfig: router,
           builder: (context, child) {
             return Stack(
               children: [
-                Column(
-                  children: [
-                    const ActiveCallBanner(),
-                    Expanded(child: child ?? const SizedBox.shrink()),
-                  ],
+                child ?? const SizedBox.shrink(),
+                const Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: ActiveCallBanner(),
                 ),
                 const ActiveCallPip(),
               ],

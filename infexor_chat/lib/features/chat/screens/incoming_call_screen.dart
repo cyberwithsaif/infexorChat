@@ -7,11 +7,11 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/url_utils.dart';
-import '../../../core/utils/animated_page_route.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../services/socket_service.dart';
 import '../providers/call_history_provider.dart';
-import 'call_screen.dart';
+import '../../../core/providers/active_call_provider.dart';
+import '../../../config/routes.dart';
 
 class IncomingCallScreen extends ConsumerStatefulWidget {
   final String callId;
@@ -20,6 +20,7 @@ class IncomingCallScreen extends ConsumerStatefulWidget {
   final String callerName;
   final String? callerAvatar;
   final bool isVideo;
+  final bool isResuming;
 
   const IncomingCallScreen({
     super.key,
@@ -29,6 +30,7 @@ class IncomingCallScreen extends ConsumerStatefulWidget {
     required this.callerName,
     this.callerAvatar,
     this.isVideo = true,
+    this.isResuming = false,
   });
 
   @override
@@ -37,14 +39,17 @@ class IncomingCallScreen extends ConsumerStatefulWidget {
 
 class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen> {
   bool _handled = false;
+  bool _minimized = false;
   Timer? _vibrationTimer;
   Timer? _listenerDelayTimer;
 
   @override
   void initState() {
     super.initState();
-    _playRingtone();
-    _startVibration();
+    if (!widget.isResuming) {
+      _playRingtone();
+      _startVibration();
+    }
 
     // Delay socket listener registration to avoid stale events
     // when app launches from terminated state via notification tap
@@ -113,6 +118,7 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen> {
     if (mounted && !_handled) {
       _handled = true;
       _stopRingtone();
+      ref.read(activeCallProvider.notifier).clearActiveCall();
       Navigator.pop(context);
     }
   }
@@ -122,32 +128,56 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen> {
     _handled = true;
     _listenerDelayTimer?.cancel();
     _vibrationTimer?.cancel();
-    _stopRingtone();
+    // Only stop ringtone if NOT minimizing
+    if (!_minimized) {
+      _stopRingtone();
+    }
     final socketService = ref.read(socketServiceProvider);
     socketService.off('call:ended');
     socketService.off('call:end');
     super.dispose();
   }
 
-  void _acceptCall() {
+  void _minimizeCall() {
     if (_handled) return;
-    _handled = true;
-    _stopRingtone();
-    // NOTE: call:accept is NOT emitted here — CallPage emits it after
-    // joinCall() registers the webrtc:offer handler, preventing a race
-    // where the caller's offer arrives before the callee is ready.
-    Navigator.pushReplacement(
-      context,
-      ScaleFadePageRoute(
-        builder: (_) => CallPage(
+    _minimized = true;
+
+    // Sync state with global activeCallProvider so the banner shows up
+    ref
+        .read(activeCallProvider.notifier)
+        .setActiveCall(
           chatId: widget.chatId,
           userId: widget.callerId,
           callerName: widget.callerName,
           callerAvatar: widget.callerAvatar,
           isVideoCall: widget.isVideo,
           isIncoming: true,
-        ),
-      ),
+          status: 'ringing',
+          currentDuration: 0,
+        );
+
+    if (mounted) Navigator.pop(context);
+  }
+
+  void _acceptCall() {
+    if (_handled) return;
+    _handled = true;
+    _stopRingtone();
+    // Clear ringing status so CallPage can take over
+    ref.read(activeCallProvider.notifier).clearActiveCall();
+    // NOTE: call:accept is NOT emitted here — CallPage emits it after
+    // joinCall() registers the webrtc:offer handler, preventing a race
+    // where the caller's offer arrives before the callee is ready.
+    router.pushReplacement(
+      '/call',
+      extra: {
+        'chatId': widget.chatId,
+        'userId': widget.callerId,
+        'callerName': widget.callerName,
+        'callerAvatar': widget.callerAvatar,
+        'isVideoCall': widget.isVideo,
+        'isIncoming': true,
+      },
     );
   }
 
@@ -155,6 +185,7 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen> {
     if (_handled) return;
     _handled = true;
     _stopRingtone();
+    ref.read(activeCallProvider.notifier).clearActiveCall();
     ref.read(socketServiceProvider).socket?.emit('call:reject', {
       'chatId': widget.chatId,
       'callerId': widget.callerId,
@@ -180,155 +211,177 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen> {
   Widget build(BuildContext context) {
     final avatar = UrlUtils.getFullUrl(widget.callerAvatar ?? '');
 
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF0D1B2A), Color(0xFF162640), Color(0xFF0A1628)],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _minimizeCall();
+      },
+      child: Scaffold(
+        body: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFF0D1B2A), Color(0xFF162640), Color(0xFF0A1628)],
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Stack(
-            children: [
-              // Decorative background elements
-              Positioned(
-                top: -80,
-                left: -80,
-                child: Container(
-                  width: 250,
-                  height: 250,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.accentBlue.withValues(alpha: 0.05),
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: 50,
-                right: -60,
-                child: Container(
-                  width: 200,
-                  height: 200,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.accentBlue.withValues(alpha: 0.03),
-                  ),
-                ),
-              ),
-
-              // Main content
-              Column(
-                children: [
-                  SizedBox(height: 20.h),
-
-                  // Call type badge
-                  Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: 16.w,
-                      vertical: 6.h,
-                    ),
+          child: SafeArea(
+            child: Stack(
+              children: [
+                // Decorative background elements
+                Positioned(
+                  top: -80,
+                  left: -80,
+                  child: Container(
+                    width: 250,
+                    height: 250,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.1),
-                      ),
+                      shape: BoxShape.circle,
+                      color: AppColors.accentBlue.withValues(alpha: 0.05),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          widget.isVideo ? Icons.videocam : Icons.call,
-                          color: AppColors.accentBlue,
-                          size: 16.sp,
-                        ),
-                        SizedBox(width: 6.w),
-                        Text(
-                          'Incoming ${widget.isVideo ? "Video" : "Voice"} Call',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 13.sp,
-                            fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Positioned(
+                  bottom: 50,
+                  right: -60,
+                  child: Container(
+                    width: 200,
+                    height: 200,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.accentBlue.withValues(alpha: 0.03),
+                    ),
+                  ),
+                ),
+
+                // Main content
+                Column(
+                  children: [
+                    SizedBox(height: 20.h),
+
+                    // Back button to minimize
+                    Align(
+                      alignment: Alignment.topLeft,
+                      child: Padding(
+                        padding: EdgeInsets.only(left: 16.w),
+                        child: IconButton(
+                          icon: const Icon(
+                            Icons.arrow_back,
+                            color: Colors.white,
                           ),
+                          onPressed: _minimizeCall,
                         ),
-                      ],
-                    ),
-                  ),
-
-                  const Spacer(flex: 2),
-
-                  // Avatar with animated rings
-                  _AnimatedRings(
-                    child: CircleAvatar(
-                      radius: 60.r,
-                      backgroundColor: AppColors.accentBlue.withValues(
-                        alpha: 0.3,
                       ),
-                      backgroundImage: avatar.isNotEmpty
-                          ? CachedNetworkImageProvider(avatar)
-                          : null,
-                      child: avatar.isEmpty
-                          ? Text(
-                              widget.callerName.isNotEmpty
-                                  ? widget.callerName[0].toUpperCase()
-                                  : '?',
-                              style: TextStyle(
-                                fontSize: 40.sp,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            )
-                          : null,
                     ),
-                  ),
 
-                  SizedBox(height: 28.h),
-
-                  // Caller name
-                  Text(
-                    widget.callerName,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 28.sp,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-
-                  SizedBox(height: 8.h),
-
-                  // Status text
-                  Text(
-                    'Infexor ${widget.isVideo ? 'Video' : 'Voice'} Call',
-                    style: TextStyle(color: Colors.white38, fontSize: 14.sp),
-                  ),
-
-                  const Spacer(flex: 3),
-
-                  // Action buttons with swipe-up accept
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 48.w),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        // Decline with animated swipe-up
-                        _SwipeUpDeclineButton(onDecline: _declineCall),
-
-                        // Swipe-up to Accept
-                        _SwipeUpAcceptButton(
-                          isVideo: widget.isVideo,
-                          onAccept: _acceptCall,
+                    // Call type badge
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: 16.w,
+                        vertical: 6.h,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.1),
                         ),
-                      ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            widget.isVideo ? Icons.videocam : Icons.call,
+                            color: AppColors.accentBlue,
+                            size: 16.sp,
+                          ),
+                          SizedBox(width: 6.w),
+                          Text(
+                            'Incoming ${widget.isVideo ? "Video" : "Voice"} Call',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 13.sp,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
 
-                  SizedBox(height: 48.h),
-                ],
-              ),
-            ],
+                    const Spacer(flex: 2),
+
+                    // Avatar with animated rings
+                    _AnimatedRings(
+                      child: CircleAvatar(
+                        radius: 60.r,
+                        backgroundColor: AppColors.accentBlue.withValues(
+                          alpha: 0.3,
+                        ),
+                        backgroundImage: avatar.isNotEmpty
+                            ? CachedNetworkImageProvider(avatar)
+                            : null,
+                        child: avatar.isEmpty
+                            ? Text(
+                                widget.callerName.isNotEmpty
+                                    ? widget.callerName[0].toUpperCase()
+                                    : '?',
+                                style: TextStyle(
+                                  fontSize: 40.sp,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              )
+                            : null,
+                      ),
+                    ),
+
+                    SizedBox(height: 28.h),
+
+                    // Caller name
+                    Text(
+                      widget.callerName,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 28.sp,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+
+                    SizedBox(height: 8.h),
+
+                    // Status text
+                    Text(
+                      'Infexor ${widget.isVideo ? 'Video' : 'Voice'} Call',
+                      style: TextStyle(color: Colors.white38, fontSize: 14.sp),
+                    ),
+
+                    const Spacer(flex: 3),
+
+                    // Action buttons with swipe-up accept
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 48.w),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Decline with animated swipe-up
+                          _SwipeUpDeclineButton(onDecline: _declineCall),
+
+                          // Swipe-up to Accept
+                          _SwipeUpAcceptButton(
+                            isVideo: widget.isVideo,
+                            onAccept: _acceptCall,
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    SizedBox(height: 48.h),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

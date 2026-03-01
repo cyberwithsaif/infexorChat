@@ -14,9 +14,6 @@ import '../providers/chat_provider.dart';
 import 'create_group_screen.dart';
 import 'conversation_screen.dart';
 import '../../settings/screens/settings_screen.dart';
-import '../../../core/services/call_manager.dart';
-import '../../../core/utils/animated_page_route.dart';
-import 'incoming_call_screen.dart';
 
 import '../../../core/utils/phone_utils.dart';
 
@@ -63,8 +60,12 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final bgColor = theme.scaffoldBackgroundColor;
-    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black;
-    final subtitleColor = theme.textTheme.bodyMedium?.color ?? Colors.grey;
+    final textColor =
+        theme.textTheme.bodyLarge?.color ??
+        (isDark ? Colors.white : Colors.black);
+    final subtitleColor =
+        theme.textTheme.bodyMedium?.color ??
+        (isDark ? Colors.grey[400]! : Colors.grey);
     final iconColor = isDark
         ? AppColors.darkTextSecondary
         : const Color(0xFF54656F);
@@ -235,10 +236,14 @@ class _EmptyChats extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final textColor =
-        Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black;
+        theme.textTheme.bodyLarge?.color ??
+        (isDark ? Colors.white : Colors.black);
     final subtitleColor =
-        Theme.of(context).textTheme.bodyMedium?.color ?? Colors.grey;
+        theme.textTheme.bodyMedium?.color ??
+        (isDark ? Colors.grey[400]! : Colors.grey);
 
     return Center(
       child: Column(
@@ -287,10 +292,14 @@ class _ChatTile extends ConsumerWidget {
     try {
       return _buildTile(context, ref);
     } catch (e) {
+      final theme = Theme.of(context);
+      final isDark = theme.brightness == Brightness.dark;
       final textColor =
-          Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black;
+          theme.textTheme.bodyLarge?.color ??
+          (isDark ? Colors.white : Colors.black);
       final subtitleColor =
-          Theme.of(context).textTheme.bodyMedium?.color ?? Colors.grey;
+          theme.textTheme.bodyMedium?.color ??
+          (isDark ? Colors.grey[400]! : Colors.grey);
       return ListTile(
         leading: const CircleAvatar(child: Icon(Icons.error_outline)),
         title: Text('Chat', style: TextStyle(color: textColor)),
@@ -306,8 +315,12 @@ class _ChatTile extends ConsumerWidget {
     final context = buildContext;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black;
-    final subtitleColor = theme.textTheme.bodyMedium?.color ?? Colors.grey;
+    final textColor =
+        theme.textTheme.bodyLarge?.color ??
+        (isDark ? Colors.white : Colors.black);
+    final subtitleColor =
+        theme.textTheme.bodyMedium?.color ??
+        (isDark ? Colors.grey[400]! : Colors.grey);
     final bgColor = theme.scaffoldBackgroundColor;
     // Determine if group chat
     final isGroup = chat['type'] == 'group';
@@ -441,33 +454,12 @@ class _ChatTile extends ConsumerWidget {
       }
     }
 
-    // Check if this chat has an incoming call ringing
-    final incomingCall = ref.watch(incomingCallProvider);
     final chatIdStr = chat['_id']?.toString() ?? '';
-    final isRinging = incomingCall != null &&
-        incomingCall['chatId']?.toString() == chatIdStr;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: () {
-          // If ringing, tap opens the incoming call screen
-          if (isRinging) {
-            Navigator.push(
-              context,
-              ScaleFadePageRoute(
-                builder: (_) => IncomingCallScreen(
-                  callId: 'call_$chatIdStr',
-                  chatId: chatIdStr,
-                  callerId: incomingCall['callerId']?.toString() ?? '',
-                  callerName: incomingCall['callerName']?.toString() ?? name,
-                  callerAvatar: incomingCall['callerAvatar']?.toString(),
-                  isVideo: incomingCall['isVideo'] == true,
-                ),
-              ),
-            );
-            return;
-          }
           Navigator.push(
             context,
             InfexorPageRoute(
@@ -596,32 +588,6 @@ class _ChatTile extends ConsumerWidget {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        if (isRinging) ...[
-                          // Ringing indicator — replaces last message preview
-                          Icon(
-                            incomingCall['isVideo'] == true
-                                ? Icons.videocam
-                                : Icons.phone,
-                            size: 16,
-                            color: const Color(0xFF4CAF50),
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              incomingCall['isVideo'] == true
-                                  ? 'Incoming video call — tap to answer'
-                                  : 'Incoming voice call — tap to answer',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF4CAF50),
-                              ),
-                            ),
-                          ),
-                        ] else ...[
-                          // Normal last message preview
                           // Message status ticks
                           if (isMyLastMessage)
                             Padding(
@@ -676,7 +642,6 @@ class _ChatTile extends ConsumerWidget {
                               ],
                             ),
                           ),
-                        ],
                         if (unreadCount > 0)
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -713,9 +678,14 @@ class _ChatTile extends ConsumerWidget {
   void _showChatOptions(BuildContext context, String chatName) {
     final unreadCount = chat['unreadCount'] ?? 0;
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final sheetBg = theme.scaffoldBackgroundColor;
-    final sheetText = theme.textTheme.bodyLarge?.color ?? Colors.black;
-    final sheetIcon = theme.textTheme.bodyMedium?.color ?? Colors.grey;
+    final sheetText =
+        theme.textTheme.bodyLarge?.color ??
+        (isDark ? Colors.white : Colors.black);
+    final sheetIcon =
+        theme.textTheme.bodyMedium?.color ??
+        (isDark ? Colors.grey[400]! : Colors.grey);
 
     showModalBottomSheet(
       context: context,

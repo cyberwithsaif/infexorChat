@@ -10,6 +10,7 @@ class ActiveCallState {
   final String? callerAvatar;
   final bool isVideoCall;
   final bool isIncoming;
+  final String status; // 'ringing', 'connected'
   final int duration; // elapsed seconds
 
   const ActiveCallState({
@@ -20,6 +21,7 @@ class ActiveCallState {
     this.callerAvatar,
     this.isVideoCall = false,
     this.isIncoming = false,
+    this.status = 'connected',
     this.duration = 0,
   });
 
@@ -31,6 +33,7 @@ class ActiveCallState {
     String? callerAvatar,
     bool? isVideoCall,
     bool? isIncoming,
+    String? status,
     int? duration,
   }) {
     return ActiveCallState(
@@ -41,6 +44,7 @@ class ActiveCallState {
       callerAvatar: callerAvatar ?? this.callerAvatar,
       isVideoCall: isVideoCall ?? this.isVideoCall,
       isIncoming: isIncoming ?? this.isIncoming,
+      status: status ?? this.status,
       duration: duration ?? this.duration,
     );
   }
@@ -60,6 +64,7 @@ class ActiveCallNotifier extends Notifier<ActiveCallState> {
     String? callerAvatar,
     required bool isVideoCall,
     required bool isIncoming,
+    required String status,
     required int currentDuration,
   }) {
     _durationTimer?.cancel();
@@ -71,11 +76,30 @@ class ActiveCallNotifier extends Notifier<ActiveCallState> {
       callerAvatar: callerAvatar,
       isVideoCall: isVideoCall,
       isIncoming: isIncoming,
+      status: status,
       duration: currentDuration,
     );
-    // Continue counting duration
+
+    // Only start timer if connected
+    if (status == 'connected') {
+      _startTimer();
+    }
+  }
+
+  void updateStatus(String newStatus) {
+    if (!state.isActive) return;
+    state = state.copyWith(status: newStatus);
+    if (newStatus == 'connected') {
+      _startTimer();
+    } else {
+      _durationTimer?.cancel();
+    }
+  }
+
+  void _startTimer() {
+    _durationTimer?.cancel();
     _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (state.isActive) {
+      if (state.isActive && state.status == 'connected') {
         state = state.copyWith(duration: state.duration + 1);
       }
     });
@@ -94,9 +118,13 @@ class ActiveCallNotifier extends Notifier<ActiveCallState> {
   }
 
   String formatDuration(int seconds) {
-    final m = (seconds ~/ 60).toString().padLeft(2, '0');
-    final s = (seconds % 60).toString().padLeft(2, '0');
-    return '$m:$s';
+    final h = seconds ~/ 3600;
+    final m = (seconds % 3600) ~/ 60;
+    final s = seconds % 60;
+    if (h > 0) {
+      return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    }
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 }
 

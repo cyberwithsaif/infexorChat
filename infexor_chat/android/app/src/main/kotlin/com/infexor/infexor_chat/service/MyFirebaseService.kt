@@ -8,6 +8,7 @@ import com.google.firebase.messaging.RemoteMessage
 class MyFirebaseService : FirebaseMessagingService() {
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
+        println("[MyFirebaseService] onMessageReceived: ${remoteMessage.data}")
         val type = remoteMessage.data["type"] ?: return
 
         // Backend sends type = "audio_call" (audio) or "video_call" (video)

@@ -7,6 +7,8 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.infexor.infexor_chat.R
@@ -14,7 +16,7 @@ import com.infexor.infexor_chat.ui.IncomingCallActivity
 
 class CallForegroundService : Service() {
 
-    private val CHANNEL_ID = "CALL_CHANNEL"
+    private val CHANNEL_ID = "CALL_CHANNEL_V4"
     private val TIMEOUT = 30000L
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -71,17 +73,25 @@ class CallForegroundService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Incoming Call")
             .setContentText("$callerName is calling...")
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setFullScreenIntent(fullScreenPendingIntent, true)
+            .setContentIntent(fullScreenPendingIntent)
+            .setSound(ringtoneUri)
+            .setVibrate(longArrayOf(0, 1000, 500, 1000))
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .setChannelId(CHANNEL_ID)
             // Note: Since you're not passing actual drawables yet, we'll use android internal ones
             .addAction(android.R.drawable.ic_menu_call, "Accept", acceptPendingIntent)
             .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Reject", rejectPendingIntent)
-            .setOngoing(true)
             .build()
 
         // Must pass service type on API 29+ to match the manifest foregroundServiceType
@@ -110,6 +120,20 @@ class CallForegroundService : Service() {
                 "Call Notifications",
                 NotificationManager.IMPORTANCE_HIGH
             )
+            channel.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            
+            val ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+            val audioAttributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+            
+            channel.setSound(ringtoneUri, audioAttributes)
+            channel.enableVibration(true)
+            channel.vibrationPattern = longArrayOf(0, 1000, 500, 1000)
+            channel.enableLights(true)
+            channel.lightColor = android.graphics.Color.BLUE
+            channel.setBypassDnd(true)
             channel.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
 
             val manager = getSystemService(NotificationManager::class.java)

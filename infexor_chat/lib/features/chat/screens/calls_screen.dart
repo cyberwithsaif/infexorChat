@@ -13,6 +13,9 @@ import '../providers/call_history_provider.dart';
 import '../providers/chat_provider.dart';
 import '../models/call_log.dart';
 import 'call_screen.dart';
+import 'user_profile_screen.dart';
+import '../../../core/widgets/quick_profile_dialog.dart';
+import '../widgets/dialer_dialog.dart';
 
 class CallsScreen extends ConsumerWidget {
   const CallsScreen({super.key});
@@ -73,10 +76,13 @@ class CallsScreen extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // Open contact selection to make a call
+          showDialog(
+            context: context,
+            builder: (context) => const DialerDialog(),
+          );
         },
         backgroundColor: const Color(0xFFFF6B6B),
-        child: const Icon(Icons.add_call, color: Colors.white),
+        child: const Icon(Icons.dialpad, color: Colors.white),
       ),
     );
   }
@@ -133,7 +139,9 @@ class _CallTile extends ConsumerWidget {
     }
     if (displayName == 'Unknown Caller') {
       final phone = otherUser?['phone']?.toString();
-      final formatted = phone != null ? PhoneUtils.formatPhoneDisplay(phone) : '';
+      final formatted = phone != null
+          ? PhoneUtils.formatPhoneDisplay(phone)
+          : '';
       displayName = formatted.isNotEmpty
           ? formatted
           : (otherUser?['name']?.toString() ?? 'Unknown Caller');
@@ -165,21 +173,54 @@ class _CallTile extends ConsumerWidget {
     }
 
     return ListTile(
-      leading: CircleAvatar(
-        radius: 24,
-        backgroundColor: AppColors.accentBlue.withValues(alpha: 0.1),
-        backgroundImage: avatarUrl.isNotEmpty
-            ? CachedNetworkImageProvider(avatarUrl)
-            : null,
-        child: avatarUrl.isEmpty
-            ? Text(
-                displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
-                style: const TextStyle(
-                  color: AppColors.accentBlue,
-                  fontWeight: FontWeight.bold,
-                ),
-              )
-            : null,
+      leading: GestureDetector(
+        onTap: () {
+          final otherUserId = isOutgoing
+              ? callLog.receiverId
+              : callLog.callerId;
+          final chatListState = ref.read(chatListProvider);
+          String chatId = '';
+          for (final chat in chatListState.chats) {
+            final participants = chat['participants'] as List?;
+            if (participants != null &&
+                participants.any((p) => p is Map && p['_id'] == otherUserId)) {
+              chatId = chat['_id'];
+              break;
+            }
+          }
+
+          if (chatId.isEmpty) {
+            chatId = 'temp_${currentUserId}_$otherUserId';
+          }
+
+          if (otherUser != null) {
+            showDialog(
+              context: context,
+              builder: (ctx) => QuickProfileDialog(
+                user: otherUser,
+                chatId: chatId,
+                displayName: displayName,
+                avatarUrl: avatarPath,
+              ),
+            );
+          }
+        },
+        child: CircleAvatar(
+          radius: 24,
+          backgroundColor: AppColors.accentBlue.withValues(alpha: 0.1),
+          backgroundImage: avatarUrl.isNotEmpty
+              ? CachedNetworkImageProvider(avatarUrl)
+              : null,
+          child: avatarUrl.isEmpty
+              ? Text(
+                  displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
+                  style: const TextStyle(
+                    color: AppColors.accentBlue,
+                    fontWeight: FontWeight.bold,
+                  ),
+                )
+              : null,
+        ),
       ),
       title: Text(
         displayName,
@@ -249,7 +290,36 @@ class _CallTile extends ConsumerWidget {
         },
       ),
       onTap: () {
-        // Can open a detail sheet or page
+        final otherUserId = isOutgoing ? callLog.receiverId : callLog.callerId;
+        final chatListState = ref.read(chatListProvider);
+        String chatId = '';
+        for (final chat in chatListState.chats) {
+          final participants = chat['participants'] as List?;
+          if (participants != null &&
+              participants.any((p) => p is Map && p['_id'] == otherUserId)) {
+            chatId = chat['_id'];
+            break;
+          }
+        }
+
+        if (chatId.isEmpty) {
+          chatId = 'temp_${currentUserId}_$otherUserId';
+        }
+
+        if (otherUser != null) {
+          Navigator.push(
+            context,
+            AnimatedPageRoute(
+              builder: (_) => UserProfileScreen(
+                user: otherUser,
+                chatId: chatId,
+                contactName: displayName != 'Unknown Caller'
+                    ? displayName
+                    : null,
+              ),
+            ),
+          );
+        }
       },
     );
   }

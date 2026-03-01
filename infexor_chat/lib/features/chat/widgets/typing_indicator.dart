@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../core/animations/durations.dart';
 
 /// Lightweight, visually stable 3-dot typing indicator mimicking Telegram.
 /// Pre-computes animations and pauses when completely hidden to save CPU/GPU.

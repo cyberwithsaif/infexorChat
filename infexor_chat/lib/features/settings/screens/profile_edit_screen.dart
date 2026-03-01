@@ -126,8 +126,12 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final bgColor = theme.scaffoldBackgroundColor;
-    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black;
-    final subtitleColor = theme.textTheme.bodyMedium?.color ?? Colors.grey;
+    final textColor =
+        theme.textTheme.bodyLarge?.color ??
+        (isDark ? Colors.white : Colors.black);
+    final subtitleColor =
+        theme.textTheme.bodyMedium?.color ??
+        (isDark ? Colors.grey[400]! : Colors.grey);
     final cardColor = isDark ? AppColors.darkBgSecondary : AppColors.bgCard;
     final borderColor = isDark ? AppColors.darkBgSecondary : AppColors.border;
 

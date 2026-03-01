@@ -3,8 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../providers/active_call_provider.dart';
 import '../services/webrtc_service.dart';
-import '../utils/animated_page_route.dart';
-import '../../features/chat/screens/call_screen.dart';
+import '../../config/routes.dart';
 
 /// A floating Picture-in-Picture (PiP) widget that shows the remote video stream
 /// when a video call is minimized. It can be dragged around the screen.
@@ -58,20 +57,16 @@ class _ActiveCallPipState extends ConsumerState<ActiveCallPip> {
         onTap: () {
           // Restore the call screen
           ref.read(activeCallProvider.notifier).clearActiveCall();
-          Navigator.of(context).push(
-            ScaleFadePageRoute(
-              builder: (_) => CallPage(
-                chatId: callState.chatId,
-                userId: callState.userId,
-                callerName: callState.callerName,
-                callerAvatar: callState.callerAvatar,
-                isVideoCall: callState.isVideoCall,
-                isIncoming: callState.isIncoming,
-                isResuming: true, // Resume instead of re-init
-                initialDuration: callState.duration,
-              ),
-            ),
-          );
+          router.push('/call', extra: {
+            'chatId': callState.chatId,
+            'userId': callState.userId,
+            'callerName': callState.callerName,
+            'callerAvatar': callState.callerAvatar,
+            'isVideoCall': callState.isVideoCall,
+            'isIncoming': callState.isIncoming,
+            'isResuming': true,
+            'initialDuration': callState.duration,
+          });
         },
         child: Container(
           width: 110,

@@ -12,6 +12,9 @@ import 'notification_settings_screen.dart';
 import 'storage_data_screen.dart';
 import 'help_screen.dart';
 import 'chat_settings_screen.dart';
+import 'account_settings_screen.dart';
+import '../../../core/localization/locale_provider.dart';
+import '../../../generated/l10n/app_localizations.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -23,6 +26,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final authState = ref.watch(authProvider);
     final user = authState.user;
     final name = user?['name'] ?? 'User';
@@ -30,12 +34,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final rawAvatar = user?['avatar'] ?? '';
     final avatar = UrlUtils.getFullUrl(rawAvatar);
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF0B141A) : const Color(0xFFFAF8F5);
     final textColor =
-        Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black;
+        theme.textTheme.bodyLarge?.color ??
+        (isDark ? Colors.white : Colors.black);
     final subtitleColor =
-        Theme.of(context).textTheme.bodyMedium?.color ?? Colors.grey;
+        theme.textTheme.bodyMedium?.color ??
+        (isDark ? Colors.grey[400]! : Colors.grey);
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -49,7 +56,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               )
             : null,
         title: Text(
-          'Settings',
+          l10n.settings,
           style: TextStyle(
             color: AppColors.primaryPurple,
             fontWeight: FontWeight.w700,
@@ -64,7 +71,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         actions: [
           IconButton(
             icon: Icon(Icons.search, color: subtitleColor),
-            onPressed: () {},
+            onPressed: () {
+              showSearch(
+                context: context,
+                delegate: SettingsSearchDelegate(context, ref, l10n),
+              );
+            },
           ),
         ],
       ),
@@ -110,27 +122,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   )
                                 : null,
                           ),
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: Container(
-                              width: 24,
-                              height: 24,
-                              decoration: BoxDecoration(
-                                color: AppColors.primaryPurple,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 2.5,
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.camera_alt,
-                                color: Colors.white,
-                                size: 12,
-                              ),
-                            ),
-                          ),
                         ],
                       ),
                       const SizedBox(width: 16),
@@ -159,7 +150,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Available',
+                              l10n.available,
                               style: TextStyle(
                                 color: subtitleColor,
                                 fontSize: 13,
@@ -184,13 +175,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
 
           // ─── Account ───
-          const _SectionHeader(title: 'Account'),
+          _SectionHeader(title: l10n.account),
           _SettingsCard(
             children: [
               _SettingsTile(
                 icon: Icons.key_outlined,
-                title: 'Account',
-                subtitle: 'Security notifications, change number',
+                title: l10n.account,
+                subtitle: l10n.securityNotifications,
+                hasChevron: true,
+                onTap: () => Navigator.push(
+                  context,
+                  AnimatedPageRoute(
+                    builder: (_) => const AccountSettingsScreen(),
+                  ),
+                ),
+              ),
+              _Divider(context),
+              _SettingsTile(
+                icon: Icons.shield_outlined,
+                title: l10n.privacy,
+                subtitle: 'Block contacts, disappearing messages',
                 hasChevron: true,
                 onTap: () => Navigator.push(
                   context,
@@ -199,75 +203,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                 ),
               ),
-              _Divider(context),
-              _SettingsTile(
-                icon: Icons.delete_forever_outlined,
-                title: 'Delete Account',
-                subtitle: 'Permanently delete your account and data',
-                iconColor: Colors.redAccent,
-                titleColor: Colors.redAccent,
-                hasChevron: true,
-                onTap: () async {
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      backgroundColor: bgColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      title: Text(
-                        'Delete Account',
-                        style: TextStyle(
-                          color: textColor,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      content: const Text(
-                        'Are you sure you want to delete your account? This action is permanent and cannot be undone.',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text('Cancel'),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx, true),
-                          child: const Text(
-                            'Delete',
-                            style: TextStyle(color: Colors.redAccent),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-
-                  if (confirm == true) {
-                    final success = await ref
-                        .read(authProvider.notifier)
-                        .deleteAccount();
-                    if (!success && mounted) {
-                      final error = ref.read(authProvider).error;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(error ?? 'Failed to delete account'),
-                          backgroundColor: Colors.redAccent,
-                        ),
-                      );
-                    }
-                  }
-                },
-              ),
             ],
           ),
 
           // ─── Chats & Media ───
-          const _SectionHeader(title: 'Chats & Media'),
+          _SectionHeader(title: l10n.chats),
           _SettingsCard(
             children: [
               _SettingsTile(
                 icon: Icons.chat_bubble_outline,
-                title: 'Chats',
+                title: l10n.chats,
                 subtitle: 'Theme, wallpapers, chat history',
                 hasChevron: true,
                 onTap: () => Navigator.push(
@@ -278,7 +223,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               _Divider(context),
               _SettingsTile(
                 icon: Icons.notifications_outlined,
-                title: 'Notifications',
+                title: l10n.notifications,
                 subtitle: 'Message, group & call tones',
                 hasChevron: true,
                 onTap: () => Navigator.push(
@@ -291,7 +236,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               _Divider(context),
               _SettingsTile(
                 icon: Icons.data_usage,
-                title: 'Storage and Data',
+                title: l10n.storageAndData,
                 subtitle: 'Network usage, auto-download',
                 hasChevron: true,
                 onTap: () => Navigator.push(
@@ -303,13 +248,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
 
           // ─── App Settings ───
-          const _SectionHeader(title: 'App Settings'),
+          _SectionHeader(title: l10n.appSettings),
           _SettingsCard(
             children: [
               _SettingsTile(
                 icon: Icons.language,
-                title: 'App Language',
-                subtitle: 'English (device\'s language)',
+                title: l10n.appLanguage,
+                subtitle: l10n.languageEnglish,
                 hasChevron: true,
                 onTap: () {
                   showModalBottomSheet(
@@ -336,10 +281,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 borderRadius: BorderRadius.circular(2),
                               ),
                             ),
-                            const Padding(
-                              padding: EdgeInsets.all(16),
+                            Padding(
+                              padding: const EdgeInsets.all(16),
                               child: Text(
-                                'Choose Language',
+                                l10n.chooseLanguage,
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w600,
@@ -356,23 +301,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 Icons.check,
                                 color: Colors.green,
                               ),
-                              onTap: () => Navigator.pop(ctx),
+                              onTap: () {
+                                ref
+                                    .read(localeProvider.notifier)
+                                    .setLocale('en');
+                                Navigator.pop(ctx);
+                              },
                             ),
                             ListTile(
                               leading: const Text(
                                 '🇮🇳',
                                 style: TextStyle(fontSize: 24),
                               ),
-                              title: const Text('हिन्दी (Hindi)'),
+                              title: Text(l10n.languageHindi),
                               onTap: () {
+                                ref
+                                    .read(localeProvider.notifier)
+                                    .setLocale('hi');
                                 Navigator.pop(ctx);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                      'Hindi language coming soon!',
-                                    ),
-                                  ),
-                                );
                               },
                             ),
                             const SizedBox(height: 16),
@@ -387,12 +333,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
 
           // ─── Help ───
-          const _SectionHeader(title: 'Help'),
+          _SectionHeader(title: l10n.help),
           _SettingsCard(
             children: [
               _SettingsTile(
                 icon: Icons.help_outline_rounded,
-                title: 'Help',
+                title: l10n.help,
                 subtitle: 'Help center, contact us, privacy policy',
                 hasChevron: true,
                 onTap: () => Navigator.push(
@@ -403,7 +349,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               _Divider(context),
               _SettingsTile(
                 icon: Icons.group_add_outlined,
-                title: 'Invite a Friend',
+                title: l10n.inviteAFriend,
                 hasChevron: true,
                 onTap: () {},
               ),
@@ -417,7 +363,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             children: [
               _SettingsTile(
                 icon: Icons.logout_rounded,
-                title: 'Logout',
+                title: l10n.logout,
                 iconColor: Colors.redAccent,
                 titleColor: Colors.redAccent,
                 hasChevron: false,
@@ -430,26 +376,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                       title: Text(
-                        'Logout',
+                        l10n.logout,
                         style: TextStyle(
                           color: textColor,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       content: Text(
-                        'Are you sure you want to logout?',
+                        l10n.logoutConfirmation,
                         style: TextStyle(color: subtitleColor),
                       ),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text('Cancel'),
+                          child: Text(l10n.cancel),
                         ),
                         TextButton(
                           onPressed: () => Navigator.pop(ctx, true),
-                          child: const Text(
-                            'Logout',
-                            style: TextStyle(color: Colors.redAccent),
+                          child: Text(
+                            l10n.logout,
+                            style: const TextStyle(color: Colors.redAccent),
                           ),
                         ),
                       ],
@@ -570,11 +516,15 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final textColor =
         titleColor ??
-        (Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black);
+        (theme.textTheme.bodyLarge?.color ??
+            (isDark ? Colors.white : Colors.black));
     final subtitleColor =
-        Theme.of(context).textTheme.bodyMedium?.color ?? Colors.grey;
+        theme.textTheme.bodyMedium?.color ??
+        (isDark ? Colors.grey[400]! : Colors.grey);
     final activeIconColor = iconColor ?? AppColors.primaryPurple;
 
     return Material(
@@ -633,6 +583,101 @@ class _SettingsTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class SettingsSearchDelegate extends SearchDelegate {
+  final BuildContext context;
+  final WidgetRef ref;
+  final AppLocalizations l10n;
+
+  SettingsSearchDelegate(this.context, this.ref, this.l10n);
+
+  List<Map<String, dynamic>> get _items => [
+    {
+      'title': l10n.account,
+      'icon': Icons.key_rounded,
+      'onTap': () => _navigate(const AccountSettingsScreen()),
+    },
+    {
+      'title': l10n.privacy,
+      'icon': Icons.lock_outline_rounded,
+      'onTap': () => _navigate(const PrivacySettingsScreen()),
+    },
+    {
+      'title': l10n.chats,
+      'icon': Icons.chat_outlined,
+      'onTap': () => _navigate(const ChatSettingsScreen()),
+    },
+    {
+      'title': l10n.notifications,
+      'icon': Icons.notifications_none_rounded,
+      'onTap': () => _navigate(const NotificationSettingsScreen()),
+    },
+    {
+      'title': l10n.storageAndData,
+      'icon': Icons.data_usage_rounded,
+      'onTap': () => _navigate(const StorageDataScreen()),
+    },
+    {'title': l10n.appLanguage, 'icon': Icons.language_rounded, 'onTap': () {}},
+    {
+      'title': l10n.help,
+      'icon': Icons.help_outline_rounded,
+      'onTap': () => _navigate(const HelpScreen()),
+    },
+    {
+      'title': l10n.inviteAFriend,
+      'icon': Icons.group_add_outlined,
+      'onTap': () {},
+    },
+  ];
+
+  void _navigate(Widget screen) {
+    Navigator.push(context, AnimatedPageRoute(builder: (_) => screen));
+  }
+
+  @override
+  List<Widget>? buildActions(BuildContext context) {
+    return [
+      IconButton(icon: const Icon(Icons.clear), onPressed: () => query = ''),
+    ];
+  }
+
+  @override
+  Widget? buildLeading(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.arrow_back),
+      onPressed: () => close(context, null),
+    );
+  }
+
+  @override
+  Widget buildResults(BuildContext context) => _buildSuggestions();
+
+  @override
+  Widget buildSuggestions(BuildContext context) => _buildSuggestions();
+
+  Widget _buildSuggestions() {
+    final suggestions = _items.where((item) {
+      final title = item['title'].toString().toLowerCase();
+      final input = query.toLowerCase();
+      return title.contains(input);
+    }).toList();
+
+    return ListView.builder(
+      itemCount: suggestions.length,
+      itemBuilder: (context, index) {
+        final item = suggestions[index];
+        return ListTile(
+          leading: Icon(item['icon'] as IconData),
+          title: Text(item['title'] as String),
+          onTap: () {
+            close(context, null);
+            (item['onTap'] as VoidCallback)();
+          },
+        );
+      },
     );
   }
 }
