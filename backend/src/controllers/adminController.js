@@ -176,7 +176,7 @@ exports.getUsers = async (req, res, next) => {
 
         const [users, total] = await Promise.all([
             User.find(filter)
-                .select('name phone avatar status isOnline lastSeen createdAt fcmToken voipToken')
+                .select('name phone avatar status isOnline lastSeen createdAt fcmToken voipToken isVerified')
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limit)
@@ -302,6 +302,82 @@ exports.resetUserRateLimit = async (req, res, next) => {
         const userId = req.params.id;
         await redis.del(`call:rate:${userId}`);
         return ApiResponse.success(res, null, 'Rate limit reset');
+    } catch (error) {
+        next(error);
+    }
+};
+
+// ─────────────────────────────────────
+// SECTION 2B — VERIFICATION MANAGEMENT
+// ─────────────────────────────────────
+
+exports.getVerificationRequests = async (req, res, next) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const status = req.query.status || 'pending';
+        const skip = (page - 1) * limit;
+
+        const filter = { 'verificationRequest.status': status };
+
+        const [users, total] = await Promise.all([
+            User.find(filter)
+                .select('name phone avatar status isOnline isVerified verificationRequest createdAt')
+                .sort({ 'verificationRequest.requestedAt': -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            User.countDocuments(filter),
+        ]);
+
+        // Also get counts for each status
+        const [pendingCount, approvedCount, rejectedCount] = await Promise.all([
+            User.countDocuments({ 'verificationRequest.status': 'pending' }),
+            User.countDocuments({ 'verificationRequest.status': 'approved' }),
+            User.countDocuments({ 'verificationRequest.status': 'rejected' }),
+        ]);
+
+        return ApiResponse.success(res, {
+            requests: users,
+            counts: { pending: pendingCount, approved: approvedCount, rejected: rejectedCount },
+            pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.handleVerification = async (req, res, next) => {
+    try {
+        const userId = req.params.userId;
+        const { action, adminNote } = req.body;
+
+        if (!['approve', 'reject'].includes(action)) {
+            return ApiResponse.badRequest(res, 'Action must be approve or reject');
+        }
+
+        const user = await User.findById(userId);
+        if (!user) return ApiResponse.notFound(res, 'User not found');
+
+        if (action === 'approve') {
+            user.isVerified = true;
+            user.verificationRequest.status = 'approved';
+        } else {
+            user.isVerified = false;
+            user.verificationRequest.status = 'rejected';
+        }
+        user.verificationRequest.adminNote = adminNote || '';
+        user.verificationRequest.reviewedAt = new Date();
+        await user.save();
+
+        return ApiResponse.success(res, {
+            user: {
+                _id: user._id,
+                name: user.name,
+                isVerified: user.isVerified,
+                verificationRequest: user.verificationRequest,
+            }
+        }, `User verification ${action}d`);
     } catch (error) {
         next(error);
     }
@@ -701,6 +777,108 @@ exports.updateAlertConfig = async (req, res, next) => {
 };
 
 // ─────────────────────────────────────
+// SECTION 10 — OFFICIAL APP STATUS
+// ─────────────────────────────────────
+
+exports.getOfficialStatuses = async (req, res, next) => {
+    try {
+        const statuses = await require('../models/Status').find({
+            isOfficial: true,
+            expiresAt: { $gt: new Date() }
+        })
+            .populate('viewers.userId', 'name phone avatar')
+            .sort({ createdAt: -1 })
+            .lean();
+
+        return ApiResponse.success(res, { statuses });
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.createOfficialStatus = async (req, res, next) => {
+    try {
+        const { type, content, backgroundColor, media } = req.body;
+
+        if (!type || !['text', 'image', 'video'].includes(type)) {
+            return ApiResponse.badRequest(res, 'Type must be "text", "image", or "video"');
+        }
+
+        if (type === 'text' && (!content || !content.trim())) {
+            return ApiResponse.badRequest(res, 'Text content is required');
+        }
+
+        if ((type === 'image' || type === 'video') && (!media || !media.url)) {
+            return ApiResponse.badRequest(res, 'Media URL is required');
+        }
+
+        // We use the admin's ID as the creator, but set isOfficial to true
+        // The frontend user grouping logic will override the creator with the "Infexor" profile
+        const status = await require('../models/Status').create({
+            userId: req.admin.adminId,
+            isOfficial: true,
+            type,
+            content: content || '',
+            backgroundColor: backgroundColor || '#075E54',
+            media: (type === 'image' || type === 'video') ? media : {},
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+        });
+
+        // Broadcast to all connected clients
+        const io = req.app.get('io');
+        if (io) {
+            // Because this is official, we just emit globally.
+            // But we must package it the way the app expects.
+            const systemUser = {
+                _id: 'system_official',
+                name: 'Infexor',
+                phone: 'Official',
+                avatar: ''
+            };
+            const statusObj = status.toObject();
+            statusObj.userId = systemUser;
+
+            io.emit('status:new', {
+                status: statusObj,
+                isOfficial: true
+            });
+        }
+
+        logger.info(`[Admin] Official Status created by admin ${req.admin.adminId}`);
+        return ApiResponse.success(res, { status }, 'Official status created');
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.deleteOfficialStatus = async (req, res, next) => {
+    try {
+        const statusId = req.params.id;
+        const status = await require('../models/Status').findOneAndDelete({
+            _id: statusId,
+            isOfficial: true
+        });
+
+        if (!status) return ApiResponse.notFound(res, 'Official status not found');
+
+        // Broadcast deletion
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('status:deleted', {
+                statusId: statusId,
+                userId: 'system_official', // Match the mocked ID in getContactStatuses
+                isOfficial: true
+            });
+        }
+
+        logger.info(`[Admin] Official Status deleted by admin ${req.admin.adminId}`);
+        return ApiResponse.success(res, null, 'Official status deleted');
+    } catch (error) {
+        next(error);
+    }
+};
+
+// ─────────────────────────────────────
 // REPORTS & BROADCASTS (kept from original)
 // ─────────────────────────────────────
 
@@ -809,3 +987,271 @@ exports.getBroadcastStats = async (req, res, next) => {
         });
     } catch (error) { next(error); }
 };
+
+// ─────────────────────────────────────
+// SECTION 11 — OFFICIAL MESSAGES
+// ─────────────────────────────────────
+
+const OFFICIAL_PHONE = '__infexor_official__';
+
+async function getOrCreateOfficialUser() {
+    let officialUser = await User.findOne({ phone: OFFICIAL_PHONE });
+    if (!officialUser) {
+        officialUser = await User.create({
+            phone: OFFICIAL_PHONE,
+            name: 'Infexor',
+            about: 'Official Infexor Communications',
+            isProfileComplete: true,
+            status: 'active',
+            isVerified: true,
+        });
+        logger.info(`[Admin] Created official system user: ${officialUser._id}`);
+    }
+    return officialUser;
+}
+
+exports.sendOfficialMessage = async (req, res, next) => {
+    try {
+        const { message, platform = 'both' } = req.body;
+        if (!message || !message.trim()) {
+            return ApiResponse.badRequest(res, 'Message content is required');
+        }
+        if (!['both', 'android', 'ios'].includes(platform)) {
+            return ApiResponse.badRequest(res, 'Platform must be "both", "android", or "ios"');
+        }
+
+        const officialUser = await getOrCreateOfficialUser();
+        const officialUserId = officialUser._id;
+        const io = req.app.get('io');
+        const Device = require('../models/Device');
+        const notificationService = require('../services/notificationService');
+
+        // Get target user IDs based on platform filter
+        let targetUserIds;
+        if (platform === 'both') {
+            // All users except the official user
+            targetUserIds = await User.find({
+                _id: { $ne: officialUserId },
+                status: 'active'
+            }).select('_id').lean();
+            targetUserIds = targetUserIds.map(u => u._id);
+        } else {
+            // Filter by platform using Device model
+            const devices = await Device.find({
+                platform: platform,
+                isActive: true,
+            }).select('userId').lean();
+            const deviceUserIds = [...new Set(devices.map(d => d.userId.toString()))];
+            targetUserIds = deviceUserIds
+                .filter(id => id !== officialUserId.toString())
+                .map(id => require('mongoose').Types.ObjectId(id));
+        }
+
+        if (targetUserIds.length === 0) {
+            return ApiResponse.success(res, { recipientCount: 0 }, 'No recipients found for the selected platform');
+        }
+
+        let successCount = 0;
+        let failCount = 0;
+        const batchSize = 50;
+        const messageText = message.trim();
+
+        // Process in batches to avoid memory issues
+        for (let i = 0; i < targetUserIds.length; i += batchSize) {
+            const batch = targetUserIds.slice(i, i + batchSize);
+
+            const promises = batch.map(async (userId) => {
+                try {
+                    const userIdStr = userId.toString();
+
+                    // Find or create private chat between official user and target
+                    let chat = await Chat.findOne({
+                        type: 'private',
+                        participants: { $all: [officialUserId, userId], $size: 2 }
+                    });
+
+                    if (!chat) {
+                        chat = await Chat.create({
+                            type: 'private',
+                            participants: [officialUserId, userId],
+                            createdBy: officialUserId,
+                        });
+                    }
+
+                    // Create message
+                    const msg = await Message.create({
+                        chatId: chat._id,
+                        senderId: officialUserId,
+                        type: 'text',
+                        content: messageText,
+                        status: 'sent',
+                    });
+
+                    // Update chat lastMessage
+                    await Chat.findByIdAndUpdate(chat._id, {
+                        lastMessage: msg._id,
+                        lastMessageAt: msg.createdAt,
+                    });
+
+                    // Populate for socket emission
+                    const populatedMsg = await Message.findById(msg._id)
+                        .populate('senderId', 'name avatar phone')
+                        .lean();
+
+                    // Emit via socket
+                    if (io) {
+                        io.to(`user:${userIdStr}`).emit('message:new', populatedMsg);
+                    }
+
+                    // Send push notification
+                    if (notificationService) {
+                        notificationService.sendToUser(userIdStr, 'Infexor', messageText, {
+                            chatId: chat._id.toString(),
+                            messageId: msg._id.toString(),
+                            type: 'message',
+                        });
+                    }
+
+                    successCount++;
+                } catch (err) {
+                    failCount++;
+                    logger.error(`[OfficialMessage] Failed for user ${userId}: ${err.message}`);
+                }
+            });
+
+            await Promise.all(promises);
+        }
+
+        // Store record for history
+        const OfficialMessageLog = getOfficialMessageModel();
+        await OfficialMessageLog.create({
+            message: messageText,
+            platform,
+            recipientCount: successCount,
+            failedCount: failCount,
+            sentBy: req.admin.adminId || req.admin._id,
+        });
+
+        logger.info(`[Admin] Official message sent to ${successCount} users (${failCount} failed) by admin ${req.admin.adminId}`);
+        return ApiResponse.success(res, {
+            recipientCount: successCount,
+            failedCount: failCount,
+        }, `Message sent to ${successCount} users`);
+    } catch (error) {
+        next(error);
+    }
+};
+
+exports.getOfficialMessages = async (req, res, next) => {
+    try {
+        const OfficialMessageLog = getOfficialMessageModel();
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const skip = (page - 1) * limit;
+
+        const [messages, total] = await Promise.all([
+            OfficialMessageLog.find().sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+            OfficialMessageLog.countDocuments(),
+        ]);
+
+        return ApiResponse.success(res, {
+            messages,
+            pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
+        });
+    } catch (error) { next(error); }
+};
+
+// Lazy-loaded model to avoid circular dependency issues
+let _OfficialMessageModel = null;
+function getOfficialMessageModel() {
+    if (_OfficialMessageModel) return _OfficialMessageModel;
+    const mongoose = require('mongoose');
+    const schema = new mongoose.Schema({
+        message: { type: String, required: true },
+        platform: { type: String, enum: ['both', 'android', 'ios'], default: 'both' },
+        recipientCount: { type: Number, default: 0 },
+        failedCount: { type: Number, default: 0 },
+        sentBy: { type: String },
+    }, { timestamps: true });
+    _OfficialMessageModel = mongoose.model('OfficialMessageLog', schema);
+    return _OfficialMessageModel;
+}
+
+// ─────────────────────────────────────
+// SECTION 12 — OFFICIAL PROFILE
+// ─────────────────────────────────────
+
+exports.getOfficialProfile = async (req, res, next) => {
+    try {
+        const officialUser = await getOrCreateOfficialUser();
+        const env = require('../config/env');
+        const baseUrl = env.serverUrl || `${req.protocol}://${req.get('host')}`;
+        const avatarUrl = officialUser.avatar
+            ? `${baseUrl}/api/upload/serve/images/${path.basename(officialUser.avatar)}`
+            : null;
+        return ApiResponse.success(res, {
+            name: officialUser.name,
+            avatar: avatarUrl,
+            avatarRaw: officialUser.avatar,
+        });
+    } catch (error) { next(error); }
+};
+
+exports.updateOfficialProfile = async (req, res, next) => {
+    try {
+        const { name } = req.body;
+        const updates = {};
+
+        if (name && name.trim()) {
+            if (name.trim().length > 50) {
+                return ApiResponse.badRequest(res, 'Name must be 50 characters or less');
+            }
+            updates.name = name.trim();
+        }
+
+        // Handle avatar upload if file was provided
+        if (req.file) {
+            const uploadsDir = require('../config/upload').uploadsDir;
+            const newAvatarPath = path.join('images', req.file.filename);
+            updates.avatar = newAvatarPath;
+
+            // Delete old avatar if exists
+            const officialUser = await User.findOne({ phone: OFFICIAL_PHONE });
+            if (officialUser && officialUser.avatar) {
+                try {
+                    const oldFilePath = path.join(uploadsDir, officialUser.avatar);
+                    if (fs.existsSync(oldFilePath)) fs.unlinkSync(oldFilePath);
+                } catch (_) { }
+            }
+        }
+
+        if (Object.keys(updates).length === 0) {
+            return ApiResponse.badRequest(res, 'No updates provided');
+        }
+
+        const updated = await User.findOneAndUpdate(
+            { phone: OFFICIAL_PHONE },
+            { $set: updates },
+            { new: true }
+        );
+
+        if (!updated) {
+            return ApiResponse.notFound(res, 'Official account not found');
+        }
+
+        const env = require('../config/env');
+        const baseUrl = env.serverUrl || `${req.protocol}://${req.get('host')}`;
+        const avatarUrl = updated.avatar
+            ? `${baseUrl}/api/upload/serve/images/${path.basename(updated.avatar)}`
+            : null;
+
+        logger.info(`[Admin] Official profile updated by admin ${req.admin.adminId}: name="${updated.name}"`);
+        return ApiResponse.success(res, {
+            name: updated.name,
+            avatar: avatarUrl,
+        }, 'Official profile updated');
+    } catch (error) { next(error); }
+};
+
+
+

@@ -5,6 +5,7 @@ const { adminAuth } = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimiter');
 const adminAuthController = require('../controllers/adminAuthController');
 const adminController = require('../controllers/adminController');
+const { imageUpload } = require('../config/upload');
 
 const router = express.Router();
 
@@ -31,6 +32,10 @@ router.put('/users/:id/status', adminController.changeUserStatus);
 router.post('/users/:id/force-logout', adminController.forceLogout);
 router.delete('/users/:id', adminController.deleteUser);
 router.post('/users/:id/reset-rate-limit', adminController.resetUserRateLimit);
+
+// Verification Management
+router.get('/verification/requests', adminController.getVerificationRequests);
+router.put('/verification/:userId', adminController.handleVerification);
 
 // Call Analytics
 router.get('/calls/active', adminController.getActiveCalls);
@@ -61,6 +66,19 @@ router.put('/alerts/config', adminController.updateAlertConfig);
 // Reports
 router.get('/reports', adminController.getReports);
 router.put('/reports/:id', adminController.resolveReport);
+
+// Official App Status
+router.get('/status', adminController.getOfficialStatuses);
+router.post('/status', adminController.createOfficialStatus);
+router.delete('/status/:id', adminController.deleteOfficialStatus);
+
+// Official Messages
+router.post('/official-messages', adminController.sendOfficialMessage);
+router.get('/official-messages', adminController.getOfficialMessages);
+
+// Official Profile (name + avatar)
+router.get('/official-profile', adminController.getOfficialProfile);
+router.put('/official-profile', imageUpload.single('avatar'), adminController.updateOfficialProfile);
 
 // Broadcasts
 router.post('/broadcasts', adminController.sendBroadcast);

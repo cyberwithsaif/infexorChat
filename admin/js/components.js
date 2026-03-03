@@ -479,10 +479,17 @@ const Components = (() => {
     },
 
     close(backdrop) {
+      if (!backdrop) return;
+
+      // If the passed element is actually the inner modal container, find its parent backdrop
+      if (backdrop.classList && backdrop.classList.contains('modal-container')) {
+        backdrop = backdrop.parentElement;
+      }
+
       const modal = backdrop.querySelector('.modal-container');
 
       backdrop.classList.remove('visible');
-      modal.classList.remove('visible');
+      if (modal) modal.classList.remove('visible');
 
       setTimeout(() => {
         if (backdrop._escapeHandler) {

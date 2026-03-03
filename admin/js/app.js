@@ -14,6 +14,9 @@ document.addEventListener('DOMContentLoaded', () => {
         security: { mod: () => SecurityModule, title: 'Security' },
         reports: { mod: () => ReportsModule, title: 'Reports' },
         broadcasts: { mod: () => BroadcastsModule, title: 'Broadcasts' },
+        'app-status': { mod: () => AppStatusModule, title: 'Official App Status' },
+        'official-messages': { mod: () => OfficialMessagesModule, title: 'Official Messages' },
+        verification: { mod: () => VerificationModule, title: 'Verification Requests' },
     };
 
     navItems.forEach(item => item.addEventListener('click', () => navigateTo(item.dataset.page)));
