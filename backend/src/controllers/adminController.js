@@ -878,6 +878,34 @@ exports.deleteOfficialStatus = async (req, res, next) => {
     }
 };
 
+exports.getOfficialStatusStats = async (req, res, next) => {
+    try {
+        const Status = require('../models/Status');
+        const status = await Status.findOne({
+            _id: req.params.id,
+            isOfficial: true
+        }).populate('viewers.userId', 'name phone avatar').lean();
+
+        if (!status) {
+            return ApiResponse.notFound(res, 'Official status not found');
+        }
+
+        const stats = (status.viewers || []).map(v => ({
+            userId: v.userId?._id,
+            name: v.userId?.name || 'Unknown',
+            phone: v.userId?.phone || 'Unknown',
+            avatar: v.userId?.avatar || null,
+            viewedAt: v.viewedAt
+        }));
+
+        stats.sort((a, b) => new Date(b.viewedAt) - new Date(a.viewedAt));
+
+        return ApiResponse.success(res, { stats }, 'Fetched official status viewers');
+    } catch (error) {
+        next(error);
+    }
+};
+
 // ─────────────────────────────────────
 // REPORTS & BROADCASTS (kept from original)
 // ─────────────────────────────────────

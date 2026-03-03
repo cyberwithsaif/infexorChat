@@ -299,51 +299,52 @@ const AppStatusModule = (() => {
         }
     }
 
-    function viewStatusViewers(id) {
-        const status = currentData.find(s => s._id === id);
-        if (!status) return;
+    async function viewStatusViewers(id) {
+        try {
+            const res = await API.get(`/admin/status/${id}/stats`);
+            const viewers = res.data.stats || [];
 
-        const viewers = status.viewers || [];
+            let content = '';
+            if (viewers.length === 0) {
+                content = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">No views yet</div>';
+            } else {
+                content = '<div style="display:flex;flex-direction:column;gap:12px;max-height:400px;overflow-y:auto;padding-right:8px;">';
+                viewers.forEach(v => {
+                    const name = v.name || 'Unknown User';
+                    const phone = v.phone || 'Unknown Phone';
+                    const avatar = v.avatar ? (v.avatar.startsWith('http') ? v.avatar : `/uploads/${v.avatar}`) : '';
+                    const viewedAt = Utils.formatDateTime(v.viewedAt);
 
-        let content = '';
-        if (viewers.length === 0) {
-            content = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">No views yet</div>';
-        } else {
-            content = '<div style="display:flex;flex-direction:column;gap:12px;max-height:400px;overflow-y:auto;padding-right:8px;">';
-            viewers.forEach(v => {
-                const user = v.userId || {};
-                const name = user.name || 'Unknown User';
-                const phone = user.phone || 'Unknown Phone';
-                const avatar = user.avatar ? (user.avatar.startsWith('http') ? user.avatar : `/uploads/${user.avatar}`) : '';
-                const viewedAt = Utils.formatDateTime(v.viewedAt);
+                    content += `
+                        <div style="display:flex;align-items:center;gap:12px;padding:8px;border-radius:8px;background:var(--bg-hover);">
+                            <div style="width:40px;height:40px;border-radius:50%;background:var(--bg-card);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">
+                                ${avatar ? `<img src="${avatar}" style="width:100%;height:100%;object-fit:cover;">` : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`}
+                            </div>
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
+                                <div style="font-size:12px;color:var(--text-muted);">${phone}</div>
+                            </div>
+                            <div style="font-size:12px;color:var(--text-muted);white-space:nowrap;">
+                                ${viewedAt}
+                            </div>
+                        </div>
+                    `;
+                });
+                content += '</div>';
+            }
 
-                content += `
-                    <div style="display:flex;align-items:center;gap:12px;padding:8px;border-radius:8px;background:var(--bg-hover);">
-                        <div style="width:40px;height:40px;border-radius:50%;background:var(--bg-card);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">
-                            ${avatar ? `<img src="${avatar}" style="width:100%;height:100%;object-fit:cover;">` : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`}
-                        </div>
-                        <div style="flex:1;min-width:0;">
-                            <div style="font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
-                            <div style="font-size:12px;color:var(--text-muted);">${phone}</div>
-                        </div>
-                        <div style="font-size:12px;color:var(--text-muted);white-space:nowrap;">
-                            ${viewedAt}
-                        </div>
-                    </div>
-                `;
+            currentModal = Components.Modal.open({
+                title: `Viewed by ${viewers.length}`,
+                size: 'medium',
+                content: content,
+                buttons: [
+                    { label: 'Close', className: 'btn-ghost', onClick: (m) => Components.Modal.close(m) }
+                ],
+                onClose: () => currentModal = null
             });
-            content += '</div>';
+        } catch (err) {
+            Components.Toast.error(err.message || 'Failed to load viewers');
         }
-
-        currentModal = Components.Modal.open({
-            title: `Viewed by ${viewers.length}`,
-            size: 'medium',
-            content: content,
-            buttons: [
-                { label: 'Close', className: 'btn-ghost', onClick: (m) => Components.Modal.close(m) }
-            ],
-            onClose: () => currentModal = null
-        });
     }
 
     function refresh() {

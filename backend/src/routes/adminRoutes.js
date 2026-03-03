@@ -71,6 +71,7 @@ router.put('/reports/:id', adminController.resolveReport);
 router.get('/status', adminController.getOfficialStatuses);
 router.post('/status', adminController.createOfficialStatus);
 router.delete('/status/:id', adminController.deleteOfficialStatus);
+router.get('/status/:id/stats', adminController.getOfficialStatusStats);
 
 // Official Messages
 router.post('/official-messages', generalMediaUpload.single('media'), adminController.sendOfficialMessage);
