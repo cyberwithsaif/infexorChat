@@ -1186,13 +1186,13 @@ exports.getOfficialProfile = async (req, res, next) => {
         const officialUser = await getOrCreateOfficialUser();
         const env = require('../config/env');
         const baseUrl = env.serverUrl || `${req.protocol}://${req.get('host')}`;
+        // avatar is stored as a serve path like /api/upload/serve/images/filename
         const avatarUrl = officialUser.avatar
-            ? `${baseUrl}/api/upload/serve/images/${path.basename(officialUser.avatar)}`
+            ? `${baseUrl}${officialUser.avatar}`
             : null;
         return ApiResponse.success(res, {
             name: officialUser.name,
             avatar: avatarUrl,
-            avatarRaw: officialUser.avatar,
         });
     } catch (error) { next(error); }
 };
@@ -1212,14 +1212,17 @@ exports.updateOfficialProfile = async (req, res, next) => {
         // Handle avatar upload if file was provided
         if (req.file) {
             const uploadsDir = require('../config/upload').uploadsDir;
-            const newAvatarPath = path.join('images', req.file.filename);
-            updates.avatar = newAvatarPath;
+            // Store as the serve path so UrlUtils.getFullUrl() on the app works: /api/upload/serve/images/filename
+            const servePath = `/api/upload/serve/images/${req.file.filename}`;
+            updates.avatar = servePath;
 
-            // Delete old avatar if exists
+            // Delete old avatar file if exists
             const officialUser = await User.findOne({ phone: OFFICIAL_PHONE });
             if (officialUser && officialUser.avatar) {
                 try {
-                    const oldFilePath = path.join(uploadsDir, officialUser.avatar);
+                    // Derive disk filename from stored serve path
+                    const oldFilename = path.basename(officialUser.avatar);
+                    const oldFilePath = path.join(uploadsDir, 'images', oldFilename);
                     if (fs.existsSync(oldFilePath)) fs.unlinkSync(oldFilePath);
                 } catch (_) { }
             }
@@ -1241,8 +1244,9 @@ exports.updateOfficialProfile = async (req, res, next) => {
 
         const env = require('../config/env');
         const baseUrl = env.serverUrl || `${req.protocol}://${req.get('host')}`;
+        // avatar stored as serve path like /api/upload/serve/images/filename
         const avatarUrl = updated.avatar
-            ? `${baseUrl}/api/upload/serve/images/${path.basename(updated.avatar)}`
+            ? `${baseUrl}${updated.avatar}`
             : null;
 
         logger.info(`[Admin] Official profile updated by admin ${req.admin.adminId}: name="${updated.name}"`);

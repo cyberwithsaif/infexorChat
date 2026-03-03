@@ -239,19 +239,30 @@ class ChatListNotifier extends Notifier<ChatListState> {
               if (savedName != null && savedName.toString().isNotEmpty) {
                 senderName = savedName.toString();
               } else if (sender is Map) {
-                // 2. Use phone number for unsaved contacts, fallback to registered name
                 final phone = sender['phone']?.toString();
                 final name = sender['name']?.toString();
-                senderName = PhoneUtils.formatPhoneDisplay(phone).isNotEmpty
-                    ? PhoneUtils.formatPhoneDisplay(phone)
-                    : name ?? 'Someone';
+                final isSystemAccount =
+                    phone != null &&
+                    (phone.startsWith('__') || phone.endsWith('__'));
+
+                senderName = isSystemAccount
+                    ? (name ?? 'Infexor')
+                    : (PhoneUtils.formatPhoneDisplay(phone).isNotEmpty
+                          ? PhoneUtils.formatPhoneDisplay(phone)
+                          : name ?? 'Someone');
               }
             } else if (sender is Map) {
               final phone = sender['phone']?.toString();
               final name = sender['name']?.toString();
-              senderName = PhoneUtils.formatPhoneDisplay(phone).isNotEmpty
-                  ? PhoneUtils.formatPhoneDisplay(phone)
-                  : name ?? 'Someone';
+              final isSystemAccount =
+                  phone != null &&
+                  (phone.startsWith('__') || phone.endsWith('__'));
+
+              senderName = isSystemAccount
+                  ? (name ?? 'Infexor')
+                  : (PhoneUtils.formatPhoneDisplay(phone).isNotEmpty
+                        ? PhoneUtils.formatPhoneDisplay(phone)
+                        : name ?? 'Someone');
             }
           } catch (_) {
             if (sender is Map) {

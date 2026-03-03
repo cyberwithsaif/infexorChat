@@ -370,11 +370,16 @@ class _ChatTile extends ConsumerWidget {
         final formattedPhone = PhoneUtils.formatPhoneDisplay(phone);
 
         bool isAIBot = phone != null && phone.endsWith('0000000000');
+        // System/official accounts have non-numeric phone identifiers
+        bool isSystemAccount =
+            phone != null && (phone.startsWith('__') || phone.endsWith('__'));
 
         name =
             savedName ??
             (isAIBot
                 ? 'Infexor AI'
+                : isSystemAccount
+                ? (registeredName ?? 'Infexor')
                 : (formattedPhone.isNotEmpty
                       ? formattedPhone
                       : registeredName ?? 'Unknown'));
