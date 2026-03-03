@@ -14,6 +14,7 @@ import '../providers/chat_provider.dart';
 import 'create_group_screen.dart';
 import 'conversation_screen.dart';
 import '../../settings/screens/settings_screen.dart';
+import '../../../core/widgets/verified_badge.dart';
 
 import '../../../core/utils/phone_utils.dart';
 
@@ -83,10 +84,10 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               right: 16,
             ),
             decoration: const BoxDecoration(
-              color: Color(0xFFFF6B6B), // Vibrant Orange
+              color: Color(0xFF2563EB), // Vibrant Orange
               borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(36),
-                bottomRight: Radius.circular(36),
+                bottomLeft: Radius.circular(45),
+                bottomRight: Radius.circular(45),
               ),
             ),
             child: Row(
@@ -195,7 +196,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                   : RefreshIndicator(
                       onRefresh: () =>
                           ref.read(chatListProvider.notifier).loadChats(),
-                      color: const Color(0xFFFF6B6B),
+                      color: const Color(0xFF2563EB),
                       child: ListView.builder(
                         padding: const EdgeInsets.only(top: 8, bottom: 80),
                         physics: const BouncingScrollPhysics(),
@@ -221,7 +222,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
       floatingActionButton: AnimatedFabEntrance(
         child: FloatingActionButton(
           onPressed: () => context.push('/contacts'),
-          backgroundColor: const Color(0xFFFF6B6B), // Match vibrant theme
+          backgroundColor: const Color(0xFF2563EB), // Match vibrant theme
           foregroundColor: Colors.white,
           elevation: 4,
           child: const Icon(Icons.chat_bubble_outline, size: 26),
@@ -402,6 +403,22 @@ class _ChatTile extends ConsumerWidget {
       groupId = '';
     }
 
+    // Check if the other user is verified
+    bool isOtherVerified = false;
+    if (!isGroup) {
+      try {
+        final rawParticipants = chat['participants'] ?? [];
+        if (rawParticipants is List) {
+          for (final p in rawParticipants) {
+            if (p is Map && p['_id'] != currentUserId) {
+              isOtherVerified = p['isVerified'] == true;
+              break;
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
     // Safely parse lastMessage — it could be a Map or a String
     final rawLastMessage = chat['lastMessage'];
     Map<String, dynamic>? lastMessage;
@@ -560,17 +577,29 @@ class _ChatTile extends ConsumerWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: unreadCount > 0
-                                  ? FontWeight.w800
-                                  : FontWeight.w600,
-                              color: textColor, // Respects dark/light theme
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: unreadCount > 0
+                                        ? FontWeight.w800
+                                        : FontWeight.w600,
+                                    color: textColor,
+                                  ),
+                                ),
+                              ),
+                              if (!isGroup && isOtherVerified)
+                                const Padding(
+                                  padding: EdgeInsets.only(left: 4),
+                                  child: VerifiedBadge(size: 16),
+                                ),
+                            ],
                           ),
                         ),
                         if (timeText.isNotEmpty)
@@ -579,7 +608,7 @@ class _ChatTile extends ConsumerWidget {
                             style: TextStyle(
                               fontSize: 12,
                               color: unreadCount > 0
-                                  ? const Color(0xFFFF6B6B)
+                                  ? const Color(0xFF2563EB)
                                   : subtitleColor, // Respects dark/light theme
                             ),
                           ),
@@ -588,60 +617,60 @@ class _ChatTile extends ConsumerWidget {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                          // Message status ticks
-                          if (isMyLastMessage)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 4),
-                              child: _StatusIcon(
-                                status: (lastMessage?['status'] ?? 'sent')
-                                    .toString(),
-                              ),
+                        // Message status ticks
+                        if (isMyLastMessage)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: _StatusIcon(
+                              status: (lastMessage?['status'] ?? 'sent')
+                                  .toString(),
                             ),
-                          Expanded(
-                            child: Row(
-                              children: [
-                                // Tiny media thumbnail (image/video/gif)
-                                if (lastMessage != null &&
-                                    (lastMessage['type'] == 'image' ||
-                                        lastMessage['type'] == 'video' ||
-                                        lastMessage['type'] == 'gif'))
-                                  Padding(
-                                    padding: const EdgeInsets.only(right: 6),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(4),
-                                      child: CachedNetworkImage(
-                                        imageUrl: UrlUtils.getFullUrl(
-                                          lastMessage['media']?['thumbnail'] ??
-                                              lastMessage['media']?['url'] ??
-                                              '',
-                                        ),
-                                        width: 20,
-                                        height: 20,
-                                        fit: BoxFit.cover,
-                                        errorWidget: (context, url, error) =>
-                                            Icon(
-                                              lastMessage!['type'] == 'video'
-                                                  ? Icons.videocam
-                                                  : Icons.image,
-                                              size: 14,
-                                            ),
+                          ),
+                        Expanded(
+                          child: Row(
+                            children: [
+                              // Tiny media thumbnail (image/video/gif)
+                              if (lastMessage != null &&
+                                  (lastMessage['type'] == 'image' ||
+                                      lastMessage['type'] == 'video' ||
+                                      lastMessage['type'] == 'gif'))
+                                Padding(
+                                  padding: const EdgeInsets.only(right: 6),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: CachedNetworkImage(
+                                      imageUrl: UrlUtils.getFullUrl(
+                                        lastMessage['media']?['thumbnail'] ??
+                                            lastMessage['media']?['url'] ??
+                                            '',
                                       ),
-                                    ),
-                                  ),
-                                Expanded(
-                                  child: Text(
-                                    lastMsgText,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: subtitleColor,
+                                      width: 20,
+                                      height: 20,
+                                      fit: BoxFit.cover,
+                                      errorWidget: (context, url, error) =>
+                                          Icon(
+                                            lastMessage!['type'] == 'video'
+                                                ? Icons.videocam
+                                                : Icons.image,
+                                            size: 14,
+                                          ),
                                     ),
                                   ),
                                 ),
-                              ],
-                            ),
+                              Expanded(
+                                child: Text(
+                                  lastMsgText,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: subtitleColor,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
+                        ),
                         if (unreadCount > 0)
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -649,7 +678,7 @@ class _ChatTile extends ConsumerWidget {
                               vertical: 2,
                             ),
                             decoration: const BoxDecoration(
-                              color: Color(0xFFFF6B6B), // Vibrant Orange Badge
+                              color: Color(0xFF2563EB), // Vibrant Orange Badge
                               shape: BoxShape.circle,
                             ),
                             child: Center(

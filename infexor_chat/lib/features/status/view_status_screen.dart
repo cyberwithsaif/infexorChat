@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
 import 'package:video_player/video_player.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../../core/utils/url_utils.dart';
 import '../auth/providers/auth_provider.dart';
 import 'status_provider.dart';
@@ -197,7 +198,18 @@ class _ViewStatusScreenState extends ConsumerState<ViewStatusScreen>
                         final user = viewer['userId'] is Map
                             ? viewer['userId']
                             : {};
-                        final name = user['name'] ?? 'Unknown';
+                        // Prefer saved contact name over registered name
+                        String name = 'Unknown';
+                        final uid = user['_id']?.toString();
+                        if (uid != null && Hive.isBoxOpen('contacts_cache')) {
+                          final saved = Hive.box('contacts_cache').get(uid)?.toString();
+                          if (saved != null && saved.isNotEmpty) {
+                            name = saved;
+                          }
+                        }
+                        if (name == 'Unknown') {
+                          name = user['name']?.toString() ?? 'Unknown';
+                        }
                         final avatar = UrlUtils.getFullUrl(
                           user['avatar'] ?? '',
                         );

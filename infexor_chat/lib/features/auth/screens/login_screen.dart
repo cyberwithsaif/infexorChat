@@ -63,7 +63,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const orangeColor = Color(0xFFFF6B6B); // Vibrant orange from image
+    const orangeColor = Color(0xFF2563EB); // Vibrant orange from image
     final size = MediaQuery.of(context).size;
 
     return Scaffold(
@@ -121,24 +121,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Lock icon
+                      // Logo
                       Container(
-                        padding: const EdgeInsets.all(18),
+                        padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: orangeColor,
+                          color: Colors.white,
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: orangeColor.withOpacity(0.3),
-                              blurRadius: 12,
-                              offset: const Offset(0, 6),
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 15,
+                              offset: const Offset(0, 5),
                             ),
                           ],
                         ),
-                        child: const Icon(
-                          Icons.lock_outline_rounded,
-                          color: Colors.white,
-                          size: 32,
+                        child: Image.asset(
+                          'assets/images/logo.png',
+                          width: 80,
+                          height: 80,
                         ),
                       ),
                       const SizedBox(height: 24),

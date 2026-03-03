@@ -13,8 +13,10 @@ import 'storage_data_screen.dart';
 import 'help_screen.dart';
 import 'chat_settings_screen.dart';
 import 'account_settings_screen.dart';
+import 'verification_request_screen.dart';
 import '../../../core/localization/locale_provider.dart';
 import '../../../generated/l10n/app_localizations.dart';
+import '../../../core/widgets/verified_badge.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -146,6 +148,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   size: 16,
                                   color: AppColors.primaryPurple,
                                 ),
+                                if (user?['isVerified'] == true)
+                                  const VerifiedBadge(size: 18),
                               ],
                             ),
                             const SizedBox(height: 4),
@@ -200,6 +204,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   context,
                   AnimatedPageRoute(
                     builder: (_) => const PrivacySettingsScreen(),
+                  ),
+                ),
+              ),
+              _Divider(context),
+              _SettingsTile(
+                icon: Icons.verified_outlined,
+                title: 'Blue Tick',
+                subtitle: user?['isVerified'] == true
+                    ? 'Verified ✓'
+                    : (user?['verificationRequest'] is Map &&
+                          (user!['verificationRequest'] as Map)['status'] ==
+                              'pending')
+                    ? 'Verification pending...'
+                    : 'Request verification',
+                iconColor: const Color(0xFF1DA1F2),
+                hasChevron: true,
+                onTap: () => Navigator.push(
+                  context,
+                  AnimatedPageRoute(
+                    builder: (_) => const VerificationRequestScreen(),
                   ),
                 ),
               ),
@@ -355,60 +379,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
-
-          const SizedBox(height: 24),
-
-          // ─── Logout ───
-          _SettingsCard(
-            children: [
-              _SettingsTile(
-                icon: Icons.logout_rounded,
-                title: l10n.logout,
-                iconColor: Colors.redAccent,
-                titleColor: Colors.redAccent,
-                hasChevron: false,
-                onTap: () async {
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      backgroundColor: bgColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      title: Text(
-                        l10n.logout,
-                        style: TextStyle(
-                          color: textColor,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      content: Text(
-                        l10n.logoutConfirmation,
-                        style: TextStyle(color: subtitleColor),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx, false),
-                          child: Text(l10n.cancel),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx, true),
-                          child: Text(
-                            l10n.logout,
-                            style: const TextStyle(color: Colors.redAccent),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-
-                  if (confirm == true) {
-                    ref.read(authProvider.notifier).logout();
-                  }
-                },
-              ),
-            ],
-          ),
         ],
       ),
     );
@@ -507,11 +477,8 @@ class _SettingsTile extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.hasChevron = false,
-    this.value,
-    this.onChanged,
     this.onTap,
     this.iconColor,
-    this.titleColor,
   });
 
   @override

@@ -53,7 +53,7 @@ class _PatternPainter extends CustomPainter {
     final bgColor = isDark ? const Color(0xFF0D1418) : const Color(0xFFFFFFFF);
     final patternColor = isDark
         ? Colors.white.withValues(alpha: 0.03)
-        : const Color(0xFFFF6B6B).withValues(alpha: 0.05);
+        : const Color(0xFF2563EB).withValues(alpha: 0.05);
 
     // Draw background
     canvas.drawRect(

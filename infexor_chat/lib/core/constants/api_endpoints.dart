@@ -54,4 +54,7 @@ class ApiEndpoints {
 
   // Health
   static const String health = '/health';
+
+  // Verification
+  static const String verificationRequest = '/users/verification/request';
 }

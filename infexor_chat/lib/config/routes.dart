@@ -1,5 +1,6 @@
 import 'package:go_router/go_router.dart';
-import '../features/auth/screens/splash_screen.dart';
+import '../main.dart';
+import '../features/auth/providers/auth_provider.dart';
 import '../features/auth/screens/login_screen.dart';
 import '../features/auth/screens/otp_screen.dart';
 import '../features/auth/screens/profile_setup_screen.dart';
@@ -62,13 +63,33 @@ CustomTransitionPage _fadePage({required LocalKey key, required Widget child}) {
 
 final router = GoRouter(
   navigatorKey: navigatorKey,
-  initialLocation: '/splash',
+  initialLocation: '/home',
+  redirect: (context, state) {
+    final authState = globalContainer.read(authProvider);
+    final status = authState.status;
+
+    // List of locations that don't require authentication
+    final bool isAuthRoute =
+        state.matchedLocation == '/login' || state.matchedLocation == '/otp';
+
+    if (status == AuthStatus.unauthenticated) {
+      return isAuthRoute ? null : '/login';
+    }
+
+    if (status == AuthStatus.profileSetup) {
+      return state.matchedLocation == '/profile-setup'
+          ? null
+          : '/profile-setup';
+    }
+
+    if (status == AuthStatus.authenticated) {
+      // If authenticated, don't allow access to login/otp screens
+      if (isAuthRoute) return '/home';
+    }
+
+    return null;
+  },
   routes: [
-    GoRoute(
-      path: '/splash',
-      pageBuilder: (context, state) =>
-          NoTransitionPage(key: state.pageKey, child: const SplashScreen()),
-    ),
     GoRoute(
       path: '/login',
       pageBuilder: (context, state) =>
@@ -154,6 +175,7 @@ final router = GoRouter(
             callerName: extra['callerName'] as String,
             callerAvatar: extra['callerAvatar'] as String?,
             isVideo: extra['isVideo'] as bool? ?? true,
+            isResuming: extra['isResuming'] as bool? ?? false,
           ),
         );
       },

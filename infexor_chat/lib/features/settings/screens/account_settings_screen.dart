@@ -49,6 +49,52 @@ class AccountSettingsScreen extends ConsumerWidget {
           ),
           const Divider(height: 1, indent: 72),
           _AccountTile(
+            icon: Icons.logout_rounded,
+            title: 'Logout',
+            titleColor: Colors.redAccent,
+            iconColor: Colors.redAccent,
+            onTap: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: bgColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  title: Text(
+                    'Logout',
+                    style: TextStyle(
+                      color: textColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  content: Text(
+                    'Are you sure you want to logout?',
+                    style: TextStyle(color: subtitleColor),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text(
+                        'Logout',
+                        style: TextStyle(color: Colors.redAccent),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirm == true) {
+                ref.read(authProvider.notifier).logout();
+              }
+            },
+          ),
+          const Divider(height: 1, indent: 72),
+          _AccountTile(
             icon: Icons.delete_forever_outlined,
             title: 'Delete my account',
             titleColor: Colors.redAccent,

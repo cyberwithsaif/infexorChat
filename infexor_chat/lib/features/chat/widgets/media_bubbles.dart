@@ -51,8 +51,8 @@ class _ImageBubbleState extends State<ImageBubble> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black;
-    final subtitleColor = theme.textTheme.bodyMedium?.color ?? Colors.grey;
+    final textColor = widget.isMe ? Colors.white : (theme.textTheme.bodyLarge?.color ?? Colors.black);
+    final subtitleColor = widget.isMe ? Colors.white70 : (theme.textTheme.bodyMedium?.color ?? Colors.grey);
 
     final media = widget.message['media'] ?? {};
     final url = _resolveUrl(media['url'] ?? '');
@@ -267,8 +267,8 @@ class _VideoBubbleState extends State<VideoBubble> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black;
-    final subtitleColor = theme.textTheme.bodyMedium?.color ?? Colors.grey;
+    final textColor = widget.isMe ? Colors.white : (theme.textTheme.bodyLarge?.color ?? Colors.black);
+    final subtitleColor = widget.isMe ? Colors.white70 : (theme.textTheme.bodyMedium?.color ?? Colors.grey);
 
     final media = widget.message['media'] ?? {};
     final thumbnail = _resolveUrl(media['thumbnail'] ?? '');
@@ -538,7 +538,7 @@ class VoiceBubble extends StatelessWidget {
         margin: const EdgeInsets.symmetric(vertical: 2),
         padding: const EdgeInsets.fromLTRB(8, 8, 10, 6),
         decoration: BoxDecoration(
-          color: isMe ? const Color(0xFFFF6B6B) : bubbleBgOther,
+          color: isMe ? const Color(0xFF2563EB) : bubbleBgOther,
           borderRadius: BorderRadius.only(
             topLeft: isMe
                 ? const Radius.circular(12)
@@ -583,7 +583,7 @@ class VoiceBubble extends StatelessWidget {
                       isPlaying
                           ? Icons.pause_rounded
                           : Icons.play_arrow_rounded,
-                      color: isMe ? const Color(0xFFFF6B6B) : Colors.white,
+                      color: isMe ? const Color(0xFF2563EB) : Colors.white,
                       size: 22,
                     ),
                   ),
@@ -744,8 +744,8 @@ class _DocumentBubbleState extends ConsumerState<DocumentBubble> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black;
-    final subtitleColor = theme.textTheme.bodyMedium?.color ?? Colors.grey;
+    final textColor = widget.isMe ? Colors.white : (theme.textTheme.bodyLarge?.color ?? Colors.black);
+    final subtitleColor = widget.isMe ? Colors.white70 : (theme.textTheme.bodyMedium?.color ?? Colors.grey);
 
     final media = widget.message['media'] ?? {};
     final url = media['url'] ?? '';

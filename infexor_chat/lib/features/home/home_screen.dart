@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/providers/active_call_provider.dart';
 import '../../core/services/permission_service.dart';
 import '../../core/services/notification_service.dart';
 import '../auth/providers/auth_provider.dart';
@@ -98,9 +99,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       // paused, inactive, hidden, detached — all mean "not in foreground"
       ref.read(notificationServiceProvider).activeChatId = null;
       ref.read(notificationServiceProvider).isAppInForeground = false;
-      // FlutterBackgroundService().invoke('setAppStatus', {
-      //   'status': 'background',
-      // });
+
+      // Disconnect socket when app goes to background so the backend
+      // falls back to FCM for message delivery (push notifications).
+      // Keep socket alive during active calls for call signaling.
+      final hasActiveCall = ref.read(activeCallProvider).isActive;
+      if (!hasActiveCall) {
+        ref.read(socketServiceProvider).disconnect();
+      }
     }
   }
 
@@ -189,7 +195,7 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = isSelected
-        ? const Color(0xFFFF6B6B)
+        ? const Color(0xFF2563EB)
         : const Color(0xFF64748B);
 
     return InkWell(

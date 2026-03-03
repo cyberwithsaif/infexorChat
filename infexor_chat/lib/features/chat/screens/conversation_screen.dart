@@ -642,6 +642,26 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       statusText = 'tap for group info';
     }
 
+    // Check if the other user is verified (for 1:1 chats)
+    bool isOtherVerified = false;
+    if (!widget.isGroup) {
+      final currentChat2 = chatListState.chats.firstWhere(
+        (c) => c['_id'] == widget.chatId,
+        orElse: () => <String, dynamic>{},
+      );
+      if (currentChat2.isNotEmpty) {
+        final participants2 = currentChat2['participants'];
+        if (participants2 is List) {
+          for (final p in participants2) {
+            if (p is Map && p['_id'] != currentUserId) {
+              isOtherVerified = p['isVerified'] == true;
+              break;
+            }
+          }
+        }
+      }
+    }
+
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final bgColor = theme.scaffoldBackgroundColor;
@@ -667,6 +687,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               statusText,
               currentUserId,
               isOnline,
+              isOtherVerified,
             ),
       body: GestureDetector(
         behavior: HitTestBehavior.translucent,
@@ -944,10 +965,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     String statusText,
     String currentUserId,
     bool isOnline,
+    bool isOtherVerified,
   ) {
     return AppBar(
       titleSpacing: 0,
-      backgroundColor: const Color(0xFFFF6B6B), // Vibrant Orange Theme
+      backgroundColor: const Color(0xFF2563EB), // Vibrant Orange Theme
       elevation: 0, // Flat edge
       iconTheme: const IconThemeData(color: Colors.white), // All icons white
       leading: IconButton(
@@ -1038,7 +1060,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                         color: const Color(0xFF00C853), // Bright online green
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: const Color(0xFFFF6B6B), // Match AppBar Orange
+                          color: const Color(0xFF2563EB), // Match AppBar Orange
                           width: 2,
                         ),
                       ),
@@ -1051,13 +1073,30 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    widget.chatName,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white, // White name
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          widget.chatName,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white, // White name
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (!widget.isGroup && isOtherVerified)
+                        const Padding(
+                          padding: EdgeInsets.only(left: 4),
+                          child: Icon(
+                            Icons.verified,
+                            color: Color(0xFF1DA1F2),
+                            size: 18,
+                          ),
+                        ),
+                    ],
                   ),
                   Text(
                     statusText,
@@ -1969,7 +2008,7 @@ class _TextMessageBubble extends StatelessWidget {
     final createdAt = message['createdAt'] ?? '';
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final bubbleBgMe = const Color(0xFFFF6B6B); // Solid Orange
+    final bubbleBgMe = const Color(0xFF2563EB); // Solid Orange
     final bubbleBgOther = isDark ? const Color(0xFF1E2B33) : Colors.white;
     final msgTextColorMe = Colors.white;
     final msgTextColorOther = isDark ? Colors.white : const Color(0xFF1E293B);
@@ -2288,7 +2327,7 @@ class _InputBarState extends State<_InputBar> with TickerProviderStateMixin {
     final iconColor = isDark ? Colors.grey[400] : const Color(0xFF54656F);
     final textColor = isDark ? Colors.white : const Color(0xFF111B21);
     final hintColor = isDark ? Colors.grey[500] : const Color(0xFF667781);
-    final themeBlue = const Color(0xFFFF6B6B);
+    final themeBlue = const Color(0xFF2563EB);
     final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
 
     return ClipRect(

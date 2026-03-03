@@ -461,28 +461,37 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                       })
                       .map((group) {
                         final user = group['user'];
-                        // Resolve name: saved contact > phone number > registered name
+                        final isOfficial = group['isOfficial'] == true;
                         String name = 'Unknown';
-                        if (user is Map) {
+                        if (isOfficial && user is Map) {
+                          name = user['name']?.toString() ?? 'Infexor';
+                        } else if (user is Map) {
                           final uid = user['_id']?.toString();
                           if (uid != null && Hive.isBoxOpen('contacts_cache')) {
-                            final saved = Hive.box('contacts_cache').get(uid)?.toString();
+                            final saved = Hive.box(
+                              'contacts_cache',
+                            ).get(uid)?.toString();
                             if (saved != null && saved.isNotEmpty) {
                               name = saved.split(' ').first;
                             }
                           }
                           if (name == 'Unknown') {
                             final phone = user['phone']?.toString();
-                            final formatted = phone != null ? PhoneUtils.formatPhoneDisplay(phone) : '';
+                            final formatted =
+                                phone != null && phone != 'Official'
+                                ? PhoneUtils.formatPhoneDisplay(phone)
+                                : '';
                             name = formatted.isNotEmpty
                                 ? formatted.split(' ').first
-                                : (user['name']?.toString().split(' ').first ?? 'Unknown');
+                                : (user['name']?.toString().split(' ').first ??
+                                      'Unknown');
                           }
                         }
                         final userAvatar = user is Map
                             ? UrlUtils.getFullUrl(user['avatar'] ?? '')
                             : '';
                         final hasUnviewed = group['hasUnviewed'] == true;
+                        final isOfficial = group['isOfficial'] == true;
 
                         return InkWell(
                           onTap: () => _viewContactStatuses(group),
@@ -492,11 +501,37 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                _StatusRing(
-                                  avatarUrl: userAvatar,
-                                  hasStatus: true,
-                                  isSeen: !hasUnviewed,
-                                  radius: 34, // Slightly larger radius for grid
+                                Stack(
+                                  children: [
+                                    _StatusRing(
+                                      avatarUrl: userAvatar,
+                                      hasStatus: true,
+                                      isSeen: !hasUnviewed,
+                                      radius:
+                                          34, // Slightly larger radius for grid
+                                      isOfficial: isOfficial,
+                                    ),
+                                    if (isOfficial)
+                                      Positioned(
+                                        bottom: 2,
+                                        right: 2,
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: AppColors.primaryPurple,
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                              color: bgColor,
+                                              width: 2,
+                                            ),
+                                          ),
+                                          child: const Icon(
+                                            Icons.verified,
+                                            color: Colors.white,
+                                            size: 14,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
@@ -506,8 +541,12 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                    color: textColor,
+                                    fontWeight: isOfficial
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: isOfficial
+                                        ? AppColors.primaryPurple
+                                        : textColor,
                                   ),
                                 ),
                               ],
@@ -608,21 +647,33 @@ class _StatusRing extends StatelessWidget {
   final bool hasStatus;
   final bool isSeen;
   final double radius;
+  final bool isOfficial;
 
   const _StatusRing({
     required this.avatarUrl,
     required this.hasStatus,
     required this.isSeen,
     required this.radius,
+    this.isOfficial = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final ringColor = hasStatus
-        ? (isSeen
-              ? Colors.grey.withValues(alpha: 0.3)
-              : AppColors.primaryPurple)
-        : Colors.transparent;
+    Color ringColor = Colors.transparent;
+
+    if (hasStatus) {
+      if (isOfficial) {
+        ringColor = isSeen
+            ? Colors.grey.withValues(alpha: 0.3)
+            : const Color(
+                0xFF1DA1F2,
+              ); // Twitter-like verified blue for official
+      } else {
+        ringColor = isSeen
+            ? Colors.grey.withValues(alpha: 0.3)
+            : AppColors.primaryPurple;
+      }
+    }
 
     return Container(
       padding: const EdgeInsets.all(2.5),
@@ -639,7 +690,11 @@ class _StatusRing extends StatelessWidget {
             ? CachedNetworkImageProvider(avatarUrl)
             : null,
         child: avatarUrl.isEmpty
-            ? Icon(Icons.person, size: radius * 0.7, color: Colors.grey)
+            ? Icon(
+                isOfficial ? Icons.campaign : Icons.person,
+                size: radius * 0.7,
+                color: isOfficial ? AppColors.primaryPurple : Colors.grey,
+              )
             : null,
       ),
     );

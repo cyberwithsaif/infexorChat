@@ -158,17 +158,24 @@ class CallManager {
 
     if (chatId.isEmpty) return;
 
-    debugPrint('📞 Callkit accepted — chatId: $chatId');
-    _isShowingIncomingCall = true; // block duplicate socket handler
+    debugPrint(
+      '📞 Callkit accepted — chatId: $chatId (showing=$_isShowingIncomingCall)',
+    );
 
-    // NOTE: call:accept is NOT emitted here because the socket may not be
-    // connected yet (killed-state launch). CallPage emits it after the socket
-    // is confirmed ready (callkitAccepted: true tells CallPage to do this).
+    // If Flutter IncomingCallScreen is already showing (socket foreground path),
+    // dismiss it first, then navigate to CallPage.
+    if (_isShowingIncomingCall) {
+      debugPrint('📞 Dismissing existing IncomingCallScreen before accepting');
+      _ref.read(incomingCallProvider.notifier).setCall(null);
+      final nav = navigatorKey.currentState;
+      if (nav != null && nav.canPop()) nav.pop();
+    }
 
-    // Navigate to the active call screen.
-    // On cold-start (killed state) the GoRouter walks through /splash auth
-    // checks before mounting its navigator, so navigatorKey.currentState is
-    // null for several seconds. Poll until it is ready.
+    _isShowingIncomingCall = true;
+
+    // Stop the native ringing notification/service
+    _callsChannel.invokeMethod('endCall', {'chatId': chatId});
+
     _pushCallPageWhenReady(
       chatId: chatId,
       callerId: callerId,
@@ -187,23 +194,19 @@ class CallManager {
     String? callerAvatar,
     required bool isVideo,
   }) async {
-    // GoRouter walks through /splash auth checks on cold-start, so the
-    // navigator can be null for several seconds. Poll until it is ready.
     const maxWaitMs = 12000;
     const pollMs = 150;
     int waited = 0;
 
-    // Wait until GoRouter's navigator is mounted.
-    // On cold start from killed state, the router walks through /splash → auth check → /home
-    // before the navigator is ready. isAppInForeground is NOT checked here because
-    // it is only set by HomeScreen which may not be mounted yet.
-    // On cold start from killed state, the router walks through /splash → auth check → /home
-    // before the navigator is ready. We must wait until the splash redirect has finished.
+    // Wait until navigator is ready, auth is done, AND splash redirect has
+    // completed (route is no longer /splash).
     while (waited < maxWaitMs) {
       if (navigatorKey.currentState != null) {
         final authStatus = _ref.read(authProvider).status;
         if (authStatus == AuthStatus.authenticated) {
-          break; // Splash has reached /home or elsewhere
+          final currentLocation =
+              router.routeInformationProvider.value.uri.path;
+          if (currentLocation != '/splash') break;
         }
       }
       await Future.delayed(const Duration(milliseconds: pollMs));
@@ -215,6 +218,9 @@ class CallManager {
       _isShowingIncomingCall = false;
       return;
     }
+
+    // Extra settle frame so context.go('/home') fully completes
+    await Future.delayed(const Duration(milliseconds: 100));
 
     debugPrint(
       '📞 System ready after ${waited}ms — pushing CallPage via GoRouter',
@@ -240,14 +246,65 @@ class CallManager {
     final chatId = body['callId']?.toString() ?? '';
     final callerId = body['callerId']?.toString() ?? '';
 
-    debugPrint('📞 Callkit declined — chatId: $chatId');
+    debugPrint(
+      '📞 Callkit declined — chatId: $chatId (showing=$_isShowingIncomingCall)',
+    );
+
+    // If Flutter IncomingCallScreen is already showing (socket foreground path),
+    // dismiss it first.
+    if (_isShowingIncomingCall) {
+      debugPrint('📞 Dismissing existing IncomingCallScreen before declining');
+      _ref.read(incomingCallProvider.notifier).setCall(null);
+      final nav = navigatorKey.currentState;
+      if (nav != null && nav.canPop()) nav.pop();
+    }
+
     _isShowingIncomingCall = false;
 
-    final socket = _ref.read(socketServiceProvider);
-    socket.socket?.emit('call:reject', {
-      'chatId': chatId,
-      'callerId': callerId,
-    });
+    // Stop the native ringing notification/service
+    _callsChannel.invokeMethod('endCall', {'chatId': chatId});
+
+    _emitRejectWhenSocketReady(chatId, callerId);
+  }
+
+  /// Wait for socket to connect, then emit call:reject.
+  /// Needed because reject from notification can happen before socket is ready
+  /// (app was killed/background when FCM arrived).
+  Future<void> _emitRejectWhenSocketReady(
+    String chatId,
+    String callerId,
+  ) async {
+    final socketService = _ref.read(socketServiceProvider);
+
+    // If already connected, emit immediately
+    if (socketService.isConnected && socketService.socket != null) {
+      socketService.socket!.emit('call:reject', {
+        'chatId': chatId,
+        'callerId': callerId,
+      });
+      debugPrint('📞 Emitted call:reject immediately');
+      return;
+    }
+
+    // Wait up to 10 seconds for socket to connect
+    debugPrint('📞 Socket not ready — waiting to emit call:reject');
+    const maxWaitMs = 10000;
+    const pollMs = 300;
+    int waited = 0;
+
+    while (waited < maxWaitMs) {
+      await Future.delayed(const Duration(milliseconds: pollMs));
+      waited += pollMs;
+      if (socketService.isConnected && socketService.socket != null) {
+        socketService.socket!.emit('call:reject', {
+          'chatId': chatId,
+          'callerId': callerId,
+        });
+        debugPrint('📞 Emitted call:reject after ${waited}ms');
+        return;
+      }
+    }
+    debugPrint('📞 Socket never connected — call:reject not sent');
   }
 
   // ─── Resume (ongoing call notification tapped) ─────────────────────────
@@ -261,16 +318,19 @@ class CallManager {
 
     debugPrint('📞 Resuming call from notification tap');
     _ref.read(activeCallProvider.notifier).clearActiveCall();
-    router.push('/call', extra: {
-      'chatId': activeCall.chatId,
-      'userId': activeCall.userId,
-      'callerName': activeCall.callerName,
-      'callerAvatar': activeCall.callerAvatar,
-      'isVideoCall': activeCall.isVideoCall,
-      'isIncoming': activeCall.isIncoming,
-      'isResuming': true,
-      'initialDuration': activeCall.duration,
-    });
+    router.push(
+      '/call',
+      extra: {
+        'chatId': activeCall.chatId,
+        'userId': activeCall.userId,
+        'callerName': activeCall.callerName,
+        'callerAvatar': activeCall.callerAvatar,
+        'isVideoCall': activeCall.isVideoCall,
+        'isIncoming': activeCall.isIncoming,
+        'isResuming': true,
+        'initialDuration': activeCall.duration,
+      },
+    );
   }
 
   // ─── Ring (notification body tapped) ───────────────────────────────────
@@ -292,7 +352,9 @@ class CallManager {
       return;
     }
 
-    debugPrint('📞 Callkit ring — showing IncomingCallScreen for chatId: $chatId');
+    debugPrint(
+      '📞 Callkit ring — showing IncomingCallScreen for chatId: $chatId',
+    );
     _isShowingIncomingCall = true;
 
     _ref.read(incomingCallProvider.notifier).setCall({
@@ -325,23 +387,39 @@ class CallManager {
     const pollMs = 150;
     int waited = 0;
 
+    // Wait until navigator is ready, auth is done, AND splash redirect has
+    // completed.  Without the location check there is a race: the push can
+    // land while the stack is still at /splash, and the subsequent
+    // context.go('/home') wipes the entire stack — destroying the screen.
     while (waited < maxWaitMs) {
       if (navigatorKey.currentState != null) {
         final authStatus = _ref.read(authProvider).status;
-        if (authStatus == AuthStatus.authenticated) break;
+        if (authStatus == AuthStatus.authenticated) {
+          // Ensure splash redirect to /home has settled
+          final currentLocation =
+              router.routeInformationProvider.value.uri.path;
+          if (currentLocation != '/splash') break;
+        }
       }
       await Future.delayed(const Duration(milliseconds: pollMs));
       waited += pollMs;
     }
 
     if (navigatorKey.currentState == null) {
-      debugPrint('📞 Navigator never became ready — cannot open IncomingCallScreen');
+      debugPrint(
+        '📞 Navigator never became ready — cannot open IncomingCallScreen',
+      );
       _isShowingIncomingCall = false;
       _ref.read(incomingCallProvider.notifier).setCall(null);
       return;
     }
 
-    debugPrint('📞 System ready after ${waited}ms — pushing IncomingCallScreen');
+    // Extra settle frame so context.go('/home') fully completes
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    debugPrint(
+      '📞 System ready after ${waited}ms — pushing IncomingCallScreen',
+    );
     router
         .push(
           '/incoming-call',
@@ -357,7 +435,6 @@ class CallManager {
         .then((_) {
           _isShowingIncomingCall = false;
           _ref.read(incomingCallProvider.notifier).setCall(null);
-          _callsChannel.invokeMethod('endCall', {'chatId': chatId});
         });
   }
 
@@ -373,22 +450,38 @@ class CallManager {
   // and are cleared with endAllCalls() so they don't re-open on every launch.
 
   Future<void> _checkKilledStateCall() async {
-    try {
-      final pendingRaw = await _callsChannel.invokeMethod('getPendingCall');
-      if (pendingRaw is Map) {
-        final pending = Map<dynamic, dynamic>.from(pendingRaw);
-        final action = pending['action']?.toString();
-        if (action == 'accept') {
-          _onCallkitAccept(pending);
-        } else if (action == 'reject') {
-          _onCallkitDecline(pending);
-        } else if (action == 'ring') {
-          _onCallkitRing(pending);
+    // Retry getPendingCall in a poll loop to handle the race condition where
+    // handleIntent() in Kotlin hasn't stored the pending call data yet when
+    // Flutter's CallManager.init() fires during a cold start from notification.
+    const maxAttempts = 10; // 10 × 300ms = 3 seconds
+    const pollMs = 300;
+
+    for (int attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        final pendingRaw = await _callsChannel.invokeMethod('getPendingCall');
+        if (pendingRaw is Map) {
+          final pending = Map<dynamic, dynamic>.from(pendingRaw);
+          final action = pending['action']?.toString();
+          debugPrint(
+            '📞 getPendingCall returned action=$action (attempt $attempt)',
+          );
+          if (action == 'accept') {
+            _onCallkitAccept(pending);
+          } else if (action == 'reject') {
+            _onCallkitDecline(pending);
+          } else if (action == 'ring') {
+            _onCallkitRing(pending);
+          }
+          return; // Successfully handled
         }
+      } catch (e) {
+        debugPrint('📞 _checkKilledStateCall error (attempt $attempt): $e');
       }
-    } catch (e) {
-      debugPrint('📞 _checkKilledStateCall error: $e');
+      // Only retry if this is a cold start (no active call showing yet)
+      if (_isShowingIncomingCall) return;
+      await Future.delayed(const Duration(milliseconds: pollMs));
     }
+    debugPrint('📞 No pending call found after $maxAttempts attempts');
   }
 
   // ─── Socket handlers (foreground) ────────────────────────────────────────
@@ -402,16 +495,23 @@ class CallManager {
       final chatId = data['chatId']?.toString() ?? '';
       debugPrint('📞 call:cancelled received — chatId: $chatId');
 
-      // Dismiss any native callkit UI
+      // Dismiss the native ringing notification/service
       if (chatId.isNotEmpty) {
         _callsChannel.invokeMethod('endCall', {'chatId': chatId});
       }
-      _isShowingIncomingCall = false;
-      _ref.read(incomingCallProvider.notifier).setCall(null);
 
-      // Pop IncomingCallScreen if it is on top
-      final nav = navigatorKey.currentState;
-      if (nav != null && nav.canPop()) nav.pop();
+      // Only pop IncomingCallScreen if we are actually showing one
+      // and the chatId matches the current incoming call.
+      if (_isShowingIncomingCall) {
+        final currentCall = _ref.read(incomingCallProvider);
+        final currentChatId = currentCall?['chatId']?.toString() ?? '';
+        if (chatId.isEmpty || chatId == currentChatId) {
+          _isShowingIncomingCall = false;
+          _ref.read(incomingCallProvider.notifier).setCall(null);
+          final nav = navigatorKey.currentState;
+          if (nav != null && nav.canPop()) nav.pop();
+        }
+      }
     });
 
     // ─── Receiver is busy on another call ────────────────────────────────
@@ -508,8 +608,6 @@ class CallManager {
           .then((_) {
             _isShowingIncomingCall = false;
             _ref.read(incomingCallProvider.notifier).setCall(null);
-            // Hide any stale callkit banner for this call
-            _callsChannel.invokeMethod('endCall', {'chatId': chatId});
           });
     });
   }

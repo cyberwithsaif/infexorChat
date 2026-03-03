@@ -173,4 +173,19 @@ class SocketService {
     _socket?.off(event);
     _pendingListeners.remove(event);
   }
+
+  /// Remove a specific handler for an event (keeps other handlers intact)
+  void removeHandler(String event, Function(dynamic) handler) {
+    _pendingListeners[event]?.remove(handler);
+    // Re-attach remaining handlers for this event
+    if (_isConnected && _socket != null) {
+      _socket!.off(event);
+      final remaining = _pendingListeners[event];
+      if (remaining != null) {
+        for (final h in remaining) {
+          _socket!.on(event, h);
+        }
+      }
+    }
+  }
 }

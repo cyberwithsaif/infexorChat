@@ -13,6 +13,10 @@ class MyFirebaseService : FirebaseMessagingService() {
 
         // Backend sends type = "audio_call" (audio) or "video_call" (video)
         if (type == "call" || type == "audio_call" || type == "video_call") {
+            // Do not ring if user is logged out
+            val prefs = applicationContext.getSharedPreferences("InfexorPrefs", android.content.Context.MODE_PRIVATE)
+            if (!prefs.getBoolean("is_logged_in", false)) return
+
             val intent = Intent(this, CallForegroundService::class.java)
             intent.putExtra("callerName", remoteMessage.data["callerName"])
             // Backend uses chatId as the unique call identifier

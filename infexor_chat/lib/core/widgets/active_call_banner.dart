@@ -27,7 +27,7 @@ class ActiveCallBanner extends ConsumerWidget {
           ref.read(activeCallProvider.notifier).clearActiveCall();
 
           if (isRinging && callState.isIncoming) {
-            // Return to incoming call screen
+            // Return to incoming call screen (isResuming skips ringtone restart)
             router.push(
               '/incoming-call',
               extra: {
@@ -37,6 +37,7 @@ class ActiveCallBanner extends ConsumerWidget {
                 'callerName': callState.callerName,
                 'callerAvatar': callState.callerAvatar,
                 'isVideo': callState.isVideoCall,
+                'isResuming': true,
               },
             );
           } else {

@@ -6,6 +6,11 @@ import '../../../config/routes.dart';
 import '../../../core/network/api_client.dart';
 import '../services/auth_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/services.dart';
+import '../../../core/services/notification_service.dart';
+import '../../chat/services/socket_service.dart';
+
+const _callsChannel = MethodChannel('com.infexor.infexor_chat/calls');
 
 enum AuthStatus {
   initial,
@@ -116,7 +121,9 @@ class AuthNotifier extends Notifier<AuthState> {
 
       try {
         final profileRes = await ref.read(authServiceProvider).getProfile();
-        final freshUser = profileRes['data']?['user'];
+        final freshUser =
+            profileRes['data']?['user'] ??
+            (profileRes.containsKey('_id') ? profileRes : null);
         if (freshUser != null) {
           await box.put('user', freshUser);
           state = state.copyWith(user: freshUser);
@@ -138,12 +145,23 @@ class AuthNotifier extends Notifier<AuthState> {
           .read(authServiceProvider)
           .sendOtp(phone: phone, countryCode: countryCode);
 
-      // Store reqId in state
-      final reqId = response['data']['reqId'];
+      // Extract reqId from response — try multiple paths
+      String? reqId;
+      final data = response['data'];
+      if (data is Map) {
+        reqId = data['reqId']?.toString();
+      }
+      // Fallback: reqId might be at top level
+      reqId ??= response['reqId']?.toString();
 
-      state = state.copyWith(status: AuthStatus.unauthenticated, reqId: reqId);
+      // Proceed even if reqId is empty — OTP was sent successfully
+      state = state.copyWith(
+        status: AuthStatus.unauthenticated,
+        reqId: reqId ?? '',
+      );
       return true;
-    } catch (e) {
+    } catch (e, stack) {
+      print('📱 sendOtp error: $e\n$stack');
       state = state.copyWith(
         status: AuthStatus.unauthenticated,
         error: _extractError(e),
@@ -166,14 +184,14 @@ class AuthNotifier extends Notifier<AuthState> {
       }
 
       // Request FCM permissions and get token
-      final messaging = FirebaseMessaging.instance;
-      await messaging.requestPermission();
       String? fcmToken;
       try {
+        final messaging = FirebaseMessaging.instance;
+        await messaging.requestPermission();
         fcmToken = await messaging.getToken();
         print("FCM Token: $fcmToken");
       } catch (e) {
-        print("Failed to get FCM token: $e");
+        print("Failed to get FCM token or permission: $e");
       }
 
       final response = await ref
@@ -186,23 +204,48 @@ class AuthNotifier extends Notifier<AuthState> {
             fcmToken: fcmToken,
           );
 
-      final data = response['data'];
-      final accessToken = data['accessToken'];
-      final refreshToken = data['refreshToken'];
-      final isProfileComplete = data['isProfileComplete'] ?? false;
-      final user = data['user'];
+      print('📱 Raw server response from verifyOtp: $response');
+
+      final Map<String, dynamic> data =
+          (response['data'] as Map<String, dynamic>?) ?? response;
+
+      final accessToken =
+          data['accessToken']?.toString() ?? data['token']?.toString();
+      final refreshToken = data['refreshToken']?.toString();
+
+      if (accessToken == null || accessToken.isEmpty) {
+        throw Exception(
+          'Access token is missing from server response. Raw: $response',
+        );
+      }
+
+      final bool isProfileComplete;
+      if (data.containsKey('isProfileComplete')) {
+        isProfileComplete = data['isProfileComplete'] == true;
+      } else {
+        isProfileComplete = data['isNewUser'] == false;
+      }
+
+      final user = data['user'] as Map<String, dynamic>? ?? data;
 
       // Save tokens and user
       final box = await Hive.openBox(_boxName);
       await box.put('accessToken', accessToken);
-      await box.put('refreshToken', refreshToken);
-      await box.put('isProfileComplete', isProfileComplete);
-      if (user != null) {
-        await box.put('user', Map<String, dynamic>.from(user));
+
+      if (refreshToken != null) {
+        await box.put('refreshToken', refreshToken);
       }
+
+      await box.put('isProfileComplete', isProfileComplete);
+      await box.put('user', Map<String, dynamic>.from(user));
 
       // Set token on API client
       ref.read(apiClientProvider).setToken(accessToken);
+
+      // Tell native Android this device is now logged in (calls allowed)
+      try {
+        await _callsChannel.invokeMethod('setLoggedIn', {'value': true});
+      } catch (_) {}
 
       if (!isProfileComplete) {
         state = AuthState(
@@ -222,6 +265,7 @@ class AuthNotifier extends Notifier<AuthState> {
 
       return true;
     } catch (e) {
+      print('📱 verifyOtp error: $e');
       state = state.copyWith(
         status: AuthStatus.unauthenticated,
         error: _extractError(e),
@@ -242,7 +286,10 @@ class AuthNotifier extends Notifier<AuthState> {
           .read(authServiceProvider)
           .updateProfile(name: name, about: about, avatar: avatar);
 
-      final userData = response['data']?['user'] ?? response['user'];
+      final userData =
+          response['data']?['user'] ??
+          response['user'] ??
+          (response.containsKey('_id') ? response : null);
 
       if (userData != null) {
         final box = await Hive.openBox(_boxName);
@@ -295,6 +342,25 @@ class AuthNotifier extends Notifier<AuthState> {
 
   /// Logout
   Future<void> logout() async {
+    // Tell native Android not to ring for incoming calls anymore
+    try {
+      await _callsChannel.invokeMethod('setLoggedIn', {'value': false});
+    } catch (_) {}
+
+    // Delete FCM token at Firebase level — stops ALL FCM delivery to this device
+    try {
+      final fcmToken = await FirebaseMessaging.instance.getToken();
+      if (fcmToken != null) {
+        await ref.read(notificationServiceProvider).removeToken(fcmToken);
+      }
+      await FirebaseMessaging.instance.deleteToken();
+    } catch (_) {}
+
+    // Disconnect socket
+    try {
+      ref.read(socketServiceProvider).disconnect();
+    } catch (_) {}
+
     try {
       await ref.read(authServiceProvider).logout();
     } catch (_) {
@@ -355,11 +421,19 @@ class AuthNotifier extends Notifier<AuthState> {
           e.type == DioExceptionType.receiveTimeout) {
         return 'Connection timeout. Please try again.';
       }
-      return 'Invalid OTP or Network Error';
+      if (e.type == DioExceptionType.connectionError) {
+        return 'Cannot connect to server. Check your internet connection.';
+      }
+      return 'Network error. Please try again.';
     }
     if (e is Exception) {
       return e.toString().replaceFirst('Exception: ', '');
     }
-    return 'Something went wrong';
+    // Handle Error types (TypeError, NoSuchMethodError, etc.)
+    if (e is Error) {
+      print('Auth error (${e.runtimeType}): $e');
+      return 'An unexpected error occurred. Please try again.';
+    }
+    return 'Something went wrong. Please try again.';
   }
 }

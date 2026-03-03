@@ -13,6 +13,10 @@ import '../providers/call_history_provider.dart';
 import '../../../core/providers/active_call_provider.dart';
 import '../../../config/routes.dart';
 
+const MethodChannel _callsChannel = MethodChannel(
+  'com.infexor.infexor_chat/calls',
+);
+
 class IncomingCallScreen extends ConsumerStatefulWidget {
   final String callId;
   final String chatId;
@@ -118,6 +122,7 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen> {
     if (mounted && !_handled) {
       _handled = true;
       _stopRingtone();
+      _callsChannel.invokeMethod('endCall', {'chatId': widget.chatId});
       ref.read(activeCallProvider.notifier).clearActiveCall();
       Navigator.pop(context);
     }
@@ -132,9 +137,11 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen> {
     if (!_minimized) {
       _stopRingtone();
     }
+    // Remove only OUR specific callback — don't wipe all listeners
+    // for these events (CallManager and CallPage also use them).
     final socketService = ref.read(socketServiceProvider);
-    socketService.off('call:ended');
-    socketService.off('call:end');
+    socketService.removeHandler('call:ended', _onCallCancelled);
+    socketService.removeHandler('call:end', _onCallCancelled);
     super.dispose();
   }
 
@@ -163,6 +170,8 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen> {
     if (_handled) return;
     _handled = true;
     _stopRingtone();
+    // Stop the native ringing notification/service
+    _callsChannel.invokeMethod('endCall', {'chatId': widget.chatId});
     // Clear ringing status so CallPage can take over
     ref.read(activeCallProvider.notifier).clearActiveCall();
     // NOTE: call:accept is NOT emitted here — CallPage emits it after
@@ -185,6 +194,8 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen> {
     if (_handled) return;
     _handled = true;
     _stopRingtone();
+    // Stop the native ringing notification/service
+    _callsChannel.invokeMethod('endCall', {'chatId': widget.chatId});
     ref.read(activeCallProvider.notifier).clearActiveCall();
     ref.read(socketServiceProvider).socket?.emit('call:reject', {
       'chatId': widget.chatId,

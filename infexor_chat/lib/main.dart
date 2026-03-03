@@ -20,9 +20,11 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/services/call_manager.dart';
 import 'core/services/notification_plugin.dart';
 import 'core/services/notification_service.dart';
+import 'core/providers/active_call_provider.dart';
 import 'core/widgets/active_call_banner.dart';
 import 'core/widgets/active_call_pip.dart';
 import 'features/auth/services/auth_service.dart';
+import 'features/auth/providers/auth_provider.dart';
 import 'features/contacts/providers/contact_provider.dart';
 import 'features/chat/providers/chat_provider.dart';
 import 'features/chat/services/socket_service.dart';
@@ -206,6 +208,10 @@ void main() async {
   }
 
   globalContainer = ProviderContainer();
+
+  // Run initial auth check for instant launch
+  await globalContainer.read(authProvider.notifier).checkAuth();
+
   runApp(
     UncontrolledProviderScope(
       container: globalContainer,
@@ -368,12 +374,33 @@ class _InfexorChatAppState extends ConsumerState<InfexorChatApp>
           builder: (context, child) {
             return Stack(
               children: [
-                child ?? const SizedBox.shrink(),
-                const Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: ActiveCallBanner(),
+                Column(
+                  children: [
+                    const ActiveCallBanner(),
+                    Consumer(
+                      builder: (context, ref, _) {
+                        final isCallActive = ref
+                            .watch(activeCallProvider)
+                            .isActive;
+                        final effectiveChild = child ?? const SizedBox.shrink();
+                        if (isCallActive) {
+                          // Banner already consumed the status bar space —
+                          // zero out top padding so AppBars don't double it.
+                          return Expanded(
+                            child: MediaQuery(
+                              data: MediaQuery.of(context).copyWith(
+                                padding: MediaQuery.of(
+                                  context,
+                                ).padding.copyWith(top: 0),
+                              ),
+                              child: effectiveChild,
+                            ),
+                          );
+                        }
+                        return Expanded(child: effectiveChild);
+                      },
+                    ),
+                  ],
                 ),
                 const ActiveCallPip(),
               ],

@@ -9,27 +9,27 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
-      scaffoldBackgroundColor: const Color(0xFFFFF5F5),
-      primaryColor: const Color(0xFF00A884),
+      scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+      primaryColor: const Color(0xFF2563EB),
       colorScheme: const ColorScheme.light(
-        primary: Color(0xFF00A884),
-        secondary: Color(0xFF00A884),
+        primary: Color(0xFF2563EB),
+        secondary: Color(0xFF1E40AF),
         surface: Colors.white,
         error: Colors.red,
         onPrimary: Colors.white,
-        onSurface: Color(0xFF111B21),
+        onSurface: Color(0xFF0F172A),
       ),
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.white,
-        foregroundColor: Color(0xFF111B21),
+        foregroundColor: Color(0xFF0F172A),
         elevation: 0,
         centerTitle: false,
-        iconTheme: IconThemeData(color: Color(0xFF54656F)),
+        iconTheme: IconThemeData(color: Color(0xFF64748B)),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Colors.white,
-        hintStyle: const TextStyle(color: Color(0xFF667781)),
+        hintStyle: const TextStyle(color: Color(0xFF64748B)),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(24),
           borderSide: BorderSide.none,
@@ -49,18 +49,18 @@ class AppTheme {
       ),
       textTheme: const TextTheme(
         headlineLarge: TextStyle(
-          color: Color(0xFF111B21),
+          color: Color(0xFF0F172A),
           fontWeight: FontWeight.bold,
         ),
         titleLarge: TextStyle(
-          color: Color(0xFF111B21),
+          color: Color(0xFF0F172A),
           fontWeight: FontWeight.bold,
         ),
-        bodyLarge: TextStyle(color: Color(0xFF111B21)),
-        bodyMedium: TextStyle(color: Color(0xFF667781)),
+        bodyLarge: TextStyle(color: Color(0xFF0F172A)),
+        bodyMedium: TextStyle(color: Color(0xFF64748B)),
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: Color(0xFF00A884),
+        backgroundColor: Color(0xFF2563EB),
         foregroundColor: Colors.white,
       ),
       pageTransitionsTheme: const PageTransitionsTheme(

@@ -75,9 +75,30 @@ class MainActivity : FlutterActivity() {
             } else if (call.method == "hideOngoingCallNotification") {
                 hideOngoingCallNotification()
                 result.success(null)
+            } else if (call.method == "setLoggedIn") {
+                val isLoggedIn = call.argument<Boolean>("value") ?: false
+                val prefs = context.getSharedPreferences("InfexorPrefs", android.content.Context.MODE_PRIVATE)
+                prefs.edit().putBoolean("is_logged_in", isLoggedIn).apply()
+                result.success(null)
             } else {
                 result.notImplemented()
             }
+        }
+
+        // Re-send any pending call data that was stored by handleIntent()
+        // during onCreate() before the MethodChannel was ready.
+        if (pendingCallAction != null) {
+            android.util.Log.d("MainActivity", "Re-sending pending call: $pendingCallAction")
+            methodChannel?.invokeMethod("onCallEvent", mapOf(
+                "action" to pendingCallAction,
+                "callId" to pendingCallId,
+                "callerId" to pendingCallerId,
+                "callerName" to pendingCallerName,
+                "isVideo" to pendingIsVideo,
+                "callerAvatar" to pendingCallerAvatar
+            ))
+            // Clear so getPendingCall doesn't also pick it up (prevents duplicate handling)
+            clearPendingCall()
         }
     }
 

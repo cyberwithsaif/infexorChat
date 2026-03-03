@@ -62,11 +62,15 @@ class _CallPageState extends ConsumerState<CallPage>
   bool _isConnected = false;
   bool _disposed = false;
   bool _minimized = false;
+  bool _wasInPiP = false;
   String _callStatus = 'Connecting...';
   Timer? _callTimer;
   int _callDuration = 0;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+
+  // Store callback references so we can remove only our own listeners
+  final Map<String, Function(dynamic)> _socketCallbacks = {};
 
   // Controls visibility for video call
   bool _showControls = true;
@@ -111,10 +115,8 @@ class _CallPageState extends ConsumerState<CallPage>
     // can arrive while permissions or WebRTC init are still pending.
     _setupSocketListeners();
 
-    // Tell native side we're in a video call (for auto-PiP on home button)
-    if (widget.isVideoCall) {
-      _callsChannel.invokeMethod('setInVideoCall', {'value': true});
-    }
+    // Tell native side we're in a call (for auto-PiP on home button)
+    _callsChannel.invokeMethod('setInVideoCall', {'value': true});
 
     if (widget.isResuming) {
       _isConnected = true;
@@ -136,37 +138,62 @@ class _CallPageState extends ConsumerState<CallPage>
   void _setupSocketListeners() {
     final socketService = ref.read(socketServiceProvider);
 
-    // Listen for call-end events from server.
-    // NOTE: 'call:cancelled' is intentionally excluded — call_manager.dart
-    // owns that listener globally and handles dismiss + callkit cleanup.
-    for (final event in ['call:ended', 'call:end', 'call:hangup']) {
-      socketService.on(event, (data) {
-        if (_disposed) return;
-        debugPrint('📞 Received $event from server');
-        if (data is Map<String, dynamic>) {
-          final eventChatId = data['chatId']?.toString();
-          if (eventChatId != null && eventChatId != widget.chatId) return;
-        }
-        _endCallFromRemote();
-      });
+    // Store callbacks so we can remove only our own in dispose()
+    void onEnded(dynamic data) {
+      if (_disposed) return;
+      debugPrint('📞 Received call:ended from server');
+      if (data is Map<String, dynamic>) {
+        final eventChatId = data['chatId']?.toString();
+        if (eventChatId != null && eventChatId != widget.chatId) return;
+      }
+      _endCallFromRemote();
     }
 
-    // Listen for call accepted (outgoing call - callee accepted)
-    socketService.on('call:accepted', (data) {
+    void onEnd(dynamic data) {
+      if (_disposed) return;
+      debugPrint('📞 Received call:end from server');
+      if (data is Map<String, dynamic>) {
+        final eventChatId = data['chatId']?.toString();
+        if (eventChatId != null && eventChatId != widget.chatId) return;
+      }
+      _endCallFromRemote();
+    }
+
+    void onHangup(dynamic data) {
+      if (_disposed) return;
+      debugPrint('📞 Received call:hangup from server');
+      if (data is Map<String, dynamic>) {
+        final eventChatId = data['chatId']?.toString();
+        if (eventChatId != null && eventChatId != widget.chatId) return;
+      }
+      _endCallFromRemote();
+    }
+
+    void onAccepted(dynamic data) {
       if (_disposed) return;
       debugPrint('📞 Call accepted by remote');
       if (mounted) {
         setState(() => _callStatus = 'Connecting...');
       }
-    });
+    }
 
-    // Listen for call rejected — use endCallFromRemote so we don't
-    // emit call:cancel back to the server (server already knows).
-    socketService.on('call:rejected', (data) {
+    void onRejected(dynamic data) {
       if (_disposed) return;
       debugPrint('📞 Call rejected by remote');
       _endCallFromRemote();
-    });
+    }
+
+    _socketCallbacks['call:ended'] = onEnded;
+    _socketCallbacks['call:end'] = onEnd;
+    _socketCallbacks['call:hangup'] = onHangup;
+    _socketCallbacks['call:accepted'] = onAccepted;
+    _socketCallbacks['call:rejected'] = onRejected;
+
+    socketService.on('call:ended', onEnded);
+    socketService.on('call:end', onEnd);
+    socketService.on('call:hangup', onHangup);
+    socketService.on('call:accepted', onAccepted);
+    socketService.on('call:rejected', onRejected);
   }
 
   Future<void> _initCall() async {
@@ -369,7 +396,11 @@ class _CallPageState extends ConsumerState<CallPage>
   }
 
   Future<void> _endCallLocally() async {
-    if (_disposed) return;
+    if (_disposed) {
+      // Already disposed — just ensure the user can leave the screen
+      if (mounted) Navigator.pop(context);
+      return;
+    }
     _disposed = true;
     _callsChannel.invokeMethod('hideOngoingCallNotification');
     // Log call unconditionally to ensure history is updated for both parties
@@ -402,18 +433,18 @@ class _CallPageState extends ConsumerState<CallPage>
   }
 
   /// Minimize call — keep WebRTC alive.
-  /// For connected video calls: enter native Android PiP mode.
-  /// For audio calls or not-yet-connected: pop to show green banner.
+  /// For connected calls (audio or video): enter native Android PiP mode.
+  /// For not-yet-connected calls: pop to show green banner.
   void _minimizeCall() {
     if (_disposed) return;
 
-    // Connected video call → native PiP (call screen stays as PiP content)
-    if (widget.isVideoCall && _isConnected) {
+    // Connected call → native PiP (call screen stays as PiP content)
+    if (_isConnected) {
       _callsChannel.invokeMethod('enterPiP');
       return;
     }
 
-    // Audio call or not connected → pop to green banner
+    // Not connected yet → pop to green banner
     _minimized = true;
     ref
         .read(activeCallProvider.notifier)
@@ -424,7 +455,7 @@ class _CallPageState extends ConsumerState<CallPage>
           callerAvatar: widget.callerAvatar,
           isVideoCall: widget.isVideoCall,
           isIncoming: widget.isIncoming,
-          status: _isConnected ? 'connected' : 'ringing',
+          status: 'ringing',
           currentDuration: _callDuration,
         );
     if (mounted) Navigator.pop(context);
@@ -490,15 +521,13 @@ class _CallPageState extends ConsumerState<CallPage>
     // Clear native PiP video call flag
     _callsChannel.invokeMethod('setInVideoCall', {'value': false});
 
-    // Clean up call-specific socket listeners.
-    // NOTE: do NOT off('call:cancelled') — call_manager.dart owns that
-    // global listener and needs it for future incoming calls.
+    // Clean up call-specific socket listeners — remove only OUR callbacks
+    // so we don't wipe CallManager's global listeners.
     final socketService = ref.read(socketServiceProvider);
-    socketService.off('call:ended');
-    socketService.off('call:accepted');
-    socketService.off('call:rejected');
-    socketService.off('call:hangup');
-    socketService.off('call:end');
+    _socketCallbacks.forEach((event, callback) {
+      socketService.removeHandler(event, callback);
+    });
+    _socketCallbacks.clear();
 
     // Only end the actual WebRTC call if NOT being minimized
     if (!_minimized) {
@@ -552,13 +581,85 @@ class _CallPageState extends ConsumerState<CallPage>
     final avatar = UrlUtils.getFullUrl(widget.callerAvatar ?? '');
     final isInPiP = ref.watch(pipModeProvider);
 
-    // In native PiP mode: show only the remote video, no controls
-    if (isInPiP && _isVideoConnected) {
+    // Detect PiP exit (user tapped PiP to expand) → minimize to banner
+    // so the user can navigate the app while the call continues.
+    if (_wasInPiP && !isInPiP && _isConnected && !_disposed) {
+      _wasInPiP = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _disposed) return;
+        _minimized = true;
+        ref
+            .read(activeCallProvider.notifier)
+            .setActiveCall(
+              chatId: widget.chatId,
+              userId: widget.userId,
+              callerName: widget.callerName,
+              callerAvatar: widget.callerAvatar,
+              isVideoCall: widget.isVideoCall,
+              isIncoming: widget.isIncoming,
+              status: 'connected',
+              currentDuration: _callDuration,
+            );
+        if (mounted) Navigator.pop(context);
+      });
+    }
+    _wasInPiP = isInPiP;
+
+    // In native PiP mode: show minimal UI (no controls — window is too small)
+    if (isInPiP && _isConnected) {
+      if (_isVideoConnected) {
+        // Video call PiP: show remote video fullscreen
+        return Scaffold(
+          backgroundColor: Colors.black,
+          body: RTCVideoView(
+            _webRTCService.remoteRenderer,
+            objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+          ),
+        );
+      }
+      // Audio call PiP: show compact caller info with timer
       return Scaffold(
-        backgroundColor: Colors.black,
-        body: RTCVideoView(
-          _webRTCService.remoteRenderer,
-          objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+        backgroundColor: const Color(0xFF0D1B2A),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: AppColors.accentBlue.withValues(alpha: 0.3),
+                backgroundImage: avatar.isNotEmpty
+                    ? CachedNetworkImageProvider(avatar) as ImageProvider
+                    : null,
+                child: avatar.isEmpty
+                    ? Text(
+                        widget.callerName.isNotEmpty
+                            ? widget.callerName[0].toUpperCase()
+                            : '?',
+                        style: const TextStyle(
+                          fontSize: 22,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      )
+                    : null,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                widget.callerName,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _formatDuration(_callDuration),
+                style: const TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -848,26 +949,32 @@ class _CallPageState extends ConsumerState<CallPage>
                               ],
                             ),
                             SizedBox(height: 24.h),
-                            GestureDetector(
-                              onTap: _endCallLocally,
-                              child: Container(
-                                width: 64.r,
-                                height: 64.r,
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.red.withValues(alpha: 0.4),
-                                      blurRadius: 16,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: Icon(
-                                  Icons.call_end,
-                                  color: Colors.white,
-                                  size: 30.sp,
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: _endCallLocally,
+                                customBorder: const CircleBorder(),
+                                child: Container(
+                                  width: 64.r,
+                                  height: 64.r,
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.red.withValues(
+                                          alpha: 0.4,
+                                        ),
+                                        blurRadius: 16,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(
+                                    Icons.call_end,
+                                    color: Colors.white,
+                                    size: 30.sp,
+                                  ),
                                 ),
                               ),
                             ),
@@ -1108,26 +1215,32 @@ class _CallPageState extends ConsumerState<CallPage>
 
                             SizedBox(height: 24.h),
 
-                            GestureDetector(
-                              onTap: _endCallLocally,
-                              child: Container(
-                                width: 64.r,
-                                height: 64.r,
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.red.withValues(alpha: 0.4),
-                                      blurRadius: 16,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: Icon(
-                                  Icons.call_end,
-                                  color: Colors.white,
-                                  size: 30.sp,
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: _endCallLocally,
+                                customBorder: const CircleBorder(),
+                                child: Container(
+                                  width: 64.r,
+                                  height: 64.r,
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.red.withValues(
+                                          alpha: 0.4,
+                                        ),
+                                        blurRadius: 16,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(
+                                    Icons.call_end,
+                                    color: Colors.white,
+                                    size: 30.sp,
+                                  ),
                                 ),
                               ),
                             ),

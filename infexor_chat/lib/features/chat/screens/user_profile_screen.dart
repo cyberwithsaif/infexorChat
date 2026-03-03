@@ -214,14 +214,31 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
             backgroundColor: appBarBg,
             iconTheme: const IconThemeData(color: Colors.white),
             flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                name,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  shadows: [Shadow(color: Colors.black45, blurRadius: 2)],
-                ),
+              title: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      name,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        shadows: [Shadow(color: Colors.black45, blurRadius: 2)],
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (widget.user['isVerified'] == true)
+                    const Padding(
+                      padding: EdgeInsets.only(left: 4),
+                      child: Icon(
+                        Icons.verified,
+                        color: Color(0xFF1DA1F2),
+                        size: 18,
+                      ),
+                    ),
+                ],
               ),
               background: Stack(
                 fit: StackFit.expand,

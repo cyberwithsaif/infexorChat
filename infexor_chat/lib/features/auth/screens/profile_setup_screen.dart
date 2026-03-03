@@ -1,15 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/api_endpoints.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/utils/url_utils.dart';
 import '../providers/auth_provider.dart';
 
 class ProfileSetupScreen extends ConsumerStatefulWidget {
   const ProfileSetupScreen({super.key});
 
   @override
-  ConsumerState<ProfileSetupScreen> createState() =>
-      _ProfileSetupScreenState();
+  ConsumerState<ProfileSetupScreen> createState() => _ProfileSetupScreenState();
 }
 
 class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
@@ -17,6 +21,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   final _aboutController = TextEditingController(
     text: 'Hey there! I am using Infexor Chat',
   );
+  String _avatar = '';
   bool _isLoading = false;
 
   @override
@@ -26,21 +31,64 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     super.dispose();
   }
 
+  Future<void> _pickAvatar() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1920,
+      maxHeight: 1920,
+      imageQuality: 100,
+    );
+
+    if (picked == null) return;
+
+    setState(() => _isLoading = true);
+    try {
+      final api = ref.read(apiClientProvider);
+      final response = await api.uploadFile(
+        ApiEndpoints.uploadImage,
+        picked.path,
+        field: 'image',
+      );
+      final data = response.data;
+      final urlPath = data['data']?['url'] ?? data['url'] ?? '';
+      if (urlPath.isNotEmpty) {
+        setState(() => _avatar = UrlUtils.getFullUrl(urlPath));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Upload failed: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   Future<void> _completeProfile() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your name')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please enter your name')));
       return;
     }
 
     setState(() => _isLoading = true);
 
-    final success = await ref.read(authProvider.notifier).completeProfile(
-      name: name,
-      about: _aboutController.text.trim(),
-    );
+    final success = await ref
+        .read(authProvider.notifier)
+        .completeProfile(
+          name: name,
+          about: _aboutController.text.trim(),
+          avatar: _avatar,
+        );
 
     setState(() => _isLoading = false);
 
@@ -78,50 +126,69 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
               const Text(
                 'Add your name and an optional bio',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textSecondary,
-                ),
+                style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
               ),
 
               const SizedBox(height: 40),
 
               // Avatar placeholder
               Center(
-                child: Stack(
-                  children: [
-                    Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppColors.bgCard,
-                        border: Border.all(color: AppColors.border),
-                      ),
-                      child: const Icon(
-                        Icons.person_rounded,
-                        size: 48,
-                        color: AppColors.textMuted,
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        width: 34,
-                        height: 34,
-                        decoration: const BoxDecoration(
+                child: GestureDetector(
+                  onTap: _pickAvatar,
+                  child: Stack(
+                    children: [
+                      Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          gradient: AppColors.primaryGradient,
+                          color: AppColors.bgCard,
+                          border: Border.all(color: AppColors.border),
                         ),
-                        child: const Icon(
-                          Icons.camera_alt_rounded,
-                          size: 18,
-                          color: Colors.white,
+                        child: ClipOval(
+                          child: _avatar.isNotEmpty
+                              ? CachedNetworkImage(
+                                  imageUrl: _avatar,
+                                  fit: BoxFit.cover,
+                                  placeholder: (context, url) => const Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.accentBlue,
+                                    ),
+                                  ),
+                                  errorWidget: (context, url, error) =>
+                                      const Icon(
+                                        Icons.person_rounded,
+                                        size: 48,
+                                        color: AppColors.textMuted,
+                                      ),
+                                )
+                              : const Icon(
+                                  Icons.person_rounded,
+                                  size: 48,
+                                  color: AppColors.textMuted,
+                                ),
                         ),
                       ),
-                    ),
-                  ],
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          width: 34,
+                          height: 34,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: AppColors.primaryGradient,
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt_rounded,
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
 

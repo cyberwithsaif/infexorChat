@@ -16,6 +16,7 @@ import 'call_screen.dart';
 import 'user_profile_screen.dart';
 import '../../../core/widgets/quick_profile_dialog.dart';
 import '../widgets/dialer_dialog.dart';
+import '../../../core/widgets/verified_badge.dart';
 
 class CallsScreen extends ConsumerWidget {
   const CallsScreen({super.key});
@@ -81,7 +82,7 @@ class CallsScreen extends ConsumerWidget {
             builder: (context) => const DialerDialog(),
           );
         },
-        backgroundColor: const Color(0xFFFF6B6B),
+        backgroundColor: const Color(0xFF2563EB),
         child: const Icon(Icons.dialpad, color: Colors.white),
       ),
     );
@@ -222,12 +223,27 @@ class _CallTile extends ConsumerWidget {
               : null,
         ),
       ),
-      title: Text(
-        displayName,
-        style: TextStyle(
-          fontWeight: FontWeight.w600,
-          color: callLog.status == 'missed' && !isOutgoing ? Colors.red : null,
-        ),
+      title: Row(
+        children: [
+          Flexible(
+            child: Text(
+              displayName,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: callLog.status == 'missed' && !isOutgoing
+                    ? Colors.red
+                    : null,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (otherUser?['isVerified'] == true)
+            const Padding(
+              padding: EdgeInsets.only(left: 4),
+              child: VerifiedBadge(size: 16),
+            ),
+        ],
       ),
       subtitle: Row(
         children: [
@@ -249,7 +265,7 @@ class _CallTile extends ConsumerWidget {
       trailing: IconButton(
         icon: Icon(
           callLog.type == 'video' ? Icons.videocam : Icons.call,
-          color: const Color(0xFFFF6B6B),
+          color: const Color(0xFF2563EB),
         ),
         onPressed: () {
           // Trigger a new call back to this user
