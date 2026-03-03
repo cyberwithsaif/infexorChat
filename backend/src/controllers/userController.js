@@ -263,6 +263,54 @@ exports.deleteBulkMedia = async (req, res, next) => {
   }
 };
 /**
+ * POST /users/verification/request
+ * Request blue tick verification
+ */
+exports.requestVerification = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const { reason } = req.body;
+
+    if (!reason || reason.trim().length < 5) {
+      return ApiResponse.badRequest(res, 'Please provide a reason (at least 5 characters)');
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return ApiResponse.notFound(res, 'User not found');
+
+    // Must have a complete profile
+    if (!user.isProfileComplete) {
+      return ApiResponse.badRequest(res, 'Please complete your profile before requesting verification');
+    }
+
+    // Already verified
+    if (user.isVerified) {
+      return ApiResponse.badRequest(res, 'Your account is already verified');
+    }
+
+    // Already has a pending request
+    if (user.verificationRequest && user.verificationRequest.status === 'pending') {
+      return ApiResponse.badRequest(res, 'You already have a pending verification request');
+    }
+
+    user.verificationRequest = {
+      status: 'pending',
+      reason: reason.trim(),
+      adminNote: '',
+      requestedAt: new Date(),
+      reviewedAt: null,
+    };
+    await user.save();
+
+    return ApiResponse.success(res, {
+      verificationRequest: user.verificationRequest,
+    }, 'Verification request submitted successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * DELETE /users/profile
  * Delete user account and associated data
  */

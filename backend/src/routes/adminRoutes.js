@@ -5,7 +5,7 @@ const { adminAuth } = require('../middleware/auth');
 const { authLimiter } = require('../middleware/rateLimiter');
 const adminAuthController = require('../controllers/adminAuthController');
 const adminController = require('../controllers/adminController');
-const { imageUpload } = require('../config/upload');
+const { imageUpload, generalMediaUpload } = require('../config/upload');
 
 const router = express.Router();
 
@@ -73,8 +73,10 @@ router.post('/status', adminController.createOfficialStatus);
 router.delete('/status/:id', adminController.deleteOfficialStatus);
 
 // Official Messages
-router.post('/official-messages', adminController.sendOfficialMessage);
+router.post('/official-messages', generalMediaUpload.single('media'), adminController.sendOfficialMessage);
 router.get('/official-messages', adminController.getOfficialMessages);
+router.get('/official-messages/:id/stats', adminController.getOfficialMessageStats);
+router.delete('/official-messages/:id', adminController.deleteOfficialMessage);
 
 // Official Profile (name + avatar)
 router.get('/official-profile', adminController.getOfficialProfile);

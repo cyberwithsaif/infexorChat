@@ -54,6 +54,9 @@ router.delete('/block/:userId', userController.unblockUser);
 router.get('/blocked', userController.getBlockedUsers);
 router.get('/block/:userId/status', userController.checkBlockStatus);
 
+// Verification
+router.post('/verification/request', userController.requestVerification);
+
 router.delete('/profile', userController.deleteAccount);
 
 module.exports = router;

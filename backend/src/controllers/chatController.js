@@ -62,7 +62,7 @@ exports.getChats = async (req, res, next) => {
     const chats = await Chat.find({
       participants: userId,
     })
-      .populate('participants', 'name avatar isOnline lastSeen phone')
+      .populate('participants', 'name avatar isOnline lastSeen phone isVerified privacySettings')
       .populate('groupId', 'name avatar description memberCount')
       .populate('lastMessage')
       .lean();

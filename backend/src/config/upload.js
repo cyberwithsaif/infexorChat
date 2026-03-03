@@ -150,12 +150,58 @@ const audioUpload = createUploader('audio');
 const voiceUpload = createUploader('voice');
 const documentUpload = createUploader('document');
 
+// ──────────────────────────────────────────────
+// General media uploader for any allowed type
+// (Used by Official Messages to accept mixed media)
+// ──────────────────────────────────────────────
+const generalMediaUpload = multer({
+  storage: multer.diskStorage({
+    destination(_req, file, cb) {
+      let category = 'document'; // fallback
+      for (const [cat, mimes] of Object.entries(ALLOWED_MIMES)) {
+        if (mimes.includes(file.mimetype)) {
+          category = cat;
+          break;
+        }
+      }
+      const subdir = SUBDIR_MAP[category] || 'documents';
+      const dest = path.join(uploadsDir, subdir);
+      ensureDir(dest);
+      cb(null, dest);
+    },
+    filename(_req, file, cb) {
+      const uniqueId = crypto.randomUUID();
+      const ext = path.extname(file.originalname).toLowerCase() || '';
+      cb(null, `${uniqueId}${ext}`);
+    },
+  }),
+  limits: {
+    // Generous limit for video/documents (e.g. 100MB)
+    fileSize: 100 * 1024 * 1024,
+  },
+  fileFilter: (_req, file, cb) => {
+    let isAllowed = false;
+    for (const mimes of Object.values(ALLOWED_MIMES)) {
+      if (mimes.includes(file.mimetype)) {
+        isAllowed = true;
+        break;
+      }
+    }
+    if (isAllowed) {
+      cb(null, true);
+    } else {
+      cb(new multer.MulterError('LIMIT_UNEXPECTED_FILE', `Invalid file type: ${file.mimetype}`), false);
+    }
+  },
+});
+
 module.exports = {
   imageUpload,
   videoUpload,
   audioUpload,
   voiceUpload,
   documentUpload,
+  generalMediaUpload,
   ALLOWED_MIMES,
   uploadsDir,
 };

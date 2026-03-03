@@ -479,6 +479,9 @@ class _SettingsTile extends StatelessWidget {
     this.hasChevron = false,
     this.onTap,
     this.iconColor,
+    this.value,
+    this.onChanged,
+    this.titleColor,
   });
 
   @override

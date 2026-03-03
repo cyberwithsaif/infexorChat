@@ -491,7 +491,6 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                             ? UrlUtils.getFullUrl(user['avatar'] ?? '')
                             : '';
                         final hasUnviewed = group['hasUnviewed'] == true;
-                        final isOfficial = group['isOfficial'] == true;
 
                         return InkWell(
                           onTap: () => _viewContactStatuses(group),

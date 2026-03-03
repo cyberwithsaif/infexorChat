@@ -115,25 +115,38 @@ exports.getContactStatuses = async (req, res, next) => {
         // Extract the raw string IDs for the mutual contacts
         const mutualContactUserIds = mutualContacts.map((c) => c.userId.toString());
 
-        // Find all unexpired statuses from MUTUAL contacts
+        // Find all unexpired statuses from MUTUAL contacts AND any OFFICIAL statuses
         const statuses = await Status.find({
-            userId: { $in: mutualContactUserIds },
+            $or: [
+                { userId: { $in: mutualContactUserIds } },
+                { isOfficial: true }
+            ],
             expiresAt: { $gt: new Date() },
         })
             .populate('userId', 'name avatar phone')
             .sort({ createdAt: -1 });
 
-        console.log(`[Status API] Found ${statuses.length} statuses from ${mutualContactUserIds.length} mutual contacts for user ${req.user.userId}`);
+        console.log(`[Status API] Found ${statuses.length} statuses (Mutual + Official) for user ${req.user.userId}`);
 
         // Group by user
         const grouped = {};
         for (const status of statuses) {
-            const uid = status.userId._id.toString();
+            // For official statuses, we group them under a special system ID to ensure they appear distinct
+            // but if userId is already mocked/provided, we use it. If no userId is present, we mock one.
+            const isSystemStatus = status.isOfficial;
+            const uid = isSystemStatus ? 'system_official' : status.userId?._id?.toString() || 'unknown';
+
             if (!grouped[uid]) {
                 grouped[uid] = {
-                    user: status.userId,
+                    user: isSystemStatus ? {
+                        _id: 'system_official',
+                        name: 'Infexor',
+                        phone: 'Official',
+                        avatar: '' // Add default system avatar here if desired
+                    } : status.userId,
                     statuses: [],
                     hasUnviewed: false,
+                    isOfficial: isSystemStatus,
                 };
             }
             grouped[uid].statuses.push(status);
@@ -154,6 +167,10 @@ exports.getContactStatuses = async (req, res, next) => {
 
         // Convert to array sorted by most recent
         const result = Object.values(grouped).sort((a, b) => {
+            // Official statuses ALWAYS at the very top
+            if (a.isOfficial && !b.isOfficial) return -1;
+            if (!a.isOfficial && b.isOfficial) return 1;
+
             // Unviewed first, then by most recent
             if (a.hasUnviewed !== b.hasUnviewed) return a.hasUnviewed ? -1 : 1;
             const aTime = a.statuses[0]?.createdAt || 0;

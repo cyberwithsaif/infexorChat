@@ -74,8 +74,8 @@ exports.getCallHistory = async (req, res) => {
         })
             .sort({ timestamp: -1 })
             .limit(50) // Adjust limit as needed
-            .populate('callerId', 'name avatar phone') // populate caller info
-            .populate('receiverId', 'name avatar phone'); // populate receiver info
+            .populate('callerId', 'name avatar phone isVerified') // populate caller info
+            .populate('receiverId', 'name avatar phone isVerified'); // populate receiver info
 
         res.status(200).json({
             success: true,

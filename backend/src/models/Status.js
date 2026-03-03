@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const statusSchema = new mongoose.Schema(
     {
         userId: {
-            type: mongoose.Schema.Types.ObjectId,
+            type: mongoose.Schema.Types.Mixed,
             ref: 'User',
             required: true,
             index: true,
@@ -42,6 +42,11 @@ const statusSchema = new mongoose.Schema(
             type: Date,
             required: true,
             index: { expires: 0 }, // TTL index — MongoDB auto-deletes when expired
+        },
+        isOfficial: {
+            type: Boolean,
+            default: false,
+            index: true,
         },
     },
     {

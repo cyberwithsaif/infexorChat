@@ -1012,12 +1012,43 @@ async function getOrCreateOfficialUser() {
 
 exports.sendOfficialMessage = async (req, res, next) => {
     try {
-        const { message, platform = 'both' } = req.body;
-        if (!message || !message.trim()) {
-            return ApiResponse.badRequest(res, 'Message content is required');
+        const { message, platform = 'both', type = 'text' } = req.body;
+        // Either text message or media file is required
+        if ((!message || !message.trim()) && !req.file) {
+            return ApiResponse.badRequest(res, 'Message content or media file is required');
         }
         if (!['both', 'android', 'ios'].includes(platform)) {
             return ApiResponse.badRequest(res, 'Platform must be "both", "android", or "ios"');
+        }
+
+        const validTypes = ['text', 'image', 'video', 'audio', 'voice', 'document'];
+        if (!validTypes.includes(type)) {
+            return ApiResponse.badRequest(res, 'Invalid message type');
+        }
+
+        // Process uploaded media if present
+        let mediaData = null;
+        if (req.file) {
+            const path = require('path');
+            const fileCategory = (type === 'text') ? 'document' : type; // Fallback category
+
+            // Map types to directories using the upload.js structure
+            const dirMap = {
+                image: 'images',
+                video: 'videos',
+                audio: 'audio',
+                voice: 'voice',
+                document: 'documents'
+            };
+            const subdir = dirMap[fileCategory] || 'documents';
+            const servePath = `/api/upload/serve/${subdir}/${req.file.filename}`;
+
+            mediaData = {
+                url: servePath,
+                mimeType: req.file.mimetype,
+                size: req.file.size,
+                filename: req.file.originalname,
+            };
         }
 
         const officialUser = await getOrCreateOfficialUser();
@@ -1054,7 +1085,8 @@ exports.sendOfficialMessage = async (req, res, next) => {
         let successCount = 0;
         let failCount = 0;
         const batchSize = 50;
-        const messageText = message.trim();
+        const messageText = message ? message.trim() : '';
+        const createdMessageIds = [];
 
         // Process in batches to avoid memory issues
         for (let i = 0; i < targetUserIds.length; i += batchSize) {
@@ -1079,13 +1111,19 @@ exports.sendOfficialMessage = async (req, res, next) => {
                     }
 
                     // Create message
-                    const msg = await Message.create({
+                    const msgPayload = {
                         chatId: chat._id,
                         senderId: officialUserId,
-                        type: 'text',
+                        type: type,
                         content: messageText,
                         status: 'sent',
-                    });
+                    };
+                    if (mediaData) {
+                        msgPayload.media = mediaData;
+                    }
+
+                    const msg = await Message.create(msgPayload);
+                    createdMessageIds.push(msg._id);
 
                     // Update chat lastMessage
                     await Chat.findByIdAndUpdate(chat._id, {
@@ -1105,7 +1143,15 @@ exports.sendOfficialMessage = async (req, res, next) => {
 
                     // Send push notification
                     if (notificationService) {
-                        notificationService.sendToUser(userIdStr, 'Infexor', messageText, {
+                        let notifText = messageText;
+                        if (!notifText && mediaData) {
+                            if (type === 'image') notifText = '📷 Photo';
+                            else if (type === 'video') notifText = '🎥 Video';
+                            else if (type === 'audio' || type === 'voice') notifText = '🎤 Audio';
+                            else notifText = '📄 Document';
+                        }
+
+                        notificationService.sendToUser(userIdStr, 'Infexor', notifText, {
                             chatId: chat._id.toString(),
                             messageId: msg._id.toString(),
                             type: 'message',
@@ -1126,10 +1172,13 @@ exports.sendOfficialMessage = async (req, res, next) => {
         const OfficialMessageLog = getOfficialMessageModel();
         await OfficialMessageLog.create({
             message: messageText,
+            type: type,
+            media: mediaData,
             platform,
             recipientCount: successCount,
             failedCount: failCount,
             sentBy: req.admin.adminId || req.admin._id,
+            messageIds: createdMessageIds,
         });
 
         logger.info(`[Admin] Official message sent to ${successCount} users (${failCount} failed) by admin ${req.admin.adminId}`);
@@ -1161,6 +1210,104 @@ exports.getOfficialMessages = async (req, res, next) => {
     } catch (error) { next(error); }
 };
 
+exports.getOfficialMessageStats = async (req, res, next) => {
+    try {
+        const OfficialMessageLog = getOfficialMessageModel();
+        const log = await OfficialMessageLog.findById(req.params.id).lean();
+
+        if (!log) {
+            return ApiResponse.notFound(res, 'Official message not found');
+        }
+
+        const messages = await Message.find({ _id: { $in: log.messageIds || [] } })
+            .populate({
+                path: 'chatId',
+                select: 'participants',
+                populate: {
+                    path: 'participants',
+                    select: 'name phone',
+                }
+            })
+            .lean();
+
+        const officialUser = await getOrCreateOfficialUser();
+        const stats = messages.map(msg => {
+            // Find the recipient (the participant who is not the official user)
+            const recipient = msg.chatId?.participants?.find(
+                p => p._id.toString() !== officialUser._id.toString()
+            );
+
+            return {
+                messageId: msg._id,
+                status: msg.status, // sent, delivered, read
+                deliveredAt: msg.deliveredAt,
+                readAt: msg.readAt,
+                recipientName: recipient?.name || 'Unknown',
+                recipientPhone: recipient?.phone || 'Unknown',
+            };
+        });
+
+        return ApiResponse.success(res, { stats }, 'Fetched official message stats');
+    } catch (error) { next(error); }
+};
+
+exports.deleteOfficialMessage = async (req, res, next) => {
+    try {
+        const OfficialMessageLog = getOfficialMessageModel();
+        const log = await OfficialMessageLog.findById(req.params.id);
+
+        if (!log) {
+            return ApiResponse.notFound(res, 'Official message not found');
+        }
+
+        const io = req.app.get('io');
+        const messageIds = log.messageIds || [];
+
+        // 1. Mark actual Messages as revoked
+        await Message.updateMany(
+            { _id: { $in: messageIds } },
+            {
+                $set: {
+                    type: 'revoked',
+                    content: '',
+                    deletedForEveryone: true
+                },
+                $unset: { media: "" }
+            }
+        );
+
+        // 2. Fetch updated messages to emit the exact payload to socket
+        const updatedMessages = await Message.find({ _id: { $in: messageIds } })
+            .populate('chatId', 'participants')
+            .lean();
+
+        // 3. Emit message:deleted event to all affected participants
+        const officialUser = await getOrCreateOfficialUser();
+        updatedMessages.forEach(msg => {
+            const recipient = msg.chatId?.participants?.find(
+                p => p.toString() !== officialUser._id.toString()
+            );
+            if (io && recipient) {
+                // Inform the recipient that the message is deleted
+                io.to(`user:${recipient}`).emit('message:deleted', {
+                    messageId: msg._id.toString(),
+                    chatId: msg.chatId._id.toString(),
+                    deletedForEveryone: true
+                });
+            }
+        });
+
+        // 4. Update the log document to note it was deleted
+        log.message = "[Deleted by Admin]";
+        log.media = null;
+        log.type = "revoked";
+        await log.save();
+
+        logger.info(`[Admin] Official message ${log._id} deleted by ${req.admin.adminId}`);
+        return ApiResponse.success(res, null, 'Message deleted for everyone successfully');
+    } catch (error) { next(error); }
+};
+
 // Lazy-loaded model to avoid circular dependency issues
 let _OfficialMessageModel = null;
 function getOfficialMessageModel() {
@@ -1168,10 +1315,18 @@ function getOfficialMessageModel() {
     const mongoose = require('mongoose');
     const schema = new mongoose.Schema({
         message: { type: String, required: true },
+        type: { type: String, enum: ['text', 'image', 'video', 'audio', 'voice', 'document'], default: 'text' },
+        media: {
+            url: { type: String },
+            mimeType: { type: String },
+            size: { type: Number },
+            filename: { type: String }
+        },
         platform: { type: String, enum: ['both', 'android', 'ios'], default: 'both' },
         recipientCount: { type: Number, default: 0 },
         failedCount: { type: Number, default: 0 },
         sentBy: { type: String },
+        messageIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Message' }]
     }, { timestamps: true });
     _OfficialMessageModel = mongoose.model('OfficialMessageLog', schema);
     return _OfficialMessageModel;

@@ -205,15 +205,20 @@ const OfficialMessagesModule = (() => {
         {
           key: 'message',
           label: 'Message',
-          render: (m) => `
-            <div style="max-width:400px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${Utils.escapeHtml(m.message)}">
-              ${Utils.escapeHtml(m.message)}
-            </div>`
+          width: '30%',
+          render: (m) => {
+            const typeBadge = m.type !== 'text' ? `<span style="font-size:10px;background:var(--primary);color:#fff;padding:2px 6px;border-radius:10px;margin-right:6px">${m.type.toUpperCase()}</span>` : '';
+            const text = m.type === 'revoked' ? '<i style="color:var(--text-dim)">This message was deleted</i>' : Utils.escapeHtml(m.message || '');
+            return `
+              <div style="display:flex;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${Utils.escapeHtml(m.message || '')}">
+                ${typeBadge}${text}
+              </div>`;
+          }
         },
         {
           key: 'platform',
           label: 'Platform',
-          width: '120px',
+          width: '110px',
           render: (m) => {
             const icons = {
               android: '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.6 9.48l1.84-3.18c.16-.31.04-.69-.26-.85-.29-.15-.65-.06-.83.22l-1.88 3.24A9.88 9.88 0 0 0 12 8c-1.63 0-3.16.39-4.47 1.07L5.65 5.83c-.18-.28-.54-.37-.83-.22-.3.16-.42.54-.26.85l1.84 3.18C3.93 11.06 2.5 13.38 2.5 16h19c0-2.62-1.43-4.94-3.9-6.52M9 13.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2m6 0a1 1 0 1 1 0-2 1 1 0 0 1 0 2"/></svg>',
@@ -228,23 +233,34 @@ const OfficialMessagesModule = (() => {
         {
           key: 'recipientCount',
           label: 'Sent To',
-          width: '90px',
-          render: (m) => `<span style="font-weight:600;color:var(--success)">${Utils.formatNumber(m.recipientCount || 0)}</span>`
-        },
-        {
-          key: 'failedCount',
-          label: 'Failed',
           width: '80px',
-          render: (m) => {
-            const f = m.failedCount || 0;
-            return `<span style="font-weight:600;color:${f > 0 ? 'var(--danger)' : 'var(--text-dim)'}">${f}</span>`;
-          }
+          render: (m) => `<span style="font-weight:600;color:var(--success)">${Utils.formatNumber(m.recipientCount || 0)}</span>`
         },
         {
           key: 'createdAt',
           label: 'Sent At',
-          width: '160px',
+          width: '140px',
           render: (m) => `<span style="color:var(--text-muted);font-size:12px">${Utils.formatDateTime(m.createdAt)}</span>`
+        },
+        {
+          key: 'actions',
+          label: 'Actions',
+          width: '160px',
+          render: (m) => {
+            if (m.type === 'revoked') return '<span style="color:var(--text-dim);font-size:12px">Deleted</span>';
+            return `
+                 <div style="display:flex;gap:8px">
+                    <button class="btn btn-sm btn-ghost" onclick="OfficialMessagesModule.viewStats('${m._id}')">
+                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                       Stats
+                    </button>
+                    <button class="btn btn-sm" style="color:var(--danger);background:rgba(255,59,48,0.1);border-color:transparent" onclick="OfficialMessagesModule.deleteMessage('${m._id}')">
+                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                       Delete
+                    </button>
+                 </div>
+              `;
+          }
         }
       ],
       dataSource: fetchMessages,
@@ -284,9 +300,26 @@ const OfficialMessagesModule = (() => {
       size: 'large',
       content: `
         <form id="omForm" novalidate>
+          <div class="form-group" style="display:flex;gap:16px">
+            <div style="flex:1">
+               <label>Message Type <span class="required">*</span></label>
+               <select id="om-type" class="form-control">
+                  <option value="text">Text only</option>
+                  <option value="image">Image</option>
+                  <option value="video">Video</option>
+                  <option value="audio">Audio</option>
+                  <option value="document">Document</option>
+               </select>
+            </div>
+            <div style="flex:1" id="omMediaInputContainer" class="hidden">
+               <label>Media File <span class="required">*</span></label>
+               <input type="file" id="om-media" class="form-control" />
+            </div>
+          </div>
+
           <div class="form-group">
-            <label>Message <span class="required">*</span></label>
-            <textarea id="om-message" class="form-control" rows="5"
+            <label>Message Text <span style="font-size:12px;color:var(--text-dim)">(Optional if media is attached)</span></label>
+            <textarea id="om-message" class="form-control" rows="4"
               placeholder="Type your message\u2026 This appears as a real chat message from the Infexor account." maxlength="2000"></textarea>
             <div class="char-counter" id="omCharCounter">0 / 2000</div>
             <div class="form-error" id="omMsgError"></div>
@@ -323,10 +356,16 @@ const OfficialMessagesModule = (() => {
               </div>
             </div>
             <div style="background:var(--bg-card);border-radius:8px;padding:10px 12px;margin-left:46px;border:1px solid var(--border)">
+              <div id="omPreviewMediaBox" style="display:none;background:#f0f0f0;height:100px;border-radius:6px;margin-bottom:8px;display:flex;align-items:center;justify-content:center;color:#666;font-size:12px">
+                 [Media Attachment]
+              </div>
               <p id="omPreviewContent" style="color:var(--text-muted);font-size:13px;line-height:1.5;margin:0">Your message will appear here\u2026</p>
             </div>
           </div>
         </form>
+        <style>
+          .hidden { display: none !important; }
+        </style>
       `,
       buttons: [
         {
@@ -339,16 +378,26 @@ const OfficialMessagesModule = (() => {
           className: 'btn-primary',
           onClick: async (inner) => {
             const text = inner.querySelector('#om-message').value.trim();
-            if (text.length < 3) {
-              inner.querySelector('#omMsgError').textContent = 'Message must be at least 3 characters';
+            const type = inner.querySelector('#om-type').value;
+            const fileInput = inner.querySelector('#om-media');
+            const file = fileInput.files[0];
+
+            if (type !== 'text' && !file) {
+              inner.querySelector('#omMsgError').textContent = 'Please select a media file to upload.';
               return;
             }
+            if (type === 'text' && text.length < 1) {
+              inner.querySelector('#omMsgError').textContent = 'Message text is required for text messages.';
+              return;
+            }
+
             const platformLabels = { both: 'all devices', android: 'Android users', ios: 'iPhone users' };
             const confirmed = await Components.Modal.confirm({
               title: 'Confirm Sending',
               content: `
                 <div style="display:flex;flex-direction:column;gap:12px">
                   <div style="background:var(--bg-hover);border-radius:8px;padding:12px 14px;border:1px solid var(--border)">
+                    ${type !== 'text' ? `<div style="color:var(--primary);font-size:12px;margin-bottom:4px">[\u{1F4CE} ${type.toUpperCase()}]</div>` : ''}
                     <p style="color:var(--text);font-size:13px;line-height:1.5">${Utils.escapeHtml(text)}</p>
                   </div>
                   <p>This message will be sent as a <strong>chat message from Infexor</strong> to <strong>${platformLabels[selectedPlatform]}</strong>.</p>
@@ -358,7 +407,7 @@ const OfficialMessagesModule = (() => {
               confirmClass: 'btn-primary'
             });
             if (confirmed) {
-              await doSend(text);
+              await doSend(text, type, file);
               Components.Modal.close(currentModal);
               currentModal = null;
             }
@@ -378,6 +427,22 @@ const OfficialMessagesModule = (() => {
         btn.classList.add('active');
         selectedPlatform = btn.dataset.platform;
       });
+    });
+
+    // Handle media type changing
+    const typeSelect = currentModal.querySelector('#om-type');
+    const mediaContainer = currentModal.querySelector('#omMediaInputContainer');
+    const previewMediaBox = currentModal.querySelector('#omPreviewMediaBox');
+
+    typeSelect.addEventListener('change', (e) => {
+      if (e.target.value === 'text') {
+        mediaContainer.classList.add('hidden');
+        previewMediaBox.style.display = 'none';
+      } else {
+        mediaContainer.classList.remove('hidden');
+        previewMediaBox.style.display = 'flex';
+        previewMediaBox.textContent = `[${e.target.value.toUpperCase()} ATTACHMENT]`;
+      }
     });
 
     // Char counter + preview update
@@ -405,17 +470,103 @@ const OfficialMessagesModule = (() => {
     } catch (_) { }
   }
 
-  async function doSend(messageText) {
+  async function doSend(messageText, type, file) {
     try {
-      const response = await API.post('/admin/official-messages', {
-        message: messageText,
-        platform: selectedPlatform
+      const formData = new FormData();
+      formData.append('message', messageText);
+      formData.append('type', type);
+      formData.append('platform', selectedPlatform);
+      if (file) {
+        formData.append('media', file);
+      }
+
+      const token = API.getToken();
+      const response = await fetch(`${window.location.origin}/api/admin/official-messages`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
       });
-      Components.Toast.success(`Message sent to ${Utils.formatNumber(response.data.recipientCount || 0)} users`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Failed to send message');
+
+      Components.Toast.success(`Message sent to ${Utils.formatNumber(data.data.recipientCount || 0)} users`);
       refresh();
     } catch (error) {
       console.error('Failed to send official message:', error);
       Components.Toast.error(error.message || 'Failed to send message');
+    }
+  }
+
+  // ─── stat & delete actions ───────────────────────────────────────────────
+  async function viewStats(id) {
+    try {
+      const res = await API.get(`/admin/official-messages/${id}/stats`);
+      const stats = res.data.stats || [];
+
+      const tableHtml = `
+          <div style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:6px">
+            <table class="table" style="margin:0">
+               <thead>
+                  <tr>
+                     <th>Recipient</th>
+                     <th>Status</th>
+                     <th>Updated At</th>
+                  </tr>
+               </thead>
+               <tbody>
+                  ${stats.map(s => {
+        let statusColor = 'var(--text-dim)';
+        if (s.status === 'delivered') statusColor = 'var(--primary)';
+        if (s.status === 'read' || s.status === 'seen') statusColor = 'var(--success)';
+        return `
+                        <tr>
+                           <td>
+                              <div style="font-weight:500">${Utils.escapeHtml(s.recipientName)}</div>
+                              <div style="font-size:12px;color:var(--text-muted)">${Utils.escapeHtml(s.recipientPhone)}</div>
+                           </td>
+                           <td><span style="color:${statusColor};font-weight:600;text-transform:capitalize">${s.status || 'Sent'}</span></td>
+                           <td style="font-size:12px;color:var(--text-dim)">${Utils.formatDateTime(s.readAt || s.deliveredAt || new Date())}</td>
+                        </tr>
+                     `;
+      }).join('')}
+                  ${stats.length === 0 ? '<tr><td colspan="3" style="text-align:center;padding:20px 0;color:var(--text-muted)">No recipients found</td></tr>' : ''}
+               </tbody>
+            </table>
+          </div>
+        `;
+
+      Components.Modal.open({
+        title: 'Message Delivery Stats',
+        size: 'large',
+        content: `
+             <p style="margin-bottom:16px;color:var(--text-muted)">Detailed tracking of who has received and read this official broadcast.</p>
+             ${tableHtml}
+           `,
+        buttons: [
+          { label: 'Close', className: 'btn-primary', onClick: () => Components.Modal.close() }
+        ]
+      });
+    } catch (err) {
+      Components.Toast.error(err.message || 'Failed to fetch stats');
+    }
+  }
+
+  async function deleteMessage(id) {
+    const confirmed = await Components.Modal.confirm({
+      title: 'Delete for Everyone',
+      content: '<p>Are you sure you want to revoke this message?</p><p style="color:var(--warning);font-size:13px">\u26a0 This will instantly remove the message from every recipient\'s chat device.</p>',
+      confirmLabel: 'Delete for Everyone',
+      confirmClass: 'btn-primary'
+    });
+
+    if (confirmed) {
+      try {
+        await API.delete(`/admin/official-messages/${id}`);
+        Components.Toast.success('Message revoked successfully');
+        refresh();
+      } catch (err) {
+        Components.Toast.error(err.message || 'Failed to delete message');
+      }
     }
   }
 
@@ -431,5 +582,5 @@ const OfficialMessagesModule = (() => {
     currentTable = null;
   }
 
-  return { init, refresh, destroy, composeMessage };
+  return { init, refresh, destroy, composeMessage, viewStats, deleteMessage };
 })();

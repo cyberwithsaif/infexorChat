@@ -55,6 +55,35 @@ const userSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    verificationRequest: {
+      status: {
+        type: String,
+        enum: ['none', 'pending', 'approved', 'rejected'],
+        default: 'none',
+      },
+      reason: {
+        type: String,
+        trim: true,
+        maxlength: 500,
+        default: '',
+      },
+      adminNote: {
+        type: String,
+        trim: true,
+        maxlength: 500,
+        default: '',
+      },
+      requestedAt: {
+        type: Date,
+      },
+      reviewedAt: {
+        type: Date,
+      },
+    },
     privacySettings: {
       lastSeen: {
         type: String,
