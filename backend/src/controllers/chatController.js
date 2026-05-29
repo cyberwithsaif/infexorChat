@@ -67,6 +67,18 @@ exports.getChats = async (req, res, next) => {
       .populate('lastMessage')
       .lean();
 
+    // Force official account to always appear online
+    const OFFICIAL_PHONE = '__infexor_official__';
+    chats.forEach(chat => {
+      if (chat.participants) {
+        chat.participants.forEach(p => {
+          if (p && p.phone === OFFICIAL_PHONE) {
+            p.isOnline = true;
+          }
+        });
+      }
+    });
+
     // Sort pinned chats to top, then by last message time
     chats.sort((a, b) => {
       const aPinned = a.pinnedBy?.some(p => p.toString() === userId) ? 1 : 0;
@@ -252,6 +264,46 @@ exports.pinChat = async (req, res, next) => {
     await chat.save();
 
     return ApiResponse.success(res, { pinned: !isPinned }, isPinned ? 'Chat unpinned' : 'Chat pinned');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /chats/:chatId/disappearing
+ * Enable/disable disappearing messages for a chat (duration in seconds, 0 = off)
+ */
+exports.setDisappearing = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const { chatId } = req.params;
+    const { duration } = req.body;
+
+    const chat = await Chat.findOne({ _id: chatId, participants: userId });
+    if (!chat) return ApiResponse.notFound(res, 'Chat not found');
+
+    chat.disappearingDuration = Math.max(0, Number(duration) || 0);
+    await chat.save();
+
+    // Tell participants so their chat setting updates live.
+    try {
+      const { getIO } = require('../config/socket');
+      const io = getIO();
+      chat.participants.forEach((pid) => {
+        io.to(`user:${pid}`).emit('chat:disappearing', {
+          chatId,
+          duration: chat.disappearingDuration,
+        });
+      });
+    } catch { /* socket not init */ }
+
+    return ApiResponse.success(
+      res,
+      { duration: chat.disappearingDuration },
+      chat.disappearingDuration > 0
+        ? 'Disappearing messages on'
+        : 'Disappearing messages off'
+    );
   } catch (error) {
     next(error);
   }

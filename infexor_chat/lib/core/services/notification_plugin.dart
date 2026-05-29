@@ -16,3 +16,14 @@ const AndroidNotificationChannel messageChannel = AndroidNotificationChannel(
   sound: RawResourceAndroidNotificationSound('notification_sound'),
   enableVibration: true,
 );
+
+/// Android notification channel for missed calls — separate from messages so
+/// they group on their own and can be silenced independently (WhatsApp-style).
+const AndroidNotificationChannel missedCallChannel = AndroidNotificationChannel(
+  'infexor_missed_calls',
+  'Missed calls',
+  description: 'Notifications for calls you missed',
+  importance: Importance.high,
+  playSound: true,
+  enableVibration: true,
+);

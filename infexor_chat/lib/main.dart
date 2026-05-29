@@ -18,6 +18,7 @@ import 'generated/l10n/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/services/call_manager.dart';
+import 'core/services/chat_lock_service.dart';
 import 'core/services/notification_plugin.dart';
 import 'core/services/notification_service.dart';
 import 'core/providers/active_call_provider.dart';
@@ -154,64 +155,26 @@ void _onNotificationResponse(NotificationResponse response) {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp();
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-  // Local notifications — only used for chat message banners now.
-  // Incoming call UI is entirely handled by flutter_callkit_incoming.
-  const AndroidInitializationSettings androidSettings =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
-  const InitializationSettings initSettings = InitializationSettings(
-    android: androidSettings,
-  );
-  await flutterLocalNotificationsPlugin.initialize(
-    settings: initSettings,
-    onDidReceiveNotificationResponse: _onNotificationResponse,
-  );
-
-  final androidPlugin = flutterLocalNotificationsPlugin
-      .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin
-      >();
-  await androidPlugin?.createNotificationChannel(messageChannel);
-
-  await Hive.initFlutter();
-  await Hive.openBox('settings');
-  await Hive.openBox('messages_cache');
-
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
+  // ── Only the bare minimum before runApp() to minimize native splash ──
+  await Future.wait([
+    Firebase.initializeApp(),
+    Hive.initFlutter(),
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]),
   ]);
 
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: Color(0xFF0A0A0F),
-      systemNavigationBarIconBrightness: Brightness.light,
-    ),
-  );
+  // Open settings box (needed for theme) — fast local I/O
+  await Hive.openBox('settings');
+  // Open locked-chats box so chat-lock state is readable synchronously
+  await ChatLockService.init();
 
-  // Check if a notification launched the app from terminated state
-  final launchDetails = await flutterLocalNotificationsPlugin
-      .getNotificationAppLaunchDetails();
-  if (launchDetails?.didNotificationLaunchApp == true) {
-    final payload = launchDetails?.notificationResponse?.payload;
-    if (payload != null && payload.isNotEmpty && !payload.startsWith('{')) {
-      if (payload.startsWith('http')) {
-        _pendingBroadcastLink = payload;
-      } else {
-        _pendingMessageChatId = payload;
-      }
-    }
-  }
-
+  // Create container and restore auth from Hive cache (instant, no network)
   globalContainer = ProviderContainer();
-
-  // Run initial auth check for instant launch
   await globalContainer.read(authProvider.notifier).checkAuth();
 
+  // ── Launch UI immediately — everything else deferred to initState ──
   runApp(
     UncontrolledProviderScope(
       container: globalContainer,
@@ -233,6 +196,9 @@ class _InfexorChatAppState extends ConsumerState<InfexorChatApp>
   @override
   void initState() {
     super.initState();
+
+    // ── Deferred init: runs after first frame so native splash disappears ──
+    _deferredInit();
 
     Future.microtask(() {
       // CallManager.init() also registers the flutter_callkit_incoming listener
@@ -334,6 +300,56 @@ class _InfexorChatAppState extends ConsumerState<InfexorChatApp>
     });
 
     WidgetsBinding.instance.addObserver(this);
+  }
+
+  /// Deferred initialization — notification plugin, channels, launch details.
+  /// Runs after runApp() so the native splash disappears instantly.
+  Future<void> _deferredInit() async {
+    // Register FCM background handler
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+    // System UI overlay
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: Color(0xFF0A0A0F),
+        systemNavigationBarIconBrightness: Brightness.light,
+      ),
+    );
+
+    // Initialize notification plugin
+    const AndroidInitializationSettings androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const InitializationSettings initSettings = InitializationSettings(
+      android: androidSettings,
+    );
+    await flutterLocalNotificationsPlugin.initialize(
+      settings: initSettings,
+      onDidReceiveNotificationResponse: _onNotificationResponse,
+    );
+
+    // Create notification channel
+    final androidPlugin = flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    androidPlugin?.createNotificationChannel(messageChannel);
+    androidPlugin?.createNotificationChannel(missedCallChannel);
+
+    // Check if a notification launched the app from terminated state
+    final launchDetails = await flutterLocalNotificationsPlugin
+        .getNotificationAppLaunchDetails();
+    if (launchDetails?.didNotificationLaunchApp == true) {
+      final payload = launchDetails?.notificationResponse?.payload;
+      if (payload != null && payload.isNotEmpty && !payload.startsWith('{')) {
+        if (payload.startsWith('http')) {
+          _pendingBroadcastLink = payload;
+        } else {
+          _pendingMessageChatId = payload;
+        }
+      }
+    }
   }
 
   @override

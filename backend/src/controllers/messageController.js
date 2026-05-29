@@ -54,6 +54,65 @@ exports.deleteMessage = async (req, res, next) => {
 };
 
 /**
+ * PUT /chats/:chatId/messages/:messageId
+ * Edit a text message (sender only, within 15 minutes — WhatsApp-style)
+ */
+exports.editMessage = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const { chatId, messageId } = req.params;
+    const { content } = req.body;
+
+    if (!content || !content.trim()) {
+      return ApiResponse.badRequest(res, 'Content is required');
+    }
+
+    const message = await Message.findOne({ _id: messageId, chatId });
+    if (!message) {
+      return ApiResponse.notFound(res, 'Message not found');
+    }
+
+    // Only the sender can edit
+    if (!message.senderId || message.senderId.toString() !== userId) {
+      return ApiResponse.forbidden(res, 'Only the sender can edit this message');
+    }
+
+    // Only plain text messages that haven't been revoked
+    if (message.type !== 'text' || message.deletedForEveryone) {
+      return ApiResponse.badRequest(res, 'This message cannot be edited');
+    }
+
+    // WhatsApp-style 15-minute edit window
+    const FIFTEEN_MIN = 15 * 60 * 1000;
+    if (Date.now() - new Date(message.createdAt).getTime() > FIFTEEN_MIN) {
+      return ApiResponse.badRequest(res, 'You can no longer edit this message');
+    }
+
+    message.content = content.trim();
+    message.isEdited = true;
+    await message.save();
+
+    // Notify all participants via socket
+    try {
+      const io = getIO();
+      const chat = await Chat.findById(chatId);
+      chat?.participants.forEach((pid) => {
+        io.to(`user:${pid}`).emit('message:edited', {
+          chatId,
+          messageId,
+          content: message.content,
+          isEdited: true,
+        });
+      });
+    } catch { /* socket not init */ }
+
+    return ApiResponse.success(res, { message }, 'Message edited');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * POST /chats/:chatId/messages/:messageId/react
  * Add/remove reaction
  */
@@ -96,6 +155,136 @@ exports.reactToMessage = async (req, res, next) => {
     } catch { /* socket not init */ }
 
     return ApiResponse.success(res, null, 'Reaction added');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /chats/:chatId/messages/:messageId/pin
+ * Pin or unpin a message for the whole chat
+ */
+exports.pinMessage = async (req, res, next) => {
+  try {
+    const { chatId, messageId } = req.params;
+    const message = await Message.findOne({ _id: messageId, chatId });
+    if (!message) {
+      return ApiResponse.notFound(res, 'Message not found');
+    }
+
+    message.isPinned = !message.isPinned;
+    message.pinnedAt = message.isPinned ? new Date() : null;
+    await message.save();
+
+    try {
+      const io = getIO();
+      const chat = await Chat.findById(chatId);
+      chat?.participants.forEach((pid) => {
+        io.to(`user:${pid}`).emit('message:pinned', {
+          chatId,
+          messageId,
+          isPinned: message.isPinned,
+        });
+      });
+    } catch { /* socket not init */ }
+
+    return ApiResponse.success(
+      res,
+      { isPinned: message.isPinned },
+      message.isPinned ? 'Message pinned' : 'Message unpinned'
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /chats/:chatId/messages/:messageId/vote
+ * Cast (or retract) a vote on a poll message
+ */
+exports.votePoll = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const { chatId, messageId } = req.params;
+    const { optionIndex } = req.body;
+
+    const message = await Message.findOne({ _id: messageId, chatId });
+    if (!message || message.type !== 'poll' || !message.poll) {
+      return ApiResponse.notFound(res, 'Poll not found');
+    }
+    if (message.poll.closed) {
+      return ApiResponse.badRequest(res, 'This poll is closed');
+    }
+    const idx = Number(optionIndex);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= message.poll.options.length) {
+      return ApiResponse.badRequest(res, 'Invalid option');
+    }
+
+    const alreadyOnThis = message.poll.options[idx].votes.some(
+      (v) => v.toString() === userId
+    );
+
+    message.poll.options.forEach((opt, i) => {
+      // Single-choice polls clear other selections; multi-choice toggle only this one.
+      if (!message.poll.multiple || i === idx) {
+        opt.votes = opt.votes.filter((v) => v.toString() !== userId);
+      }
+    });
+    if (!alreadyOnThis) {
+      message.poll.options[idx].votes.push(userId);
+    }
+    message.markModified('poll');
+    await message.save();
+
+    try {
+      const io = getIO();
+      const chat = await Chat.findById(chatId);
+      const votes = message.poll.options.map((o) => o.votes.map((v) => v.toString()));
+      chat?.participants.forEach((pid) => {
+        io.to(`user:${pid}`).emit('poll:update', { chatId, messageId, votes });
+      });
+    } catch { /* socket not init */ }
+
+    return ApiResponse.success(res, { poll: message.poll }, 'Vote recorded');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /chats/:chatId/messages/:messageId/viewed
+ * Mark a view-once message as viewed → clear its media so it can't reopen
+ */
+exports.viewOnceViewed = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const { chatId, messageId } = req.params;
+    const message = await Message.findOne({ _id: messageId, chatId });
+    if (!message || !message.viewOnce) {
+      return ApiResponse.notFound(res, 'Message not found');
+    }
+
+    const already = message.viewedBy.some((v) => v.toString() === userId);
+    if (!already) message.viewedBy.push(userId);
+
+    // Once the (non-sender) recipient has seen it, scrub the media.
+    if (message.senderId && message.senderId.toString() !== userId) {
+      message.media = {};
+      message.content = '';
+      await message.save();
+
+      try {
+        const io = getIO();
+        const chat = await Chat.findById(chatId);
+        chat?.participants.forEach((pid) => {
+          io.to(`user:${pid}`).emit('message:viewed', { chatId, messageId });
+        });
+      } catch { /* socket not init */ }
+    } else {
+      await message.save();
+    }
+
+    return ApiResponse.success(res, null, 'Marked viewed');
   } catch (error) {
     next(error);
   }

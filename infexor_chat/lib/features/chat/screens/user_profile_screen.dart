@@ -67,22 +67,23 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
       }
 
       final rawPhone = widget.user['phone'] ?? '';
-      final name = widget.contactName ?? widget.user['name'] ?? 'Unknown';
+      final rawName = widget.contactName ?? widget.user['name'] ?? '';
+
+      // If name is actually the phone number (unsaved contact), don't pre-fill the name field.
+      // This prevents the native editor from splitting the number into First/Middle/Last fields.
+      final isNameNumber =
+          rawName.replaceAll(RegExp(r'[^\d]'), '') ==
+          rawPhone.replaceAll(RegExp(r'[^\d]'), '');
+      final displayName = isNameNumber ? '' : (rawName.isEmpty ? '' : rawName);
 
       final newContact = Contact()
-        ..name = Name(first: name)
+        ..name = Name(first: displayName)
         ..phones = [Phone(rawPhone)];
 
-      await FlutterContacts.insertContact(newContact);
+      await FlutterContacts.openExternalInsert(newContact);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('"$name" saved to contacts'),
-            backgroundColor: AppColors.accentBlue,
-          ),
-        );
-      }
+      // No longer showing a "Saved" snackbar here because the user
+      // completes the save in the native contacts app.
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -174,6 +175,70 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to $action user')));
+      }
+    }
+  }
+
+  Future<void> _reportContact() async {
+    final userId = widget.user['_id'];
+    if (userId == null) return;
+
+    // Keys must match the server-side report reason enum.
+    const reasons = <String, String>{
+      'spam': 'Spam',
+      'harassment': 'Harassment or bullying',
+      'hate_speech': 'Hate speech',
+      'violence': 'Violence or threats',
+      'nudity': 'Nudity or sexual content',
+      'scam': 'Scam or fraud',
+      'fake_account': 'Fake account',
+      'other': 'Something else',
+    };
+
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Report ${widget.user['name'] ?? 'contact'}',
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            for (final entry in reasons.entries)
+              ListTile(
+                title: Text(entry.value),
+                onTap: () => Navigator.pop(ctx, entry.key),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    if (selected == null || !mounted) return;
+
+    try {
+      await ref.read(userServiceProvider).reportUser(userId, selected);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Report submitted. Thank you.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Failed to submit report')));
       }
     }
   }
@@ -552,7 +617,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                           'Report contact',
                           style: TextStyle(color: AppColors.danger),
                         ),
-                        onTap: () {},
+                        onTap: _reportContact,
                       ),
                     ],
                   ),

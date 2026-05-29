@@ -4,6 +4,7 @@ import '../../core/constants/app_colors.dart';
 import '../../core/providers/active_call_provider.dart';
 import '../../core/services/permission_service.dart';
 import '../../core/services/notification_service.dart';
+import '../../core/services/call_permission_service.dart';
 import '../auth/providers/auth_provider.dart';
 import '../chat/screens/chat_list_screen.dart';
 import '../chat/services/socket_service.dart';
@@ -36,15 +37,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    Future.microtask(() {
-      // Sync app status
-      // Background service disabled by user request
-      // FlutterBackgroundService().invoke('setAppStatus', {
-      //   'status': 'foreground',
-      // });
-
+    Future.microtask(() async {
       // Request permissions
-      PermissionService.requestAllPermissions();
+      await PermissionService.requestAllPermissions();
 
       // Initialize notifications
       final notifService = ref.read(notificationServiceProvider);
@@ -55,6 +50,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       final token = ref.read(authProvider).accessToken;
       if (token != null) {
         ref.read(socketServiceProvider).connect(token);
+      }
+
+      // One-time: ensure the device will actually ring for calls when the app
+      // is killed/locked (Android 14 full-screen-intent + battery exemption).
+      if (mounted) {
+        await CallPermissionService.ensureCallReadiness(context);
       }
     });
   }
@@ -80,9 +81,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         if (token != null) {
           socket.connect(token);
         }
-      } else {
-        // Force the underlying socket.io-client to check its connection status
-        socket.socket?.connect();
       }
 
       // ─── FETCH MISSED DATA ───

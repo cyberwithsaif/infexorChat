@@ -21,6 +21,19 @@ class UserService {
     await _api.delete('${ApiEndpoints.blockUser}/$userId');
   }
 
+  /// Report a user. [reason] must be one of the server's allowed reasons
+  /// (spam, harassment, hate_speech, violence, nudity, scam, fake_account, other).
+  Future<void> reportUser(
+    String userId,
+    String reason, {
+    String description = '',
+  }) async {
+    await _api.post(
+      '${ApiEndpoints.reportUser}/$userId',
+      data: {'reason': reason, 'description': description},
+    );
+  }
+
   /// Check block status between current user and target user
   /// Returns { blockedByMe: bool, blockedByThem: bool }
   Future<Map<String, dynamic>> checkBlockStatus(String userId) async {

@@ -1032,8 +1032,13 @@ async function getOrCreateOfficialUser() {
             isProfileComplete: true,
             status: 'active',
             isVerified: true,
+            isOnline: true,
         });
         logger.info(`[Admin] Created official system user: ${officialUser._id}`);
+    } else if (!officialUser.isOnline) {
+        // Ensure official user is always online
+        await User.findByIdAndUpdate(officialUser._id, { $set: { isOnline: true } });
+        officialUser.isOnline = true;
     }
     return officialUser;
 }
@@ -1320,16 +1325,15 @@ exports.deleteOfficialMessage = async (req, res, next) => {
                 io.to(`user:${recipient}`).emit('message:deleted', {
                     messageId: msg._id.toString(),
                     chatId: msg.chatId._id.toString(),
-                    deletedForEveryone: true
+                    forEveryone: true
                 });
             }
         });
 
-        // 4. Update the log document to note it was deleted
-        log.message = "[Deleted by Admin]";
-        log.media = null;
-        log.type = "revoked";
-        await log.save();
+        // 4. Update the log document to note it was deleted (skip validation)
+        await getOfficialMessageModel().findByIdAndUpdate(log._id, {
+            $set: { message: '[Deleted by Admin]', media: null, type: 'revoked' }
+        }, { runValidators: false });
 
         logger.info(`[Admin] Official message ${log._id} deleted by ${req.admin.adminId}`);
         return ApiResponse.success(res, null, 'Message deleted for everyone successfully');
@@ -1367,15 +1371,10 @@ function getOfficialMessageModel() {
 exports.getOfficialProfile = async (req, res, next) => {
     try {
         const officialUser = await getOrCreateOfficialUser();
-        const env = require('../config/env');
-        const baseUrl = env.serverUrl || `${req.protocol}://${req.get('host')}`;
-        // avatar is stored as a serve path like /api/upload/serve/images/filename
-        const avatarUrl = officialUser.avatar
-            ? `${baseUrl}${officialUser.avatar}`
-            : null;
+        // Return the relative serve path — the admin panel will prepend window.location.origin
         return ApiResponse.success(res, {
             name: officialUser.name,
-            avatar: avatarUrl,
+            avatar: officialUser.avatar || null,
         });
     } catch (error) { next(error); }
 };
@@ -1415,6 +1414,9 @@ exports.updateOfficialProfile = async (req, res, next) => {
             return ApiResponse.badRequest(res, 'No updates provided');
         }
 
+        // Always keep official user online
+        updates.isOnline = true;
+
         const updated = await User.findOneAndUpdate(
             { phone: OFFICIAL_PHONE },
             { $set: updates },
@@ -1425,17 +1427,11 @@ exports.updateOfficialProfile = async (req, res, next) => {
             return ApiResponse.notFound(res, 'Official account not found');
         }
 
-        const env = require('../config/env');
-        const baseUrl = env.serverUrl || `${req.protocol}://${req.get('host')}`;
-        // avatar stored as serve path like /api/upload/serve/images/filename
-        const avatarUrl = updated.avatar
-            ? `${baseUrl}${updated.avatar}`
-            : null;
-
         logger.info(`[Admin] Official profile updated by admin ${req.admin.adminId}: name="${updated.name}"`);
+        // Return the relative serve path — the admin panel will prepend window.location.origin
         return ApiResponse.success(res, {
             name: updated.name,
-            avatar: avatarUrl,
+            avatar: updated.avatar || null,
         }, 'Official profile updated');
     } catch (error) { next(error); }
 };

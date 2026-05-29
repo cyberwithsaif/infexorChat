@@ -1,10 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/animated_page_route.dart';
 import '../../contacts/providers/contact_provider.dart';
 import '../services/group_service.dart';
+import '../services/media_service.dart';
 import 'conversation_screen.dart';
 
 class CreateGroupScreen extends ConsumerStatefulWidget {
@@ -21,6 +24,18 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   final Set<String> _selectedIds = {};
   bool _isCreating = false;
   int _step = 0; // 0 = select members, 1 = set group info
+  String? _avatarPath; // local path of the picked group photo
+
+  Future<void> _pickAvatar() async {
+    final picked = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+      maxWidth: 1024,
+    );
+    if (picked != null) {
+      setState(() => _avatarPath = picked.path);
+    }
+  }
 
   @override
   void initState() {
@@ -110,11 +125,21 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     setState(() => _isCreating = true);
 
     try {
+      // Upload the group photo first (if one was picked) so we can pass its URL.
+      String? avatarUrl;
+      if (_avatarPath != null) {
+        final result = await ref
+            .read(mediaServiceProvider)
+            .uploadImage(_avatarPath!);
+        avatarUrl = result['url']?.toString();
+      }
+
       final groupService = ref.read(groupServiceProvider);
       final response = await groupService.createGroup(
         name: _nameController.text.trim(),
         memberIds: _selectedIds.toList(),
         description: _descController.text.trim(),
+        avatar: avatarUrl,
       );
 
       if (!mounted) return;
@@ -370,17 +395,21 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
-          // Group avatar placeholder
+          // Group avatar picker
           GestureDetector(
-            onTap: () {
-              // TODO: pick group avatar
-            },
+            onTap: _pickAvatar,
             child: Container(
               width: 100,
               height: 100,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: AppColors.primaryGradient,
+                gradient: _avatarPath == null ? AppColors.primaryGradient : null,
+                image: _avatarPath != null
+                    ? DecorationImage(
+                        image: FileImage(File(_avatarPath!)),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
                 boxShadow: [
                   BoxShadow(
                     color: AppColors.accentBlue.withValues(alpha: 0.3),
@@ -388,11 +417,13 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                   ),
                 ],
               ),
-              child: const Icon(
-                Icons.camera_alt_rounded,
-                color: Colors.white,
-                size: 36,
-              ),
+              child: _avatarPath == null
+                  ? const Icon(
+                      Icons.camera_alt_rounded,
+                      color: Colors.white,
+                      size: 36,
+                    )
+                  : null,
             ),
           ),
           const SizedBox(height: 24),

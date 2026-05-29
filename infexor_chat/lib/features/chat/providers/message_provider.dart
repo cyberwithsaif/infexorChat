@@ -188,6 +188,8 @@ class MessageNotifier extends Notifier<MessageState> {
     Map<String, dynamic>? media,
     Map<String, dynamic>? location,
     Map<String, dynamic>? contactShare,
+    Map<String, dynamic>? poll,
+    bool viewOnce = false,
     String? replyTo,
   }) {
     final socket = ref.read(socketServiceProvider);
@@ -200,6 +202,8 @@ class MessageNotifier extends Notifier<MessageState> {
         'media': media,
         'location': location,
         'contactShare': contactShare,
+        'poll': poll,
+        'viewOnce': viewOnce,
         'replyTo': replyTo,
       },
       callback: (response) {
@@ -346,6 +350,99 @@ class MessageNotifier extends Notifier<MessageState> {
         }
       }
     });
+
+    socket.on('message:edited', (data) {
+      if (data is Map<String, dynamic>) {
+        final chatId = data['chatId']?.toString();
+        final messageId = data['messageId']?.toString();
+        final content = data['content']?.toString();
+        if (chatId == state.chatId && messageId != null && content != null) {
+          final messages = [...state.messages];
+          final index = messages.indexWhere((m) => m['_id'] == messageId);
+          if (index != -1) {
+            final msg = Map<String, dynamic>.from(messages[index]);
+            msg['content'] = content;
+            msg['isEdited'] = true;
+            messages[index] = msg;
+            state = state.copyWith(messages: messages);
+            _saveToCache(state.chatId, messages);
+          }
+        }
+      }
+    });
+
+    // Pin / unpin broadcast
+    socket.on('message:pinned', (data) {
+      if (data is Map<String, dynamic>) {
+        if (data['chatId']?.toString() != state.chatId) return;
+        final messageId = data['messageId']?.toString();
+        final messages = [...state.messages];
+        final index = messages.indexWhere((m) => m['_id'] == messageId);
+        if (index != -1) {
+          final msg = Map<String, dynamic>.from(messages[index]);
+          msg['isPinned'] = data['isPinned'] == true;
+          messages[index] = msg;
+          state = state.copyWith(messages: messages);
+        }
+      }
+    });
+
+    // Poll vote update — replace per-option vote lists
+    socket.on('poll:update', (data) {
+      if (data is Map<String, dynamic>) {
+        if (data['chatId']?.toString() != state.chatId) return;
+        final messageId = data['messageId']?.toString();
+        final votes = data['votes'];
+        final messages = [...state.messages];
+        final index = messages.indexWhere((m) => m['_id'] == messageId);
+        if (index != -1 && votes is List) {
+          final msg = Map<String, dynamic>.from(messages[index]);
+          final poll = Map<String, dynamic>.from(msg['poll'] ?? {});
+          final options = List<Map<String, dynamic>>.from(
+            (poll['options'] ?? []).map((o) => Map<String, dynamic>.from(o)),
+          );
+          for (int i = 0; i < options.length && i < votes.length; i++) {
+            options[i]['votes'] = List<String>.from(
+              (votes[i] as List).map((e) => e.toString()),
+            );
+          }
+          poll['options'] = options;
+          msg['poll'] = poll;
+          messages[index] = msg;
+          state = state.copyWith(messages: messages);
+        }
+      }
+    });
+
+    // View-once media was opened by the recipient → scrub it locally too
+    socket.on('message:viewed', (data) {
+      if (data is Map<String, dynamic>) {
+        if (data['chatId']?.toString() != state.chatId) return;
+        final messageId = data['messageId']?.toString();
+        final messages = [...state.messages];
+        final index = messages.indexWhere((m) => m['_id'] == messageId);
+        if (index != -1) {
+          final msg = Map<String, dynamic>.from(messages[index]);
+          msg['media'] = null;
+          msg['viewOnceOpened'] = true;
+          messages[index] = msg;
+          state = state.copyWith(messages: messages);
+          _saveToCache(state.chatId, messages);
+        }
+      }
+    });
+
+    // Disappearing message expired → remove it silently
+    socket.on('message:expired', (data) {
+      if (data is Map<String, dynamic>) {
+        if (data['chatId']?.toString() != state.chatId) return;
+        final messageId = data['messageId']?.toString();
+        final messages = [...state.messages]
+          ..removeWhere((m) => m['_id'] == messageId);
+        state = state.copyWith(messages: messages);
+        _saveToCache(state.chatId, messages);
+      }
+    });
   }
 
   /// Clean up when leaving chat
@@ -445,6 +542,107 @@ class MessageNotifier extends Notifier<MessageState> {
       // In a real app, revert the optimistic update here if the API fails
       rethrow;
     }
+  }
+
+  /// Edit a text message. Optimistically updates locally, then persists;
+  /// the server broadcasts message:edited to the other participants.
+  Future<void> editMessage(String messageId, String newContent) async {
+    final trimmed = newContent.trim();
+    if (trimmed.isEmpty) return;
+
+    // Snapshot for rollback if the API rejects the edit (e.g. window expired)
+    final index = state.messages.indexWhere((m) => m['_id'] == messageId);
+    Map<String, dynamic>? original;
+    if (index != -1) {
+      original = Map<String, dynamic>.from(state.messages[index]);
+      final messages = [...state.messages];
+      final msg = {...messages[index]};
+      msg['content'] = trimmed;
+      msg['isEdited'] = true;
+      messages[index] = msg;
+      state = state.copyWith(messages: messages);
+      _saveToCache(state.chatId, messages);
+    }
+
+    try {
+      await ref
+          .read(chatServiceProvider)
+          .editMessage(state.chatId, messageId, trimmed);
+    } catch (e) {
+      // Revert on failure so the UI doesn't show an edit the server rejected
+      if (original != null) {
+        final idx = state.messages.indexWhere((m) => m['_id'] == messageId);
+        if (idx != -1) {
+          final messages = [...state.messages];
+          messages[idx] = original;
+          state = state.copyWith(messages: messages);
+          _saveToCache(state.chatId, messages);
+        }
+      }
+      rethrow;
+    }
+  }
+
+  /// Pin / unpin a message (optimistic; server broadcasts message:pinned).
+  Future<void> pinMessage(String messageId) async {
+    final index = state.messages.indexWhere((m) => m['_id'] == messageId);
+    if (index != -1) {
+      final messages = [...state.messages];
+      final msg = {...messages[index]};
+      msg['isPinned'] = !(msg['isPinned'] == true);
+      messages[index] = msg;
+      state = state.copyWith(messages: messages);
+    }
+    try {
+      await ref.read(chatServiceProvider).pinMessage(state.chatId, messageId);
+    } catch (_) {
+      // Revert on failure
+      final idx = state.messages.indexWhere((m) => m['_id'] == messageId);
+      if (idx != -1) {
+        final messages = [...state.messages];
+        final msg = {...messages[idx]};
+        msg['isPinned'] = !(msg['isPinned'] == true);
+        messages[idx] = msg;
+        state = state.copyWith(messages: messages);
+      }
+    }
+  }
+
+  /// Vote on a poll option (optimistic; server broadcasts poll:update).
+  Future<void> votePoll(String messageId, int optionIndex) async {
+    final currentUserId = ref.read(authProvider).user?['_id']?.toString();
+    final index = state.messages.indexWhere((m) => m['_id'] == messageId);
+    if (index != -1 && currentUserId != null) {
+      final messages = [...state.messages];
+      final msg = Map<String, dynamic>.from(messages[index]);
+      final poll = Map<String, dynamic>.from(msg['poll'] ?? {});
+      final options = List<Map<String, dynamic>>.from(
+        (poll['options'] ?? []).map((o) => Map<String, dynamic>.from(o)),
+      );
+      final multiple = poll['multiple'] == true;
+      final alreadyHere =
+          optionIndex < options.length &&
+          List<String>.from(
+            (options[optionIndex]['votes'] ?? []).map((e) => e.toString()),
+          ).contains(currentUserId);
+      for (int i = 0; i < options.length; i++) {
+        final votes = List<String>.from(
+          (options[i]['votes'] ?? []).map((e) => e.toString()),
+        );
+        if (!multiple || i == optionIndex) votes.remove(currentUserId);
+        if (i == optionIndex && !alreadyHere) votes.add(currentUserId);
+        options[i]['votes'] = votes;
+      }
+      poll['options'] = options;
+      msg['poll'] = poll;
+      messages[index] = msg;
+      state = state.copyWith(messages: messages);
+    }
+    try {
+      await ref
+          .read(chatServiceProvider)
+          .votePoll(state.chatId, messageId, optionIndex);
+    } catch (_) {/* server broadcast will reconcile */}
   }
 
   /// Delete a message

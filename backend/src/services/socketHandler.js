@@ -235,7 +235,7 @@ function initSocketHandlers(io) {
           return callback?.({ error: 'Rate limited. Please slow down.' });
         }
 
-        const { chatId, type, content, media, replyTo, location, contactShare } = data;
+        const { chatId, type, content, media, replyTo, location, contactShare, viewOnce, poll } = data;
 
         // --- ABUSE DETECTION (SPAM) ---
         const redisClient = require('../config/redis').client;
@@ -292,6 +292,28 @@ function initSocketHandlers(io) {
           }
         }
 
+        // Disappearing messages: stamp an expiry if the chat has it enabled.
+        const expiresAt =
+          chat.disappearingDuration && chat.disappearingDuration > 0
+            ? new Date(Date.now() + chat.disappearingDuration * 1000)
+            : null;
+
+        // Normalize an incoming poll payload (type === 'poll').
+        let pollDoc;
+        if (type === 'poll' && poll) {
+          pollDoc = {
+            question: (poll.question || '').toString(),
+            options: (poll.options || [])
+              .map((o) => ({
+                text: (typeof o === 'string' ? o : o.text || '').toString(),
+                votes: [],
+              }))
+              .filter((o) => o.text.length > 0),
+            multiple: poll.multiple === true,
+            closed: false,
+          };
+        }
+
         // Create message
         const message = await Message.create({
           chatId,
@@ -302,6 +324,9 @@ function initSocketHandlers(io) {
           replyTo: replyTo || null,
           location: location || {},
           contactShare: contactShare || {},
+          viewOnce: viewOnce === true,
+          poll: pollDoc,
+          expiresAt,
           status: 'sent',
         });
 
@@ -538,7 +563,7 @@ function initSocketHandlers(io) {
 
     // Callee rejects → notify caller and save in chat history
     socket.on('call:reject', async (data) => {
-      const { chatId, callerId } = data;
+      const { chatId, callerId, isVideo } = data;
       if (!chatId || !callerId) return;
       logger.info(`[call:reject] ${userId} rejected call from ${callerId} in chat ${chatId}`);
       io.to(`user:${callerId}`).emit('call:rejected', {
@@ -551,10 +576,13 @@ function initSocketHandlers(io) {
         const Message = require('../models/Message');
         const Chat = require('../models/Chat');
 
+        const callTypeStr = isVideo ? 'Missed video call' : 'Missed voice call';
+
         const sysMsg = await Message.create({
           chatId,
+          senderId: callerId, // Tag the original caller so the UI aligns the bubble correctly
           type: 'system',
-          content: 'Missed call',
+          content: callTypeStr,
         });
 
         await Chat.findByIdAndUpdate(chatId, {
@@ -562,8 +590,13 @@ function initSocketHandlers(io) {
           lastMessageAt: sysMsg.createdAt,
         });
 
+        // Populate senderId so Flutter can compare it with currentUserId without type issues
+        const populatedSysMsg = await Message.findById(sysMsg._id)
+          .populate('senderId', 'name avatar')
+          .lean();
+
         // Broadcast the system message so UI updates immediately
-        io.to(`chat:${chatId}`).emit('message:new', sysMsg);
+        io.to(`chat:${chatId}`).emit('message:new', populatedSysMsg || sysMsg);
       } catch (e) {
         logger.error('Error saving missed call history:', e);
       }
@@ -571,7 +604,7 @@ function initSocketHandlers(io) {
 
     // Either side ends the call → notify the other and save in chat history
     socket.on('call:end', async (data) => {
-      const { chatId, duration } = data; // the frontend can pass duration, but we'll default
+      const { chatId, duration, callerId, isVideo } = data; // the frontend can pass duration, but we'll default
       if (!chatId) return;
       logger.info(`[call:end] ${userId} ended call in chat ${chatId}`);
 
@@ -590,10 +623,16 @@ function initSocketHandlers(io) {
         const Message = require('../models/Message');
         const ChatUpdate = require('../models/Chat');
 
+        // Include "video" or "voice" in the content string so the UI can parse it, along with duration
+        const durationStr = duration ? `${duration} sec` : '';
+        const callTypeStr = isVideo ? 'Video call' : 'Voice call';
+        const msgContent = durationStr ? `${callTypeStr}|${durationStr}` : callTypeStr;
+
         const sysMsg = await Message.create({
           chatId,
+          senderId: callerId || userId,
           type: 'system',
-          content: 'Call ended',
+          content: msgContent,
         });
 
         await ChatUpdate.findByIdAndUpdate(chatId, {
@@ -601,10 +640,83 @@ function initSocketHandlers(io) {
           lastMessageAt: sysMsg.createdAt,
         });
 
+        // Populate senderId so Flutter can compare it with currentUserId without type issues
+        const populatedSysMsg = await Message.findById(sysMsg._id)
+          .populate('senderId', 'name avatar')
+          .lean();
+
         // Broadcast the system message
-        io.to(`chat:${chatId}`).emit('message:new', sysMsg);
+        io.to(`chat:${chatId}`).emit('message:new', populatedSysMsg || sysMsg);
       } catch (e) {
         logger.error('Error saving call history:', e);
+      }
+    });
+
+    // Caller cancels before callee answers
+    socket.on('call:cancel', async (data) => {
+      const { chatId, callerId, isVideo } = data;
+      if (!chatId || !callerId) return;
+      logger.info(`[call:cancel] ${userId} cancelled call to ${chatId}`);
+
+      // Notify other participants to stop ringing
+      const chat = await Chat.findById(chatId).select('participants').lean();
+      if (!chat) return;
+
+      // Caller name for the WhatsApp-style "Missed call" notification
+      const caller = await User.findById(callerId).select('name').lean();
+      const callerName = caller?.name || 'Unknown';
+
+      chat.participants.forEach(pid => {
+        const p = pid.toString();
+        if (p === userId) return;
+
+        // Stop ringing on any connected device
+        io.to(`user:${p}`).emit('call:cancelled', { chatId, cancelledBy: userId });
+
+        // The receiver's app is backgrounded/killed (no live socket), so it
+        // never showed the in-app ringing UI. Push a "Missed call" notification
+        // like WhatsApp. Online receivers already saw the call screen → skip.
+        if (getUserSockets(p).size === 0) {
+          notificationService.sendToUser(
+            p,
+            callerName,
+            isVideo ? 'Missed video call' : 'Missed voice call',
+            {
+              chatId: chatId.toString(),
+              callerId: callerId.toString(),
+              type: 'missed_call',
+              status: 'missed',
+            }
+          );
+        }
+      });
+
+      try {
+        const Message = require('../models/Message');
+        const ChatUpdate = require('../models/Chat');
+
+        const callTypeStr = isVideo ? 'Missed video call' : 'Missed voice call';
+
+        const sysMsg = await Message.create({
+          chatId,
+          senderId: callerId,
+          type: 'system',
+          content: callTypeStr,
+        });
+
+        await ChatUpdate.findByIdAndUpdate(chatId, {
+          lastMessage: sysMsg._id,
+          lastMessageAt: sysMsg.createdAt,
+        });
+
+        // Populate senderId so Flutter can compare it with currentUserId without type issues
+        const populatedSysMsg = await Message.findById(sysMsg._id)
+          .populate('senderId', 'name avatar')
+          .lean();
+
+        io.to(`chat:${chatId}`).emit('message:new', populatedSysMsg || sysMsg);
+      } catch (e) {
+        logger.error('Error saving missed call history on cancel:', e);
       }
     });
 
@@ -661,7 +773,7 @@ function initSocketHandlers(io) {
     });
 
     // ─── DISCONNECT ───
-    socket.on('disconnect', () => {
+    socket.on('disconnect', async () => {
       logger.info(`Socket disconnected: ${socket.id} (user: ${userId})`);
 
       const sockets = userSockets.get(userId);
@@ -669,6 +781,15 @@ function initSocketHandlers(io) {
         sockets.delete(socket.id);
         if (sockets.size === 0) {
           userSockets.delete(userId);
+
+          // Don't mark the official Infexor account offline
+          try {
+            const user = await User.findById(userId).select('phone').lean();
+            if (user && user.phone === '__infexor_official__') {
+              return; // Keep official user always online
+            }
+          } catch (_) { }
+
           // Mark user offline
           User.findByIdAndUpdate(userId, {
             isOnline: false,

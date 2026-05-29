@@ -25,6 +25,9 @@ void showAttachmentPicker(
   required void Function(PlatformFile file) onDocument,
   required void Function(Position position) onLocation,
   required VoidCallback onContact,
+  VoidCallback? onPoll,
+  void Function(XFile image)? onViewOnce,
+  void Function(Position position)? onLiveLocation,
 }) {
   final imagePicker = ImagePicker();
 
@@ -188,6 +191,81 @@ void showAttachmentPicker(
                     ),
                   ],
                 ),
+                // Options grid - Row 3 (advanced)
+                if (onPoll != null ||
+                    onViewOnce != null ||
+                    onLiveLocation != null) ...[
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      if (onPoll != null)
+                        _AttachmentOption(
+                          icon: Icons.poll_rounded,
+                          label: 'Poll',
+                          color: AppColors.accentPurple,
+                          onTap: () {
+                            Navigator.pop(dialogContext);
+                            onPoll();
+                          },
+                        )
+                      else
+                        const SizedBox(width: 80),
+                      if (onViewOnce != null)
+                        _AttachmentOption(
+                          icon: Icons.timer_rounded,
+                          label: 'View once',
+                          color: AppColors.warning,
+                          onTap: () async {
+                            Navigator.pop(dialogContext);
+                            final photo = await imagePicker.pickImage(
+                              source: ImageSource.gallery,
+                              imageQuality: 80,
+                            );
+                            if (photo != null) onViewOnce(photo);
+                          },
+                        )
+                      else
+                        const SizedBox(width: 80),
+                      if (onLiveLocation != null)
+                        _AttachmentOption(
+                          icon: Icons.my_location_rounded,
+                          label: 'Live location',
+                          color: AppColors.success,
+                          onTap: () async {
+                            Navigator.pop(dialogContext);
+                            try {
+                              final serviceEnabled =
+                                  await Geolocator.isLocationServiceEnabled();
+                              if (!serviceEnabled) return;
+                              var permission =
+                                  await Geolocator.checkPermission();
+                              if (permission == LocationPermission.denied) {
+                                permission =
+                                    await Geolocator.requestPermission();
+                                if (permission == LocationPermission.denied) {
+                                  return;
+                                }
+                              }
+                              if (permission ==
+                                  LocationPermission.deniedForever) {
+                                return;
+                              }
+                              final position =
+                                  await Geolocator.getCurrentPosition(
+                                    locationSettings: const LocationSettings(
+                                      accuracy: LocationAccuracy.high,
+                                    ),
+                                  );
+                              onLiveLocation(position);
+                            } catch (_) {}
+                          },
+                        )
+                      else
+                        const SizedBox(width: 80),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 8),
               ],
             ),

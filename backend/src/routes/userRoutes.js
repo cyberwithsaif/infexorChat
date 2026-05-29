@@ -51,6 +51,33 @@ router.put('/privacy', userController.updatePrivacy);
 // Block/unblock users
 router.post('/block/:userId', userController.blockUser);
 router.delete('/block/:userId', userController.unblockUser);
+
+// Report a user
+router.post(
+  '/report/:userId',
+  [
+    body('reason')
+      .optional()
+      .isIn([
+        'spam',
+        'harassment',
+        'hate_speech',
+        'violence',
+        'nudity',
+        'scam',
+        'fake_account',
+        'other',
+      ])
+      .withMessage('Invalid report reason'),
+    body('description')
+      .optional()
+      .isString()
+      .isLength({ max: 500 })
+      .withMessage('Description must be under 500 characters'),
+  ],
+  validate,
+  userController.reportUser
+);
 router.get('/blocked', userController.getBlockedUsers);
 router.get('/block/:userId/status', userController.checkBlockStatus);
 

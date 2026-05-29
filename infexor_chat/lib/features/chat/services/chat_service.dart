@@ -92,6 +92,50 @@ class ChatService {
     );
   }
 
+  /// Edit a text message (sender only, within the server's 15-min window)
+  Future<void> editMessage(
+    String chatId,
+    String messageId,
+    String content,
+  ) async {
+    await _api.put(
+      '${ApiEndpoints.chats}/$chatId/messages/$messageId',
+      data: {'content': content},
+    );
+  }
+
+  /// Pin / unpin a message for the whole chat. Returns the new pinned state.
+  Future<bool> pinMessage(String chatId, String messageId) async {
+    final res = await _api.post(
+      '${ApiEndpoints.chats}/$chatId/messages/$messageId/pin',
+    );
+    final data = res.data is Map ? res.data['data'] : null;
+    return (data is Map ? data['isPinned'] == true : false);
+  }
+
+  /// Cast / retract a vote on a poll message.
+  Future<void> votePoll(String chatId, String messageId, int optionIndex) async {
+    await _api.post(
+      '${ApiEndpoints.chats}/$chatId/messages/$messageId/vote',
+      data: {'optionIndex': optionIndex},
+    );
+  }
+
+  /// Mark a view-once message as viewed (server scrubs its media).
+  Future<void> markViewOnceViewed(String chatId, String messageId) async {
+    await _api.post(
+      '${ApiEndpoints.chats}/$chatId/messages/$messageId/viewed',
+    );
+  }
+
+  /// Set disappearing-messages duration for a chat (seconds; 0 = off).
+  Future<void> setDisappearing(String chatId, int durationSeconds) async {
+    await _api.post(
+      '${ApiEndpoints.chats}/$chatId/disappearing',
+      data: {'duration': durationSeconds},
+    );
+  }
+
   /// Star/unstar a message
   Future<Map<String, dynamic>> starMessage(
     String chatId,

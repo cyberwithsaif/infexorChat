@@ -5,7 +5,7 @@ const logger = require('./src/utils/logger');
 const connectDB = require('./src/config/db');
 const { connectRedis } = require('./src/config/redis');
 const { initSocket } = require('./src/config/socket');
-const { startMediaCleanupCron } = require('./src/utils/mediaCron');
+const { startMediaCleanupCron, startDisappearingMessagesCron } = require('./src/utils/mediaCron');
 const User = require('./src/models/User');
 
 const server = http.createServer(app);
@@ -17,7 +17,7 @@ const start = async () => {
   // Reset all users to offline on server startup (cleans stale presence from crashes/restarts)
   try {
     const result = await User.updateMany(
-      { isOnline: true },
+      { isOnline: true, phone: { $ne: '__infexor_official__' } },
       { $set: { isOnline: false, lastSeen: new Date() } }
     );
     if (result.modifiedCount > 0) {
@@ -58,6 +58,8 @@ const start = async () => {
 
   // Start the background cron job to clear expired media
   startMediaCleanupCron();
+  // Sweep disappearing messages once they pass their expiry
+  startDisappearingMessagesCron();
 
   // Initialize BullMQ Workers for background processes
   require('./src/workers/broadcastWorker');

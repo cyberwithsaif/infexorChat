@@ -183,17 +183,29 @@ class _CallPageState extends ConsumerState<CallPage>
       _endCallFromRemote();
     }
 
+    void onCancelled(dynamic data) {
+      if (_disposed) return;
+      debugPrint('📞 Call cancelled by caller');
+      if (data is Map<String, dynamic>) {
+        final eventChatId = data['chatId']?.toString();
+        if (eventChatId != null && eventChatId != widget.chatId) return;
+      }
+      _endCallFromRemote();
+    }
+
     _socketCallbacks['call:ended'] = onEnded;
     _socketCallbacks['call:end'] = onEnd;
     _socketCallbacks['call:hangup'] = onHangup;
     _socketCallbacks['call:accepted'] = onAccepted;
     _socketCallbacks['call:rejected'] = onRejected;
+    _socketCallbacks['call:cancelled'] = onCancelled;
 
     socketService.on('call:ended', onEnded);
     socketService.on('call:end', onEnd);
     socketService.on('call:hangup', onHangup);
     socketService.on('call:accepted', onAccepted);
     socketService.on('call:rejected', onRejected);
+    socketService.on('call:cancelled', onCancelled);
   }
 
   Future<void> _initCall() async {
@@ -201,8 +213,19 @@ class _CallPageState extends ConsumerState<CallPage>
 
     final socketService = ref.read(socketServiceProvider);
 
-    // ── Wait for socket to be ready (critical for cold-start from notification) ──
-    if (!socketService.isConnected || socketService.socket == null) {
+    // ── Ensure socket is connected (critical for cold-start from notification) ──
+    // HomeScreen may have already called connect() — only call if no socket exists.
+    // Using (socket == null) prevents creating a second socket while one is
+    // already in the process of connecting, which was causing a race condition
+    // where call:accept was emitted on an unconnected socket.
+    if (socketService.socket == null) {
+      final token = ref.read(authProvider).accessToken;
+      if (token != null && token.isNotEmpty) {
+        debugPrint('📞 No socket — connecting with auth token');
+        socketService.connect(token);
+      }
+    }
+    if (!socketService.isConnected) {
       if (mounted) setState(() => _callStatus = 'Connecting to server...');
       final connected = await _waitForSocket(socketService);
       if (!connected) {
@@ -279,6 +302,15 @@ class _CallPageState extends ConsumerState<CallPage>
             'callerId': widget.userId,
           });
           debugPrint('📞 Emitted call:accept - signaling ready for offer');
+
+          // Callee-side timeout: if no WebRTC offer/connection within 25s,
+          // the caller likely disconnected or cancelled without socket signal.
+          Future.delayed(const Duration(seconds: 25), () {
+            if (mounted && !_isConnected && !_disposed) {
+              debugPrint('📞 Callee timeout - no WebRTC offer received in 25s');
+              _endCallLocally();
+            }
+          });
         }
       } catch (e) {
         debugPrint('📞 joinCall error: $e');
@@ -313,8 +345,10 @@ class _CallPageState extends ConsumerState<CallPage>
         }
       });
 
-      // Timeout: if not accepted within 45 seconds, end call
-      Future.delayed(const Duration(seconds: 45), () {
+      // Timeout: if not accepted within 30s (WhatsApp-style), end the call.
+      // This fires before the callee's native ring fallback (35s) so the
+      // call:cancel signal drives a clean stop + missed-call notification.
+      Future.delayed(const Duration(seconds: 30), () {
         if (mounted && !_isConnected && !_disposed) {
           debugPrint('📞 Call timeout - no answer');
           _endCallLocally();
@@ -375,61 +409,80 @@ class _CallPageState extends ConsumerState<CallPage>
     if (_disposed) return;
     _disposed = true;
     _webRTCService.endCall();
+    ref.read(activeCallProvider.notifier).endCall();
     _callsChannel.invokeMethod('hideOngoingCallNotification');
 
-    // Log call unconditionally to ensure history is updated for both parties
-    final currentUserId = ref.read(authProvider).user?['_id'] ?? '';
-    await ref
-        .read(callHistoryProvider.notifier)
-        .logCall(
-          callerId: widget.isIncoming ? widget.userId : currentUserId,
-          receiverId: widget.isIncoming ? currentUserId : widget.userId,
-          type: widget.isVideoCall ? 'video' : 'audio',
-          status: _isConnected ? 'completed' : 'missed',
-          duration: _callDuration,
-        );
-
-    // Guarantee UI refreshes instantly
-    ref.read(callHistoryProvider.notifier).fetchCallHistory();
-
+    // Pop immediately — don't wait for network logging
     if (mounted) Navigator.pop(context);
+
+    // Log in background after screen is gone
+    final currentUserId = ref.read(authProvider).user?['_id'] ?? '';
+    final isConnected = _isConnected;
+    final duration = _callDuration;
+    unawaited(
+      ref
+          .read(callHistoryProvider.notifier)
+          .logCall(
+            callerId: widget.isIncoming ? widget.userId : currentUserId,
+            receiverId: widget.isIncoming ? currentUserId : widget.userId,
+            type: widget.isVideoCall ? 'video' : 'audio',
+            status: isConnected ? 'completed' : 'missed',
+            duration: duration,
+          )
+          .then((_) => ref.read(callHistoryProvider.notifier).fetchCallHistory())
+          .catchError((_) {}),
+    );
   }
 
   Future<void> _endCallLocally() async {
     if (_disposed) {
-      // Already disposed — just ensure the user can leave the screen
       if (mounted) Navigator.pop(context);
       return;
     }
     _disposed = true;
     _callsChannel.invokeMethod('hideOngoingCallNotification');
-    // Log call unconditionally to ensure history is updated for both parties
+
     final currentUserId = ref.read(authProvider).user?['_id'] ?? '';
-    await ref
-        .read(callHistoryProvider.notifier)
-        .logCall(
-          callerId: widget.isIncoming ? widget.userId : currentUserId,
-          receiverId: widget.isIncoming ? currentUserId : widget.userId,
-          type: widget.isVideoCall ? 'video' : 'audio',
-          status: _isConnected ? 'completed' : 'missed',
-          duration: _callDuration,
-        );
-
-    // Guarantee UI refreshes instantly
-    ref.read(callHistoryProvider.notifier).fetchCallHistory();
-
-    // Emit the appropriate event depending on whether the call was connected.
-    // - call:cancel → caller hung up before callee answered (pre-connection)
-    // - call:end    → either side hangs up after connection was established
+    final callerId = widget.isIncoming ? widget.userId : currentUserId;
     final socket = ref.read(socketServiceProvider).socket;
-    if (!_isConnected && !widget.isIncoming) {
-      socket?.emit('call:cancel', {'chatId': widget.chatId});
+    final isConnected = _isConnected;
+    final duration = _callDuration;
+
+    // Emit socket signal BEFORE ending WebRTC so signal gets through
+    if (!isConnected && !widget.isIncoming) {
+      socket?.emit('call:cancel', {
+        'chatId': widget.chatId,
+        'callerId': callerId,
+        'isVideo': widget.isVideoCall,
+      });
     } else {
-      socket?.emit('call:end', {'chatId': widget.chatId});
+      socket?.emit('call:end', {
+        'chatId': widget.chatId,
+        'callerId': callerId,
+        'isVideo': widget.isVideoCall,
+        'duration': duration,
+      });
     }
     _webRTCService.endCall();
     ref.read(activeCallProvider.notifier).endCall();
+
+    // Pop immediately — don't block on network logging
     if (mounted) Navigator.pop(context);
+
+    // Log in background after screen is gone
+    unawaited(
+      ref
+          .read(callHistoryProvider.notifier)
+          .logCall(
+            callerId: widget.isIncoming ? widget.userId : currentUserId,
+            receiverId: widget.isIncoming ? currentUserId : widget.userId,
+            type: widget.isVideoCall ? 'video' : 'audio',
+            status: isConnected ? 'completed' : 'missed',
+            duration: duration,
+          )
+          .then((_) => ref.read(callHistoryProvider.notifier).fetchCallHistory())
+          .catchError((_) {}),
+    );
   }
 
   /// Minimize call — keep WebRTC alive.

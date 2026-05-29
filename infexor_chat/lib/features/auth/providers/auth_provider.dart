@@ -85,52 +85,46 @@ class AuthNotifier extends Notifier<AuthState> {
           ? AuthStatus.authenticated
           : AuthStatus.profileSetup;
 
-      // Restore cached user first to avoid loading screens
-      if (user != null) {
-        state = AuthState(
-          status: restoredStatus,
-          accessToken: token,
-          refreshToken: refresh,
-          user: user,
-        );
-      } else {
-        // Token exists but user not cached — set status so splash routes correctly
-        state = AuthState(
-          status: restoredStatus,
-          accessToken: token,
-          refreshToken: refresh,
-        );
-      }
+      // Restore cached user immediately — no network calls needed here
+      state = AuthState(
+        status: restoredStatus,
+        accessToken: token,
+        refreshToken: refresh,
+        user: user,
+      );
 
-      // Fetch and sync FCM token on every app startup
-      try {
-        print("======== STARTING FCM TOKEN FETCH ========");
-        final messaging = FirebaseMessaging.instance;
-        print("======== REQUESTING PERMISSION ========");
-        await messaging.requestPermission();
-        print("======== GETTING TOKEN ========");
-        final fcmToken = await messaging.getToken();
-        print("======== TOKEN RECEIVED: $fcmToken ========");
-        if (fcmToken != null) {
-          ref.read(authServiceProvider).updateFcmToken(fcmToken);
-          print("======== TOKEN SENT TO BACKEND ========");
-        }
-      } catch (e) {
-        print("======== FAILED TO SYNC FCM TOKEN ON STARTUP: $e ========");
-      }
+      // Sync FCM token and profile in background (non-blocking)
+      _syncInBackground(box);
+    }
+  }
 
-      try {
-        final profileRes = await ref.read(authServiceProvider).getProfile();
-        final freshUser =
-            profileRes['data']?['user'] ??
-            (profileRes.containsKey('_id') ? profileRes : null);
-        if (freshUser != null) {
-          await box.put('user', freshUser);
-          state = state.copyWith(user: freshUser);
-        }
-      } catch (_) {
-        // Keep cached user if fetch fails
+  /// Runs FCM token sync and profile refresh in the background so the UI
+  /// appears instantly from cached state.
+  void _syncInBackground(dynamic box) async {
+    // Sync FCM token
+    try {
+      final messaging = FirebaseMessaging.instance;
+      await messaging.requestPermission();
+      final fcmToken = await messaging.getToken();
+      if (fcmToken != null) {
+        ref.read(authServiceProvider).updateFcmToken(fcmToken);
       }
+    } catch (e) {
+      print("Failed to sync FCM token on startup: $e");
+    }
+
+    // Refresh profile from server
+    try {
+      final profileRes = await ref.read(authServiceProvider).getProfile();
+      final freshUser =
+          profileRes['data']?['user'] ??
+          (profileRes.containsKey('_id') ? profileRes : null);
+      if (freshUser != null) {
+        await box.put('user', freshUser);
+        state = state.copyWith(user: freshUser);
+      }
+    } catch (_) {
+      // Keep cached user if fetch fails
     }
   }
 

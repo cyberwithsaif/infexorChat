@@ -18,7 +18,7 @@ class SocketService {
 
   /// Connect to Socket.io server with JWT token
   void connect(String token) {
-    if (_isConnected) return;
+    if (_isConnected || _socket != null) return; // already connected or connecting
 
     // Base URL without /api path
     final baseUrl = ApiEndpoints.baseUrl.replaceAll('/api', '');

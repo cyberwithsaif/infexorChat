@@ -39,6 +39,13 @@ router.get('/:chatId/messages/search', messageController.searchMessages);
 // Delete message
 router.delete('/:chatId/messages/:messageId', messageController.deleteMessage);
 
+// Edit message (text only, sender, within 15 min)
+router.put('/:chatId/messages/:messageId',
+  [body('content').notEmpty().withMessage('Content is required')],
+  validate,
+  messageController.editMessage
+);
+
 // React to message
 router.post('/:chatId/messages/:messageId/react',
   [body('emoji').notEmpty().withMessage('Emoji is required')],
@@ -46,8 +53,28 @@ router.post('/:chatId/messages/:messageId/react',
   messageController.reactToMessage
 );
 
+// Pin/unpin message
+router.post('/:chatId/messages/:messageId/pin', messageController.pinMessage);
+
+// Vote on a poll message
+router.post('/:chatId/messages/:messageId/vote',
+  [body('optionIndex').isInt({ min: 0 }).withMessage('optionIndex is required')],
+  validate,
+  messageController.votePoll
+);
+
+// Mark a view-once message as viewed (scrubs its media)
+router.post('/:chatId/messages/:messageId/viewed', messageController.viewOnceViewed);
+
 // Star/unstar message
 router.post('/:chatId/messages/:messageId/star', messageController.starMessage);
+
+// Set disappearing-messages duration (seconds; 0 = off) for a chat
+router.post('/:chatId/disappearing',
+  [body('duration').isInt({ min: 0 }).withMessage('duration (seconds) is required')],
+  validate,
+  chatController.setDisappearing
+);
 
 // Forward message
 router.post('/:chatId/messages/:messageId/forward',

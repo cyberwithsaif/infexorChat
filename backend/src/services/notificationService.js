@@ -77,15 +77,19 @@ exports.sendToUser = async (userId, title, body, data = {}) => {
                 directBootOk: true,
             };
         } else {
-            // Message: notification block + correct channel for Android 8+
+            // Notification message → shown in the system tray. Missed calls use
+            // their own channel so they group/sound separately from chats.
+            const isMissedCall = data.type === 'missed_call';
             message.notification = { title, body };
             message.android = {
                 priority: 'high',
-                notification: {
-                    channelId: 'infexor_messages',
-                    sound: 'notification_sound',
-                    defaultSound: false,
-                },
+                notification: isMissedCall
+                    ? { channelId: 'infexor_missed_calls' }
+                    : {
+                        channelId: 'infexor_messages',
+                        sound: 'notification_sound',
+                        defaultSound: false,
+                    },
             };
         }
 

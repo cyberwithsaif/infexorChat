@@ -22,11 +22,13 @@ const messageSchema = new mongoose.Schema(
         'voice',
         'document',
         'location',
+        'liveLocation',
         'contact',
         'gif',
         'sticker',
         'system',
         'revoked',
+        'poll',
       ],
       default: 'text',
     },
@@ -108,6 +110,42 @@ const messageSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    isPinned: {
+      type: Boolean,
+      default: false,
+    },
+    pinnedAt: {
+      type: Date,
+      default: null,
+    },
+    // View-once media: opens a single time, then content is cleared
+    viewOnce: {
+      type: Boolean,
+      default: false,
+    },
+    viewedBy: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
+    // Disappearing messages: auto-deleted by the cron once past this time
+    expiresAt: {
+      type: Date,
+      default: null,
+    },
+    // Poll payload (type === 'poll')
+    poll: {
+      question: { type: String, default: '' },
+      options: [
+        {
+          text: { type: String, default: '' },
+          votes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+        },
+      ],
+      multiple: { type: Boolean, default: false }, // allow multiple choices
+      closed: { type: Boolean, default: false },
+    },
     isAI: {
       type: Boolean,
       default: false,
@@ -123,5 +161,8 @@ messageSchema.index({ senderId: 1 });
 messageSchema.index({ chatId: 1, senderId: 1 });
 messageSchema.index({ 'starredBy': 1 });
 messageSchema.index({ type: 1 });
+messageSchema.index({ chatId: 1, isPinned: 1 });
+// Drives the disappearing-messages sweep (see mediaCron).
+messageSchema.index({ expiresAt: 1 });
 
 module.exports = mongoose.model('Message', messageSchema);

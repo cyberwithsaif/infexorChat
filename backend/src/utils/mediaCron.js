@@ -53,4 +53,48 @@ const startMediaCleanupCron = () => {
     }, CHECK_INTERVAL);
 };
 
-module.exports = { startMediaCleanupCron };
+// Sweep expired (disappearing) messages every minute and tell clients to
+// silently remove them. Separate, faster loop than the hourly media cleanup.
+const startDisappearingMessagesCron = () => {
+    logger.info('Disappearing-messages cron started');
+    const Message = require('../models/Message');
+    const Chat = require('../models/Chat');
+
+    setInterval(async () => {
+        try {
+            const now = new Date();
+            const expired = await Message.find({
+                expiresAt: { $ne: null, $lte: now },
+            }).select('_id chatId').lean();
+            if (expired.length === 0) return;
+
+            // Notify participants so the bubbles vanish live (best-effort).
+            let io = null;
+            try { io = require('../config/socket').getIO(); } catch { /* not ready */ }
+            if (io) {
+                const byChat = {};
+                for (const m of expired) {
+                    const cid = m.chatId.toString();
+                    (byChat[cid] = byChat[cid] || []).push(m._id.toString());
+                }
+                for (const [cid, ids] of Object.entries(byChat)) {
+                    const chat = await Chat.findById(cid).select('participants').lean();
+                    if (!chat) continue;
+                    ids.forEach((messageId) => {
+                        chat.participants.forEach((pid) => {
+                            io.to(`user:${pid}`).emit('message:expired', { chatId: cid, messageId });
+                        });
+                    });
+                }
+            }
+
+            const ids = expired.map((m) => m._id);
+            await Message.deleteMany({ _id: { $in: ids } });
+            logger.info(`Disappearing-messages: removed ${ids.length} expired message(s)`);
+        } catch (error) {
+            logger.error('Error in disappearing-messages cron:', error);
+        }
+    }, 60 * 1000);
+};
+
+module.exports = { startMediaCleanupCron, startDisappearingMessagesCron };

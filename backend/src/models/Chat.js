@@ -58,6 +58,12 @@ const chatSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+    // Disappearing messages: 0 = off, otherwise seconds after which new
+    // messages in this chat auto-expire (e.g. 86400 = 24h, 604800 = 7d).
+    disappearingDuration: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,

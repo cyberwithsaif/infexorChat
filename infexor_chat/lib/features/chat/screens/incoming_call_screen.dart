@@ -57,11 +57,12 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen> {
 
     // Delay socket listener registration to avoid stale events
     // when app launches from terminated state via notification tap
-    _listenerDelayTimer = Timer(const Duration(seconds: 3), () {
+    _listenerDelayTimer = Timer(const Duration(seconds: 1), () {
       if (!mounted || _handled) return;
       final socketService = ref.read(socketServiceProvider);
       socketService.on('call:ended', _onCallCancelled);
       socketService.on('call:end', _onCallCancelled);
+      socketService.on('call:cancelled', _onCallCancelled);
     });
   }
 
@@ -142,6 +143,7 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen> {
     final socketService = ref.read(socketServiceProvider);
     socketService.removeHandler('call:ended', _onCallCancelled);
     socketService.removeHandler('call:end', _onCallCancelled);
+    socketService.removeHandler('call:cancelled', _onCallCancelled);
     super.dispose();
   }
 
@@ -200,6 +202,7 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen> {
     ref.read(socketServiceProvider).socket?.emit('call:reject', {
       'chatId': widget.chatId,
       'callerId': widget.callerId,
+      'isVideo': widget.isVideo,
     });
 
     final currentUserId = ref.read(authProvider).user?['_id']?.toString() ?? '';

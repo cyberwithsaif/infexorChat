@@ -17,7 +17,10 @@ import com.infexor.infexor_chat.ui.IncomingCallActivity
 class CallForegroundService : Service() {
 
     private val CHANNEL_ID = "CALL_CHANNEL_V4"
-    private val TIMEOUT = 30000L
+    // Ring slightly longer than the caller's give-up timeout (35s vs 30s) so the
+    // caller's call:cancel → call_cancel FCM stops the ringing cleanly; this is
+    // only the fallback that clears a stale ring if that signal never arrives.
+    private val TIMEOUT = 35000L
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
 

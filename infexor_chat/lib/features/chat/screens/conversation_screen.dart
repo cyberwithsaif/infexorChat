@@ -23,6 +23,7 @@ import '../services/socket_service.dart';
 import '../services/chat_service.dart';
 import '../services/user_service.dart';
 import '../services/media_service.dart';
+import '../../../core/services/chat_lock_service.dart';
 import '../widgets/attachment_picker.dart';
 import '../widgets/media_bubbles.dart';
 import '../widgets/gif_picker.dart';
@@ -109,6 +110,11 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   final Set<String> _seenMessageIds = {};
   final Set<String> _selectedMessageIds = {};
   Map<String, dynamic>? _replyMessage;
+  Map<String, dynamic>? _editingMessage;
+  int _disappearingDuration = 0; // seconds; 0 = off
+  bool _isChatLocked = false;
+  bool _lockGatePassed = false;
+  bool _unlockPrompted = false;
 
   // Add FocusNode to control keyboard state
   final FocusNode _focusNode = FocusNode();
@@ -142,6 +148,157 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     });
   }
 
+  /// Enter inline edit mode for a text message (WhatsApp-style): prefill the
+  /// composer with the current text and show an "Editing message" banner.
+  void _onEdit(Map<String, dynamic> msg) {
+    setState(() {
+      _editingMessage = msg;
+      _replyMessage = null; // editing and replying are mutually exclusive
+    });
+    _messageController.text = msg['content']?.toString() ?? '';
+    _messageController.selection = TextSelection.fromPosition(
+      TextPosition(offset: _messageController.text.length),
+    );
+    Future.microtask(() {
+      if (mounted) FocusScope.of(context).requestFocus(_focusNode);
+    });
+  }
+
+  void _cancelEdit() {
+    setState(() {
+      _editingMessage = null;
+    });
+    _messageController.clear();
+  }
+
+  /// Whether the single selected message can be edited by the current user
+  /// (own, plain text, not deleted). The 15-min window is enforced server-side.
+  bool _canEditSelected(List<Map<String, dynamic>> selected, String userId) {
+    if (selected.length != 1) return false;
+    final m = selected.first;
+    final senderId = (m['senderId'] is Map)
+        ? m['senderId']['_id']?.toString()
+        : m['senderId']?.toString();
+    return senderId == userId &&
+        (m['type'] ?? 'text') == 'text' &&
+        m['deletedForEveryone'] != true;
+  }
+
+  void _loadChatExtras() {
+    final chats = ref.read(chatListProvider).chats;
+    final chat = chats.firstWhere(
+      (c) => c['_id'] == widget.chatId,
+      orElse: () => <String, dynamic>{},
+    );
+    final dur = chat['disappearingDuration'];
+    if (dur is int && dur != _disappearingDuration && mounted) {
+      setState(() => _disappearingDuration = dur);
+    }
+  }
+
+  String _disappearingLabel(int seconds) {
+    switch (seconds) {
+      case 0:
+        return 'Off';
+      case 86400:
+        return '24 hours';
+      case 604800:
+        return '7 days';
+      case 7776000:
+        return '90 days';
+      default:
+        return 'On';
+    }
+  }
+
+  void _showDisappearingPicker() {
+    const options = <String, int>{
+      'Off': 0,
+      '24 hours': 86400,
+      '7 days': 604800,
+      '90 days': 7776000,
+    };
+    showModalBottomSheet<int>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'Disappearing messages',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+            ),
+            for (final entry in options.entries)
+              ListTile(
+                title: Text(entry.key),
+                trailing: _disappearingDuration == entry.value
+                    ? const Icon(Icons.check, color: AppColors.accentBlue)
+                    : null,
+                onTap: () => Navigator.pop(ctx, entry.value),
+              ),
+          ],
+        ),
+      ),
+    ).then((value) async {
+      if (value == null || value == _disappearingDuration) return;
+      setState(() => _disappearingDuration = value);
+      try {
+        await ref
+            .read(chatServiceProvider)
+            .setDisappearing(widget.chatId, value);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Disappearing messages: ${_disappearingLabel(value)}',
+              ),
+            ),
+          );
+        }
+      } catch (_) {}
+    });
+  }
+
+  Future<void> _toggleChatLock() async {
+    if (_isChatLocked) {
+      final ok = await ChatLockService.authenticate();
+      if (!ok || !mounted) return;
+      await ChatLockService.setLocked(widget.chatId, false);
+      if (mounted) {
+        setState(() => _isChatLocked = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Chat unlocked')));
+      }
+    } else {
+      await ChatLockService.setLocked(widget.chatId, true);
+      if (mounted) {
+        setState(() {
+          _isChatLocked = true;
+          _lockGatePassed = true; // it's open right now
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Chat locked. Unlock will be required next time.'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _promptUnlock() async {
+    final ok = await ChatLockService.authenticate();
+    if (!mounted) return;
+    if (ok) {
+      setState(() => _lockGatePassed = true);
+    } else {
+      Navigator.of(context).maybePop();
+    }
+  }
+
   void _clearSelection() {
     setState(() {
       _selectedMessageIds.clear();
@@ -161,6 +318,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   @override
   void initState() {
     super.initState();
+    // Chat lock: read synchronously so a locked chat never flashes its content.
+    _isChatLocked = ChatLockService.isLocked(widget.chatId);
+    _lockGatePassed = !_isChatLocked;
     Future.microtask(() {
       final notifService = ref.read(notificationServiceProvider);
       notifService.activeChatId = widget.chatId;
@@ -173,6 +333,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
       ref.read(messageProvider.notifier).openChat(widget.chatId);
       ref.read(messageProvider.notifier).initSocketListeners();
+      _loadChatExtras();
 
       // Check block status for 1:1 chats
       if (!widget.isGroup) {
@@ -271,6 +432,28 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
   void _sendMessage() {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
+
+    // Edit mode: update the existing message instead of sending a new one.
+    if (_editingMessage != null) {
+      final id = _editingMessage!['_id']?.toString();
+      _cancelEdit();
+      _stopTyping();
+      if (id != null) {
+        ref.read(messageProvider.notifier).editMessage(id, text).catchError((
+          _,
+        ) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Could not edit message')),
+            );
+          }
+        });
+      }
+      Future.microtask(() {
+        if (mounted) FocusScope.of(context).requestFocus(_focusNode);
+      });
+      return;
+    }
 
     ref
         .read(messageProvider.notifier)
@@ -478,6 +661,120 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         _handleLocationSend(position.latitude, position.longitude);
       },
       onContact: () => _handleContactSend(),
+      onPoll: _showCreatePoll,
+      onViewOnce: (xFile) => _handleViewOnceSend(xFile.path),
+      onLiveLocation: (position) =>
+          _handleLiveLocationSend(position.latitude, position.longitude),
+    );
+  }
+
+  Future<void> _handleViewOnceSend(String filePath) async {
+    _setUploading(true, type: 'image');
+    try {
+      final media = await ref
+          .read(mediaServiceProvider)
+          .uploadImage(filePath, onSendProgress: _onUploadProgress);
+      ref
+          .read(messageProvider.notifier)
+          .sendMediaMessage(type: 'image', media: media, viewOnce: true);
+      _scrollToBottom();
+    } catch (e) {
+      _showError('Failed to send photo');
+    } finally {
+      _setUploading(false);
+    }
+  }
+
+  void _handleLiveLocationSend(double latitude, double longitude) {
+    ref
+        .read(messageProvider.notifier)
+        .sendMediaMessage(
+          type: 'liveLocation',
+          content: 'Live location',
+          location: {'latitude': latitude, 'longitude': longitude},
+        );
+    _scrollToBottom();
+  }
+
+  void _showCreatePoll() {
+    final questionCtrl = TextEditingController();
+    final optionCtrls = [TextEditingController(), TextEditingController()];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => AlertDialog(
+          title: const Text('Create poll'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: questionCtrl,
+                  decoration: const InputDecoration(hintText: 'Ask a question'),
+                  textCapitalization: TextCapitalization.sentences,
+                ),
+                const SizedBox(height: 12),
+                for (int i = 0; i < optionCtrls.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: TextField(
+                      controller: optionCtrls[i],
+                      decoration: InputDecoration(hintText: 'Option ${i + 1}'),
+                    ),
+                  ),
+                if (optionCtrls.length < 6)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () =>
+                          setSheet(() => optionCtrls.add(TextEditingController())),
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add option'),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final question = questionCtrl.text.trim();
+                final options = optionCtrls
+                    .map((c) => c.text.trim())
+                    .where((t) => t.isNotEmpty)
+                    .toList();
+                if (question.isEmpty || options.length < 2) {
+                  ScaffoldMessenger.of(ctx).showSnackBar(
+                    const SnackBar(
+                      content: Text('Add a question and at least 2 options'),
+                    ),
+                  );
+                  return;
+                }
+                Navigator.pop(ctx);
+                ref
+                    .read(messageProvider.notifier)
+                    .sendMediaMessage(
+                      type: 'poll',
+                      content: question,
+                      poll: {
+                        'question': question,
+                        'options': options,
+                        'multiple': false,
+                      },
+                    );
+                _scrollToBottom();
+              },
+              child: const Text('Send'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -518,6 +815,43 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         ),
       ),
     );
+  }
+
+  /// Open a view-once photo. The recipient may open it exactly once; afterwards
+  /// the server scrubs the media and the bubble shows "Opened".
+  void _openViewOnce(Map<String, dynamic> msg) {
+    final media = msg['media'];
+    final url = (media is Map ? (media['url'] ?? '') : '').toString();
+    final id = msg['_id']?.toString();
+    final senderId =
+        (msg['senderId'] is Map ? msg['senderId']['_id'] : msg['senderId'])
+            ?.toString() ??
+        '';
+    final myId = ref.read(authProvider).user?['_id']?.toString() ?? '';
+    final isMine = senderId == myId;
+
+    if (url.isEmpty || msg['viewOnceOpened'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This photo can only be opened once')),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      ScaleFadePageRoute(
+        builder: (_) =>
+            ImageViewerScreen(imageUrl: url, senderName: '', caption: ''),
+      ),
+    );
+
+    // Recipient opening it scrubs the media server-side + notifies the sender.
+    if (!isMine && id != null) {
+      ref
+          .read(chatServiceProvider)
+          .markViewOnceViewed(widget.chatId, id)
+          .catchError((_) {});
+    }
   }
 
   Future<void> _handleVoicePlayPause(Map<String, dynamic> msg) async {
@@ -582,6 +916,42 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Chat lock gate: hide all content behind a biometric/device unlock.
+    if (_isChatLocked && !_lockGatePassed) {
+      if (!_unlockPrompted) {
+        _unlockPrompted = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) => _promptUnlock());
+      }
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF2563EB),
+          iconTheme: const IconThemeData(color: Colors.white),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.lock, size: 64, color: AppColors.accentBlue),
+              const SizedBox(height: 16),
+              const Text(
+                'This chat is locked',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: () {
+                  _unlockPrompted = true;
+                  _promptUnlock();
+                },
+                icon: const Icon(Icons.fingerprint),
+                label: const Text('Unlock'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final msgState = ref.watch(messageProvider);
     final currentUser = ref.watch(authProvider).user;
     final currentUserId = currentUser?['_id'] ?? '';
@@ -733,6 +1103,9 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                   ),
                 ),
 
+              // Pinned message banner
+              _buildPinnedBanner(msgState.messages, isDark),
+
               // Messages
               Expanded(
                 child: msgState.isLoading && msgState.messages.isEmpty
@@ -801,6 +1174,8 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                   isUploading: _isUploading,
                   replyMessage: _replyMessage,
                   onCancelReply: _cancelReply,
+                  editingMessage: _editingMessage,
+                  onCancelEdit: _cancelEdit,
                   onCamera: () async {
                     final picker = ImagePicker();
                     final photo = await picker.pickImage(
@@ -882,6 +1257,42 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                   : null;
               _clearSelection();
               if (msg != null) _onReply(msg);
+            },
+          ),
+        // Edit (own text message only — 15-min window enforced server-side)
+        if (_canEditSelected(selectedMessages, currentUserId))
+          IconButton(
+            icon: Icon(Icons.edit, color: textColor),
+            onPressed: () {
+              _removeEmojiOverlay();
+              final msg = selectedMessages.isNotEmpty
+                  ? selectedMessages.first
+                  : null;
+              _clearSelection();
+              if (msg != null) _onEdit(msg);
+            },
+          ),
+        // Pin / unpin (single message)
+        if (selectedCount == 1)
+          IconButton(
+            icon: Icon(
+              (selectedMessages.isNotEmpty &&
+                      selectedMessages.first['isPinned'] == true)
+                  ? Icons.push_pin
+                  : Icons.push_pin_outlined,
+              color: textColor,
+            ),
+            onPressed: () {
+              _removeEmojiOverlay();
+              final msg = selectedMessages.isNotEmpty
+                  ? selectedMessages.first
+                  : null;
+              _clearSelection();
+              if (msg != null && msg['_id'] != null) {
+                ref
+                    .read(messageProvider.notifier)
+                    .pinMessage(msg['_id'].toString());
+              }
             },
           ),
         // Star / Unstar
@@ -977,9 +1388,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         onPressed: () => Navigator.pop(context),
       ),
       title: InkWell(
-        onTap: () {
+        onTap: () async {
+          String? result;
           if (widget.isGroup) {
-            Navigator.push(
+            result = await Navigator.push(
               context,
               InfexorPageRoute(
                 page: GroupInfoScreen(groupId: _groupId, chatId: widget.chatId),
@@ -1013,7 +1425,7 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
               }
             }
 
-            Navigator.push(
+            result = await Navigator.push(
               context,
               InfexorPageRoute(
                 page: UserProfileScreen(
@@ -1022,6 +1434,13 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                   contactName: widget.chatName,
                 ),
               ),
+            );
+          }
+
+          if (result == 'open_search' && mounted) {
+            showSearch<String?>(
+              context: context,
+              delegate: ChatSearchDelegate(chatId: widget.chatId, ref: ref),
             );
           }
         },
@@ -1209,8 +1628,15 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
             }
           },
           child: const Padding(
-            padding: EdgeInsets.fromLTRB(8, 8, 12, 8),
+            padding: EdgeInsets.fromLTRB(8, 8, 4, 8),
             child: Icon(Icons.call_rounded, size: 20),
+          ),
+        ),
+        InkWell(
+          onTap: _showChatOptions,
+          child: const Padding(
+            padding: EdgeInsets.fromLTRB(4, 8, 8, 8),
+            child: Icon(Icons.more_vert, size: 22),
           ),
         ),
       ],
@@ -1291,6 +1717,26 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
                   );
                 },
               ),
+              ListTile(
+                leading: const Icon(Icons.timer_outlined),
+                title: const Text('Disappearing messages'),
+                subtitle: Text(_disappearingLabel(_disappearingDuration)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showDisappearingPicker();
+                },
+              ),
+              ListTile(
+                leading: Icon(
+                  _isChatLocked ? Icons.lock : Icons.lock_outline,
+                ),
+                title: Text(_isChatLocked ? 'Unlock chat' : 'Lock chat'),
+                subtitle: const Text('Require unlock to open this chat'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _toggleChatLock();
+                },
+              ),
               if (!widget.isGroup)
                 ListTile(
                   leading: const Icon(Icons.block, color: AppColors.danger),
@@ -1333,6 +1779,74 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
     );
   }
 
+  Widget _buildPinnedBanner(List<Map<String, dynamic>> messages, bool isDark) {
+    final pinned = messages.where((m) => m['isPinned'] == true).toList();
+    if (pinned.isEmpty) return const SizedBox.shrink();
+    final msg = pinned.last; // most recent pinned (list is chronological)
+    final type = (msg['type'] ?? 'text').toString();
+    String preview;
+    switch (type) {
+      case 'image':
+        preview = '📷 Photo';
+        break;
+      case 'video':
+        preview = '🎥 Video';
+        break;
+      case 'voice':
+      case 'audio':
+        preview = '🎤 Voice message';
+        break;
+      case 'document':
+        preview = '📄 Document';
+        break;
+      case 'location':
+        preview = '📍 Location';
+        break;
+      case 'poll':
+        preview = '📊 ${msg['poll']?['question'] ?? 'Poll'}';
+        break;
+      default:
+        preview = (msg['content'] ?? '').toString();
+    }
+    return Container(
+      color: isDark ? const Color(0xFF1E2B33) : Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
+        children: [
+          const Icon(Icons.push_pin, size: 16, color: AppColors.accentBlue),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Pinned message',
+                  style: TextStyle(fontSize: 11, color: AppColors.accentBlue),
+                ),
+                Text(
+                  preview,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 18),
+            tooltip: 'Unpin',
+            onPressed: () {
+              final id = msg['_id']?.toString();
+              if (id != null) {
+                ref.read(messageProvider.notifier).pinMessage(id);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMessageBubble(Map<String, dynamic> msg, bool isMe) {
     // If deleted for everyone, always show tombstone regardless of type field
     if (msg['deletedForEveryone'] == true) {
@@ -1344,11 +1858,17 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
 
     switch (type) {
       case 'image':
-        bubble = ImageBubble(
-          message: msg,
-          isMe: isMe,
-          onTap: () => _openImageViewer(msg),
-        );
+        bubble = (msg['viewOnce'] == true)
+            ? _ViewOnceBubble(
+                message: msg,
+                isMe: isMe,
+                onOpen: () => _openViewOnce(msg),
+              )
+            : ImageBubble(
+                message: msg,
+                isMe: isMe,
+                onTap: () => _openImageViewer(msg),
+              );
         break;
       case 'video':
         bubble = VideoBubble(
@@ -1389,6 +1909,23 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
       case 'location':
         bubble = LocationBubble(message: msg, isMe: isMe);
         break;
+      case 'liveLocation':
+        bubble = LocationBubble(message: msg, isMe: isMe, isLive: true);
+        break;
+      case 'poll':
+        bubble = _PollBubble(
+          message: msg,
+          isMe: isMe,
+          currentUserId:
+              ref.read(authProvider).user?['_id']?.toString() ?? '',
+          onVote: (i) {
+            final id = msg['_id']?.toString();
+            if (id != null) {
+              ref.read(messageProvider.notifier).votePoll(id, i);
+            }
+          },
+        );
+        break;
       case 'contact':
         bubble = ContactBubble(message: msg, isMe: isMe);
         break;
@@ -1400,7 +1937,51 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         );
         break;
       case 'system':
-        return _SystemMessageBubble(message: msg);
+        final content = msg['content']?.toString() ?? '';
+        final lowerContent = content.toLowerCase();
+        final isCallLog =
+            lowerContent.contains('video call') ||
+            lowerContent.contains('voice call') ||
+            lowerContent.contains('missed call') ||
+            lowerContent.contains('call ended') ||
+            lowerContent.contains('call declined');
+        if (isCallLog) {
+          final isMissedCall = lowerContent.contains('missed');
+          // "Tap to call back" — only for missed INCOMING calls (callee side)
+          VoidCallback? onCallBack;
+          if (isMissedCall && !isMe) {
+            final rawSender = msg['senderId'];
+            final callbackUserId = rawSender is Map
+                ? rawSender['_id']?.toString() ?? ''
+                : rawSender?.toString() ?? '';
+            final isVideoCall = lowerContent.contains('video');
+            if (callbackUserId.isNotEmpty) {
+              onCallBack = () {
+                Navigator.push(
+                  context,
+                  ScaleFadePageRoute(
+                    builder: (_) => CallPage(
+                      chatId: widget.chatId,
+                      userId: callbackUserId,
+                      callerName: widget.chatName,
+                      callerAvatar: widget.chatAvatar,
+                      isVideoCall: isVideoCall,
+                      isIncoming: false,
+                    ),
+                  ),
+                );
+              };
+            }
+          }
+          bubble = _CallMessageBubble(
+            message: msg,
+            isMe: isMe,
+            onCallBack: onCallBack,
+          );
+        } else {
+          return _SystemMessageBubble(message: msg);
+        }
+        break;
       case 'revoked':
         return _RevokedMessageBubble(message: msg, isMe: isMe);
       default:
@@ -1426,6 +2007,10 @@ class _ConversationScreenState extends ConsumerState<ConversationScreen> {
         if (msgId.isNotEmpty && _selectedMessageIds.isEmpty) {
           _toggleSelection(msgId);
           HapticFeedback.lightImpact();
+          // Show the quick-reaction bar above the message (WhatsApp-style).
+          // The picker, optimistic update and socket sync are already built;
+          // this is the gesture that was missing to actually trigger them.
+          _showEmojiReactionOverlay(context, msgId);
         }
       },
       onTap: () {
@@ -1960,6 +2545,205 @@ class _DateSeparator extends StatelessWidget {
   }
 }
 
+class _CallMessageBubble extends StatelessWidget {
+  final Map<String, dynamic> message;
+  final bool isMe;
+  final VoidCallback? onCallBack;
+
+  const _CallMessageBubble({
+    required this.message,
+    required this.isMe,
+    this.onCallBack,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final content = message['content']?.toString() ?? '';
+    final createdAt = message['createdAt'];
+    String timeStr = '';
+    if (createdAt != null) {
+      final dt = DateTime.parse(createdAt.toString()).toLocal();
+      timeStr = TimeOfDay.fromDateTime(dt).format(context);
+    }
+
+    final parts = content.split('|');
+    String titleRaw = parts[0];
+    final subtitleRaw = parts.length > 1 ? parts[1] : '';
+
+    final lowerTitle = titleRaw.toLowerCase();
+    final isMissed = lowerTitle.contains('missed');
+    final isDeclined = lowerTitle.contains('declined');
+    final isVideo = lowerTitle.contains('video');
+
+    // Handle plain "Call ended" or "Missed call" without prefix
+    if (!isVideo &&
+        !lowerTitle.contains('voice') &&
+        !lowerTitle.contains('video')) {
+      // Check if we can infer type from subtitle if title is generic
+      if (subtitleRaw.toLowerCase().contains('video')) {
+        titleRaw = isMissed
+            ? 'Missed video call'
+            : (isDeclined ? 'Declined video call' : 'Video call ended');
+      } else {
+        titleRaw = isMissed
+            ? 'Missed voice call'
+            : (isDeclined ? 'Declined voice call' : 'Voice call ended');
+      }
+    }
+
+    final isActuallyVideo = titleRaw.toLowerCase().contains('video');
+    final mainIcon = isActuallyVideo
+        ? Icons.videocam_rounded
+        : Icons.call_rounded;
+
+    // Icon box background & icon color
+    final Color iconBoxBg;
+    final Color iconColor;
+    if (isMissed) {
+      iconBoxBg = AppColors.danger;
+      iconColor = Colors.white;
+    } else if (isMe) {
+      iconBoxBg = Colors.black.withOpacity(0.22);
+      iconColor = Colors.white;
+    } else {
+      iconBoxBg = isDark
+          ? Colors.white.withOpacity(0.18)
+          : Colors.black.withOpacity(0.12);
+      iconColor = isDark ? Colors.white : Colors.black87;
+    }
+
+    // Directional arrow: outgoing = NE, missed incoming = SW, received = SE
+    final arrowIcon = isMe
+        ? Icons.north_east
+        : (isMissed ? Icons.south_west : Icons.south_east);
+
+    // Bubble background
+    final bgColor = isMe
+        ? (isDark ? AppColors.darkMsgSentBg : AppColors.msgSentBg)
+        : (isDark ? AppColors.darkBgSecondary : AppColors.bgCard);
+
+    final titleColor = isMe
+        ? Colors.white
+        : (isDark ? AppColors.darkTextPrimary : AppColors.textPrimary);
+
+    final subtitleColor = isMe
+        ? Colors.white.withOpacity(0.72)
+        : (isMissed
+              ? AppColors.danger
+              : (isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.textSecondary));
+
+    final timeColor = isMe
+        ? Colors.white.withOpacity(0.62)
+        : (isDark ? AppColors.darkTextSecondary : AppColors.textSecondary);
+
+    final subtitle = subtitleRaw.isEmpty
+        ? (isMissed ? 'Tap to call back' : '')
+        : subtitleRaw;
+
+    final borderRadius = BorderRadius.only(
+      topLeft: const Radius.circular(18),
+      topRight: const Radius.circular(18),
+      bottomLeft: Radius.circular(isMe ? 18 : 4),
+      bottomRight: Radius.circular(isMe ? 4 : 18),
+    );
+
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: GestureDetector(
+        onTap: onCallBack,
+        child: Container(
+          margin: EdgeInsets.only(
+            top: 2,
+            bottom: 2,
+            left: isMe ? 60 : 12,
+            right: isMe ? 12 : 60,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: borderRadius,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 3,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: IntrinsicWidth(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Rounded-rectangle icon box with directional arrow badge
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: iconBoxBg,
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Center(child: Icon(mainIcon, size: 22, color: iconColor)),
+                      Positioned(
+                        right: 4,
+                        bottom: 4,
+                        child: Icon(
+                          arrowIcon,
+                          size: 9,
+                          color: iconColor.withOpacity(0.85),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                // Title + subtitle
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      titleRaw,
+                      style: TextStyle(
+                        color: titleColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.1,
+                      ),
+                    ),
+                    if (subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 1),
+                      Text(
+                        subtitle,
+                        style: TextStyle(color: subtitleColor, fontSize: 12),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(width: 10),
+                // Timestamp aligned to bottom
+                Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Text(
+                    timeStr,
+                    style: TextStyle(fontSize: 10.5, color: timeColor),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SystemMessageBubble extends StatelessWidget {
   final Map<String, dynamic> message;
 
@@ -1969,6 +2753,15 @@ class _SystemMessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final content = message['content'] ?? '';
+    final isMissedCall = content.toLowerCase().contains('missed call');
+
+    Color textColor;
+    if (isMissedCall) {
+      textColor = AppColors.danger;
+    } else {
+      textColor = isDark ? AppColors.darkTextSecondary : AppColors.textMuted;
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Center(
@@ -1984,7 +2777,7 @@ class _SystemMessageBubble extends StatelessWidget {
             content,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: isDark ? AppColors.darkTextSecondary : AppColors.textMuted,
+              color: textColor,
               fontSize: 12,
               fontStyle: FontStyle.italic,
             ),
@@ -2078,6 +2871,17 @@ class _TextMessageBubble extends StatelessWidget {
                       color: isMe ? timeColorMe : timeColorOther,
                     ),
                     const SizedBox(width: 3),
+                  ],
+                  if (message['isEdited'] == true) ...[
+                    Text(
+                      'edited',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic,
+                        color: isMe ? timeColorMe : timeColorOther,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
                   ],
                   Text(
                     time,
@@ -2195,6 +2999,8 @@ class _InputBar extends StatefulWidget {
   final bool isUploading;
   final Map<String, dynamic>? replyMessage;
   final VoidCallback? onCancelReply;
+  final Map<String, dynamic>? editingMessage;
+  final VoidCallback? onCancelEdit;
   final VoidCallback? onCamera;
   final void Function(String, String)? onGifSelected;
 
@@ -2209,6 +3015,8 @@ class _InputBar extends StatefulWidget {
     this.isUploading = false,
     this.replyMessage,
     this.onCancelReply,
+    this.editingMessage,
+    this.onCancelEdit,
     this.onCamera,
     this.onGifSelected,
   });
@@ -2339,6 +3147,57 @@ class _InputBarState extends State<_InputBar> with TickerProviderStateMixin {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (widget.editingMessage != null)
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 4,
+                        height: 40,
+                        color: AppColors.accentBlue,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(
+                                  Icons.edit,
+                                  size: 13,
+                                  color: AppColors.accentBlue,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Editing message',
+                                  style: TextStyle(
+                                    color: AppColors.accentBlue,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              widget.editingMessage!['content']?.toString() ??
+                                  '',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: textColor.withValues(alpha: 0.7),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.close, color: iconColor),
+                        onPressed: widget.onCancelEdit,
+                      ),
+                    ],
+                  ),
+                ),
               if (widget.replyMessage != null)
                 Container(
                   padding: const EdgeInsets.all(8),
@@ -3181,6 +4040,242 @@ class _RevokedMessageBubble extends StatelessWidget {
                 color: mutedColor,
                 fontStyle: FontStyle.italic,
                 fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A view-once photo placeholder. Tapping opens it full-screen exactly once.
+class _ViewOnceBubble extends StatelessWidget {
+  final Map<String, dynamic> message;
+  final bool isMe;
+  final VoidCallback onOpen;
+
+  const _ViewOnceBubble({
+    required this.message,
+    required this.isMe,
+    required this.onOpen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final media = message['media'];
+    final opened =
+        message['viewOnceOpened'] == true ||
+        media == null ||
+        (media is Map && (media['url'] ?? '').toString().isEmpty);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isMe
+        ? const Color(0xFF2563EB)
+        : (isDark ? const Color(0xFF1E2B33) : Colors.white);
+    final fg = isMe
+        ? Colors.white
+        : (Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black);
+
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: GestureDetector(
+        onTap: opened ? null : onOpen,
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                opened
+                    ? Icons.no_photography_outlined
+                    : Icons.visibility_outlined,
+                size: 18,
+                color: fg,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                opened ? 'Opened' : 'View once photo',
+                style: TextStyle(
+                  color: fg,
+                  fontStyle: FontStyle.italic,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A poll bubble: question + tappable options with live vote bars.
+class _PollBubble extends StatelessWidget {
+  final Map<String, dynamic> message;
+  final bool isMe;
+  final String currentUserId;
+  final void Function(int) onVote;
+
+  const _PollBubble({
+    required this.message,
+    required this.isMe,
+    required this.currentUserId,
+    required this.onVote,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final poll = (message['poll'] is Map)
+        ? Map<String, dynamic>.from(message['poll'])
+        : <String, dynamic>{};
+    final question = (poll['question'] ?? message['content'] ?? 'Poll')
+        .toString();
+    final options = (poll['options'] is List)
+        ? List<Map<String, dynamic>>.from(
+            (poll['options']).map((o) => Map<String, dynamic>.from(o)),
+          )
+        : <Map<String, dynamic>>[];
+    int total = 0;
+    for (final o in options) {
+      total += (o['votes'] is List) ? (o['votes'] as List).length : 0;
+    }
+    final bg = isMe
+        ? const Color(0xFF2563EB)
+        : (isDark ? const Color(0xFF1E2B33) : Colors.white);
+    final fg = isMe
+        ? Colors.white
+        : (isDark ? Colors.white : const Color(0xFF1E293B));
+
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.78,
+        ),
+        margin: const EdgeInsets.symmetric(vertical: 2),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.poll_outlined,
+                  size: 16,
+                  color: fg.withValues(alpha: 0.8),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Poll',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: fg.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              question,
+              style: TextStyle(
+                color: fg,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 10),
+            for (int i = 0; i < options.length; i++)
+              _option(context, options[i], i, total, fg),
+            const SizedBox(height: 2),
+            Text(
+              '$total vote${total == 1 ? '' : 's'}',
+              style: TextStyle(fontSize: 11, color: fg.withValues(alpha: 0.6)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _option(
+    BuildContext context,
+    Map<String, dynamic> opt,
+    int index,
+    int total,
+    Color fg,
+  ) {
+    final text = (opt['text'] ?? '').toString();
+    final votes = (opt['votes'] is List) ? List.from(opt['votes']) : [];
+    final voted = votes.map((v) => v.toString()).contains(currentUserId);
+    final pct = total > 0 ? votes.length / total : 0.0;
+    final fill = isMe
+        ? Colors.white.withValues(alpha: 0.25)
+        : AppColors.accentBlue.withValues(alpha: 0.15);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GestureDetector(
+        onTap: () => onVote(index),
+        child: Stack(
+          children: [
+            Container(
+              height: 38,
+              decoration: BoxDecoration(
+                color: fg.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: fg.withValues(alpha: 0.15)),
+              ),
+            ),
+            FractionallySizedBox(
+              widthFactor: pct.clamp(0.0, 1.0),
+              child: Container(
+                height: 38,
+                decoration: BoxDecoration(
+                  color: fill,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+            Positioned.fill(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Row(
+                  children: [
+                    Icon(
+                      voted
+                          ? Icons.check_circle
+                          : Icons.radio_button_unchecked,
+                      size: 16,
+                      color: fg,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        text,
+                        style: TextStyle(color: fg, fontSize: 13),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      '${(pct * 100).round()}%',
+                      style: TextStyle(
+                        color: fg,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

@@ -540,6 +540,8 @@ class _ViewStatusScreenState extends ConsumerState<ViewStatusScreen>
                               ),
                               onPressed: () async {
                                 _progressController.stop();
+                                final messenger = ScaffoldMessenger.of(context);
+                                final navigator = Navigator.of(context);
                                 final confirm = await showDialog<bool>(
                                   context: context,
                                   builder: (ctx) => AlertDialog(
@@ -571,13 +573,13 @@ class _ViewStatusScreenState extends ConsumerState<ViewStatusScreen>
                                       .read(statusProvider.notifier)
                                       .deleteStatus(status['_id']);
                                   if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
+                                    messenger.showSnackBar(
                                       const SnackBar(
                                         content: Text('Status deleted'),
                                         duration: Duration(seconds: 2),
                                       ),
                                     );
-                                    Navigator.of(context).pop();
+                                    navigator.pop();
                                   }
                                 } else {
                                   if (mounted && !_isPopping) {

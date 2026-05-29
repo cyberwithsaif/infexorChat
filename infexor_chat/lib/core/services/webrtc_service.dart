@@ -31,8 +31,26 @@ class WebRTCService {
     'iceServers': [
       {'urls': 'stun:stun.l.google.com:19302'},
       {'urls': 'stun:stun1.l.google.com:19302'},
-      {'urls': 'stun:stun2.l.google.com:19302'},
-      {'urls': 'stun:stun3.l.google.com:19302'},
+      {
+        'urls': 'turn:a.relay.metered.ca:80',
+        'username': 'e8dd65a92f3c0aba0854d0e2',
+        'credential': 'SJ/apLMCa0Rl3KnY',
+      },
+      {
+        'urls': 'turn:a.relay.metered.ca:80?transport=tcp',
+        'username': 'e8dd65a92f3c0aba0854d0e2',
+        'credential': 'SJ/apLMCa0Rl3KnY',
+      },
+      {
+        'urls': 'turn:a.relay.metered.ca:443',
+        'username': 'e8dd65a92f3c0aba0854d0e2',
+        'credential': 'SJ/apLMCa0Rl3KnY',
+      },
+      {
+        'urls': 'turns:a.relay.metered.ca:443',
+        'username': 'e8dd65a92f3c0aba0854d0e2',
+        'credential': 'SJ/apLMCa0Rl3KnY',
+      },
     ],
   };
 
@@ -61,7 +79,9 @@ class WebRTCService {
     Future.delayed(const Duration(milliseconds: 800), () {
       Helper.setSpeakerphoneOn(speaker);
     });
-    debugPrint('📞 WebRTC: Audio routing → ${speaker ? "SPEAKER" : "EARPIECE"}');
+    debugPrint(
+      '📞 WebRTC: Audio routing → ${speaker ? "SPEAKER" : "EARPIECE"}',
+    );
   }
 
   /// Start an outgoing call (caller side)
@@ -246,10 +266,15 @@ class WebRTCService {
       final candidateMap = data['candidate'];
       if (candidateMap == null) return;
 
+      final sdpMLineIndexVal = candidateMap['sdpMLineIndex'];
+      final sdpMLineIndex = sdpMLineIndexVal is String
+          ? int.tryParse(sdpMLineIndexVal)
+          : (sdpMLineIndexVal as int?);
+
       final candidate = RTCIceCandidate(
         candidateMap['candidate'],
         candidateMap['sdpMid'],
-        candidateMap['sdpMLineIndex'],
+        sdpMLineIndex,
       );
 
       // If remote description isn't set yet, queue the candidate

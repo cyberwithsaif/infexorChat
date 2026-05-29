@@ -155,6 +155,39 @@ exports.unblockUser = async (req, res, next) => {
 };
 
 /**
+ * POST /users/report/:userId
+ * Submit a report against a user (consumed by the admin panel's Reports view)
+ */
+exports.reportUser = async (req, res, next) => {
+  try {
+    const targetId = req.params.userId;
+    const { reason, description } = req.body;
+
+    if (targetId === req.user.userId) {
+      return ApiResponse.badRequest(res, 'Cannot report yourself');
+    }
+
+    const target = await User.findById(targetId).select('_id');
+    if (!target) {
+      return ApiResponse.notFound(res, 'User not found');
+    }
+
+    const { Report } = require('../models');
+    await Report.create({
+      reporterId: req.user.userId,
+      targetType: 'user',
+      targetId,
+      reason: reason || 'other',
+      description: (description || '').toString().slice(0, 500),
+    });
+
+    return ApiResponse.success(res, null, 'Report submitted. Thank you.');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * GET /users/blocked
  * Get blocked users list
  */

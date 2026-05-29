@@ -70,15 +70,16 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       builder: (ctx) {
         final dlgTheme = Theme.of(ctx);
         final dlgIsDark = dlgTheme.brightness == Brightness.dark;
-        final dlgTextColor = dlgTheme.textTheme.bodyLarge?.color ?? Colors.black;
-        final dlgSubtitleColor = dlgTheme.textTheme.bodyMedium?.color ?? Colors.grey;
-        final dlgCardColor = dlgIsDark ? AppColors.darkBgSecondary : AppColors.bgCard;
+        final dlgTextColor =
+            dlgTheme.textTheme.bodyLarge?.color ?? Colors.black;
+        final dlgSubtitleColor =
+            dlgTheme.textTheme.bodyMedium?.color ?? Colors.grey;
+        final dlgCardColor = dlgIsDark
+            ? AppColors.darkBgSecondary
+            : AppColors.bgCard;
         return AlertDialog(
           backgroundColor: dlgCardColor,
-          title: Text(
-            'Remove Member',
-            style: TextStyle(color: dlgTextColor),
-          ),
+          title: Text('Remove Member', style: TextStyle(color: dlgTextColor)),
           content: Text(
             'Remove $memberName from this group?',
             style: TextStyle(color: dlgSubtitleColor),
@@ -144,15 +145,16 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       builder: (ctx) {
         final dlgTheme = Theme.of(ctx);
         final dlgIsDark = dlgTheme.brightness == Brightness.dark;
-        final dlgTextColor = dlgTheme.textTheme.bodyLarge?.color ?? Colors.black;
-        final dlgSubtitleColor = dlgTheme.textTheme.bodyMedium?.color ?? Colors.grey;
-        final dlgCardColor = dlgIsDark ? AppColors.darkBgSecondary : AppColors.bgCard;
+        final dlgTextColor =
+            dlgTheme.textTheme.bodyLarge?.color ?? Colors.black;
+        final dlgSubtitleColor =
+            dlgTheme.textTheme.bodyMedium?.color ?? Colors.grey;
+        final dlgCardColor = dlgIsDark
+            ? AppColors.darkBgSecondary
+            : AppColors.bgCard;
         return AlertDialog(
           backgroundColor: dlgCardColor,
-          title: Text(
-            'Leave Group',
-            style: TextStyle(color: dlgTextColor),
-          ),
+          title: Text('Leave Group', style: TextStyle(color: dlgTextColor)),
           content: Text(
             'Are you sure you want to leave this group?',
             style: TextStyle(color: dlgSubtitleColor),
@@ -303,10 +305,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                     ),
                     child: Text(
                       groupDesc,
-                      style: TextStyle(
-                        color: subtitleColor,
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: subtitleColor, fontSize: 14),
                     ),
                   ),
 
@@ -333,6 +332,11 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                             ),
                           ),
                         ),
+                      ),
+                      _ActionButton(
+                        icon: Icons.search_rounded,
+                        label: 'Search',
+                        onTap: () => Navigator.pop(context, 'open_search'),
                       ),
                       if (_isAdmin)
                         _ActionButton(
@@ -414,9 +418,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                       child: avatar.isEmpty
                           ? Text(
                               name.isNotEmpty ? name[0].toUpperCase() : '?',
-                              style: TextStyle(
-                                color: subtitleColor,
-                              ),
+                              style: TextStyle(color: subtitleColor),
                             )
                           : null,
                     ),
@@ -430,10 +432,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                           decoration: BoxDecoration(
                             color: AppColors.online,
                             shape: BoxShape.circle,
-                            border: Border.all(
-                              color: bgColor,
-                              width: 2,
-                            ),
+                            border: Border.all(color: bgColor, width: 2),
                           ),
                         ),
                       ),
@@ -485,9 +484,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                                   : 'make_admin',
                               child: Text(
                                 role == 'admin' ? 'Remove admin' : 'Make admin',
-                                style: TextStyle(
-                                  color: textColor,
-                                ),
+                                style: TextStyle(color: textColor),
                               ),
                             ),
                           PopupMenuItem(

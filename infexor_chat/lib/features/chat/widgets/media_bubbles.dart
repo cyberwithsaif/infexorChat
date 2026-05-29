@@ -902,12 +902,14 @@ class LocationBubble extends StatelessWidget {
   final Map<String, dynamic> message;
   final bool isMe;
   final VoidCallback? onTap;
+  final bool isLive;
 
   const LocationBubble({
     super.key,
     required this.message,
     required this.isMe,
     this.onTap,
+    this.isLive = false,
   });
 
   @override
@@ -960,19 +962,50 @@ class LocationBubble extends StatelessWidget {
                 height: 150,
                 width: double.infinity,
                 color: AppColors.bgHover,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                child: Stack(
                   children: [
-                    const Icon(
-                      Icons.location_on_rounded,
-                      color: AppColors.danger,
-                      size: 36,
+                    Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            isLive
+                                ? Icons.my_location_rounded
+                                : Icons.location_on_rounded,
+                            color: AppColors.danger,
+                            size: 36,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}',
+                            style: TextStyle(fontSize: 12, color: subtitleColor),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}',
-                      style: TextStyle(fontSize: 12, color: subtitleColor),
-                    ),
+                    if (isLive)
+                      Positioned(
+                        top: 8,
+                        left: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.danger,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Text(
+                            '● LIVE',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),

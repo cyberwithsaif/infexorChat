@@ -5,17 +5,23 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.PictureInPictureParams
+import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.util.Rational
 import androidx.core.app.NotificationCompat
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity() {
+// FlutterFragmentActivity (not FlutterActivity) is required by local_auth so the
+// biometric / device-credential prompt can attach to a FragmentActivity.
+class MainActivity : FlutterFragmentActivity() {
     private val CHANNEL = "com.infexor.infexor_chat/calls"
     private val ONGOING_CHANNEL_ID = "ONGOING_CALL_CHANNEL"
     private val ONGOING_NOTIFICATION_ID = 201
@@ -51,8 +57,8 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 }
             } else if (call.method == "endCall") {
-                val serviceIntent = Intent(context, com.infexor.infexor_chat.service.CallForegroundService::class.java)
-                context.stopService(serviceIntent)
+                val serviceIntent = Intent(applicationContext, com.infexor.infexor_chat.service.CallForegroundService::class.java)
+                applicationContext.stopService(serviceIntent)
                 result.success(null)
             } else if (call.method == "enterPiP") {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -77,9 +83,58 @@ class MainActivity : FlutterActivity() {
                 result.success(null)
             } else if (call.method == "setLoggedIn") {
                 val isLoggedIn = call.argument<Boolean>("value") ?: false
-                val prefs = context.getSharedPreferences("InfexorPrefs", android.content.Context.MODE_PRIVATE)
+                val prefs = applicationContext.getSharedPreferences("InfexorPrefs", android.content.Context.MODE_PRIVATE)
                 prefs.edit().putBoolean("is_logged_in", isLoggedIn).apply()
                 result.success(null)
+            } else if (call.method == "canUseFullScreenIntent") {
+                // Android 14 (API 34) gates full-screen incoming-call UI behind a
+                // dedicated permission. Below 34 it is always allowed.
+                if (Build.VERSION.SDK_INT >= 34) {
+                    val nm = getSystemService(NotificationManager::class.java)
+                    result.success(nm.canUseFullScreenIntent())
+                } else {
+                    result.success(true)
+                }
+            } else if (call.method == "openFullScreenIntentSettings") {
+                if (Build.VERSION.SDK_INT >= 34) {
+                    try {
+                        startActivity(
+                            Intent(
+                                Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT,
+                                Uri.parse("package:$packageName")
+                            )
+                        )
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.success(false)
+                    }
+                } else {
+                    result.success(true)
+                }
+            } else if (call.method == "isIgnoringBatteryOptimizations") {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                    result.success(pm.isIgnoringBatteryOptimizations(packageName))
+                } else {
+                    result.success(true)
+                }
+            } else if (call.method == "requestIgnoreBatteryOptimizations") {
+                try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+                        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                            startActivity(
+                                Intent(
+                                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                    Uri.parse("package:$packageName")
+                                )
+                            )
+                        }
+                    }
+                    result.success(true)
+                } catch (e: Exception) {
+                    result.success(false)
+                }
             } else {
                 result.notImplemented()
             }
